@@ -6,8 +6,10 @@ use crate::viewport::Viewport;
 use lc_core::command::DocKind;
 use lc_core::project::Project;
 
+use serde::{Deserialize, Serialize};
+
 /// Unique identifier for dockable panels (e.g. Project, Layers, Console, Palette).
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct PanelId(pub String);
 
 impl PanelId {

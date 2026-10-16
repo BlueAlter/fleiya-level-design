@@ -21,4 +21,6 @@ lc_feature_entities = { workspace = true }
 lc_feature_world = { workspace = true }
 egui = { workspace = true }
 egui_dock = { workspace = true }
+glam = { workspace = true }
+serde = { workspace = true }
 tracing = { workspace = true }

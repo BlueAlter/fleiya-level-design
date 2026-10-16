@@ -1824,6 +1824,7 @@ version = "0.1.0"
 dependencies = [
  "egui",
  "egui_dock",
+ "glam",
  "lc_canvas",
  "lc_core",
  "lc_feature_entities",
@@ -1834,6 +1835,7 @@ dependencies = [
  "lc_feature_world",
  "lc_io",
  "lc_ui_api",
+ "serde",
  "tracing",
 ]
 
@@ -1844,6 +1846,7 @@ dependencies = [
  "egui",
  "glam",
  "lc_core",
+ "serde",
  "thiserror 2.0.21",
  "tracing",
 ]

@@ -1,9 +1,14 @@
 use eframe::egui;
+use lc_shell::ShellApp;
 
-struct LevelCraftApp;
+struct LevelCraftApp {
+    shell: ShellApp,
+}
 
 impl eframe::App for LevelCraftApp {
-    fn ui(&mut self, _ui: &mut egui::Ui, _frame: &mut eframe::Frame) {}
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.shell.ui(ui);
+    }
 }
 
 fn main() -> eframe::Result {
@@ -11,6 +16,10 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Level Craft",
         native_options,
-        Box::new(|_cc| Ok(Box::new(LevelCraftApp))),
+        Box::new(|_cc| {
+            Ok(Box::new(LevelCraftApp {
+                shell: ShellApp::default(),
+            }))
+        }),
     )
 }
