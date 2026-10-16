@@ -158,3 +158,24 @@ fn test_screen_to_grid_and_grid_to_screen() {
     let cell = vp.screen_to_grid(egui::pos2(35.0, 50.0), level_pos, grid_size);
     assert_eq!(cell, IVec2::new(2, 3));
 }
+
+#[test]
+fn test_screen_to_world_f32_precision() {
+    let mut vp = Viewport::new(egui::Rect::from_min_size(
+        egui::pos2(0.0, 0.0),
+        egui::vec2(800.0, 600.0),
+    ));
+    vp.set_zoom(2.0);
+    vp.pan = egui::vec2(10.0, 20.0);
+
+    // Screen point with fractional sub-pixel
+    let screen = egui::pos2(15.5, 25.5);
+    let world_f = vp.screen_to_world_f32(screen);
+    // (15.5 - 10) / 2 = 2.75, (25.5 - 20) / 2 = 2.75
+    assert!((world_f.x - 2.75).abs() < 1e-5);
+    assert!((world_f.y - 2.75).abs() < 1e-5);
+
+    // Integer version floors 2.75 to 2
+    let world_i = vp.screen_to_world(screen);
+    assert_eq!(world_i, IVec2::new(2, 2));
+}

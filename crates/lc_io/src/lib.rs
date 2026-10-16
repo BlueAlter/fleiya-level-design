@@ -16,5 +16,5 @@ pub mod migrate;
 
 pub use error::IoError;
 pub use format::{LevelFile, LevelManifestEntry, ProjectFile, WorldFile, WorldManifestEntry};
-pub use io::{load_project, save_project, SUPPORTED_VERSION};
+pub use io::{load_project, read_bytes, save_project, SUPPORTED_VERSION};
 pub use log::{RotatingLogConfig, RotatingLogWriter};

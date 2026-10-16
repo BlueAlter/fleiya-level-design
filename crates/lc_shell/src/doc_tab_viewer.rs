@@ -4,8 +4,10 @@ use egui::{Id, Ui, WidgetText};
 use egui_dock::TabViewer;
 use lc_core::command::{Command, DocKind, UndoStack};
 use lc_core::project::Project;
+use lc_ui_api::assets::AssetService;
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
+use lc_ui_api::session::SessionState;
 use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 
@@ -14,8 +16,10 @@ pub struct DocTabViewer<'a> {
     pub project: &'a Project,
     pub open_documents: &'a mut HashMap<DocKind, Box<dyn DocumentView>>,
     pub undo_stack: &'a UndoStack,
+    pub session: &'a SessionState,
     pub events: &'a mut Vec<EditorEvent>,
     pub pending_commands: &'a mut Vec<Box<dyn Command>>,
+    pub assets: &'a dyn AssetService,
     pub is_dirty: bool,
 }
 
@@ -45,8 +49,10 @@ impl<'a> TabViewer for DocTabViewer<'a> {
             let mut cx = EditorCtx::new(
                 self.project,
                 self.undo_stack,
+                self.session,
                 self.events,
                 self.pending_commands,
+                self.assets,
             );
             doc.ui(ui, &mut cx);
         } else {

@@ -88,6 +88,11 @@ impl Registry {
             .map(|h| h.as_ref())
     }
 
+    /// Alias for [`Registry::layer_handler`], finding the registered layer handler for a specific `LayerKind`.
+    pub fn find_layer_handler(&self, kind: LayerKind) -> Option<&dyn LayerHandler> {
+        self.layer_handler(kind)
+    }
+
     /// Returns a slice of all registered layer handlers.
     pub fn layer_handlers(&self) -> &[Box<dyn LayerHandler>] {
         &self.layer_handlers

@@ -13,4 +13,6 @@ skills: [incremental-implementation, test-driven-development, source-driven-deve
 LayerDef tab (kind, grid size, tileset link, IntGrid values) and Layers panel following the active level tab (visibility toggle, reorder, select active layer).
 ## Acceptance criteria
 - [ ] Add/edit/remove/reorder via Commands with revert tests.
-- [ ] Active layer exposed through EditorCtx selection; panel shows empty state with no active level.
+- [ ] Active level read via `cx.active_level()`; panel displays empty state when `cx.active_level()` is `None`.
+- [ ] Layer selection updates session state via `EditorEvent::SetActiveLayer(Some(id))` and is readable via `cx.active_layer()`.
+

@@ -129,23 +129,16 @@ impl RotatingLogWriter {
         let current_len = guard.as_ref().map(|s| s.current_size).unwrap_or(0);
 
         if current_len.saturating_add(buf.len() as u64) > self.config.max_bytes {
-            // Drop current file handle to release file locks
-            drop(guard);
+            // Close active file handle before rotation to release OS locks, while keeping mutex held
+            *guard = None;
             self.rotate_files();
-
-            let mut fresh_guard = match self.state.lock() {
-                Ok(g) => g,
-                Err(_) => return Ok(buf.len()),
-            };
-            *fresh_guard = Self::init_file(&self.config);
-            guard = fresh_guard;
+            *guard = Self::init_file(&self.config);
         }
 
         if let Some(state) = guard.as_mut() {
-            let written = state.file.write(buf)?;
-            state.current_size = state.current_size.saturating_add(written as u64);
-            let _ = state.file.flush();
-            Ok(written)
+            state.file.write_all(buf)?;
+            state.current_size = state.current_size.saturating_add(buf.len() as u64);
+            Ok(buf.len())
         } else {
             Ok(buf.len())
         }

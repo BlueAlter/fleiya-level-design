@@ -73,11 +73,27 @@ impl Viewport {
     }
 
     /// Converts screen-space coordinates to integer world coordinates (pixels).
+    ///
+    /// Uses `.floor()` to ensure mathematically correct rounding for both positive and negative world coordinates.
+    ///
+    /// ### Quantization and Sub-pixel Placement Note
+    /// When `zoom < 1.0` (zoomed out), one screen pixel corresponds to `1.0 / zoom` world units (e.g. at 50% zoom,
+    /// 1 screen pixel = 2 world pixels). Consequently, screen cursor movements quantize across world pixels, and
+    /// multiple adjacent screen pixels map to the same integer coordinate. For smooth continuous manipulation
+    /// (such as rulers or vector gizmos), use [`Self::screen_to_world_f32`].
     pub fn screen_to_world(&self, screen: egui::Pos2) -> IVec2 {
         let rel = screen - self.screen_rect.min - self.pan;
         let wx = (rel.x / self.zoom).floor() as i32;
         let wy = (rel.y / self.zoom).floor() as i32;
         IVec2::new(wx, wy)
+    }
+
+    /// Converts screen-space coordinates to continuous floating-point world coordinates.
+    ///
+    /// Useful for smooth sub-pixel gizmos, vector previews, or floating-point interpolations.
+    pub fn screen_to_world_f32(&self, screen: egui::Pos2) -> glam::Vec2 {
+        let rel = screen - self.screen_rect.min - self.pan;
+        glam::Vec2::new(rel.x / self.zoom, rel.y / self.zoom)
     }
 
     /// Converts integer world coordinates (pixels) to screen-space coordinates.

@@ -1,20 +1,22 @@
 //! Central shell application managing docking layout, menu, status bar, and document tabs.
 
-use egui::{CentralPanel, Context, Id, Key, Panel, Ui};
+use egui::{CentralPanel, Id, Panel, Ui};
 use egui_dock::{DockArea, DockState};
 use glam::IVec2;
 use lc_core::command::{Command, DocKind, UndoStack};
 use lc_core::project::Project;
-use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
 use lc_ui_api::registry::Registry;
 use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::assets::ShellAssetService;
 use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
 use crate::doc_tab_viewer::DocTabViewer;
-use crate::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
+use crate::dock_layout::{DockSlotLocation, ShellDockLayout};
+use lc_ui_api::session::SessionState;
+use std::sync::Arc;
 
 /// Main application shell orchestrating panels, document tabs, commands, and layout.
 pub struct ShellApp {
@@ -36,6 +38,10 @@ pub struct ShellApp {
     pub events: Vec<EditorEvent>,
     /// Queue of commands submitted for execution during frame rendering.
     pub pending_commands: Vec<Box<dyn Command>>,
+    /// Shared session state readable by panels, tools, and inspector sections.
+    pub session: SessionState,
+    /// Asset and texture service.
+    pub assets: Arc<ShellAssetService>,
     /// Current status bar notification message.
     pub status_message: String,
     /// Active canvas tool name shown in status bar.
@@ -76,6 +82,8 @@ impl ShellApp {
         registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
         registry.register_panel(Box::new(crate::project_panel::ProjectPanel::new()));
 
+        let assets = Arc::new(ShellAssetService::new());
+
         Self {
             project,
             project_path: None,
@@ -86,6 +94,8 @@ impl ShellApp {
             dock_layout: ShellDockLayout::default(),
             events: Vec::new(),
             pending_commands: Vec::new(),
+            session: SessionState::default(),
+            assets,
             status_message: "Ready".to_string(),
             active_tool_name: "Select".to_string(),
             cursor_grid_pos: None,
@@ -120,6 +130,8 @@ impl ShellApp {
     pub fn save_project_to_path(&mut self, path: &std::path::Path) -> Result<(), lc_io::IoError> {
         lc_io::save_project(&self.project, path)?;
         self.project_path = Some(path.to_path_buf());
+        self.assets
+            .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.is_dirty = false;
         self.status_message = format!("Project saved to {}", path.display());
         Ok(())
@@ -130,6 +142,8 @@ impl ShellApp {
         let loaded = lc_io::load_project(path)?;
         self.project = loaded;
         self.project_path = Some(path.to_path_buf());
+        self.assets
+            .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.undo_stack.clear();
         self.open_documents.clear();
         self.dock_state = DockState::new(Vec::new());
@@ -166,20 +180,40 @@ impl ShellApp {
     pub fn close_document(&mut self, kind: &DocKind) {
         self.open_documents.remove(kind);
         self.dock_state.retain_tabs(|t| t != kind);
+        if self.session.active_document == Some(*kind) {
+            self.session.active_document = None;
+            if let DocKind::Level(_) = kind {
+                self.session.active_level = None;
+            }
+        }
     }
 
     /// Triggers an undo step.
     pub fn undo(&mut self) {
-        if let Some((label, _focus)) = self.undo_stack.undo(&mut self.project) {
+        if let Some((label, focus)) = self.undo_stack.undo(&mut self.project) {
             self.status_message = format!("Undo: {label}");
+            if let Some(doc) = focus {
+                self.open_document(doc);
+                self.session.active_document = Some(doc);
+                if let DocKind::Level(lid) = doc {
+                    self.session.active_level = Some(lid);
+                }
+            }
         }
     }
 
     /// Triggers a redo step.
     pub fn redo(&mut self) {
         match self.undo_stack.redo(&mut self.project) {
-            Ok(Some((label, _focus))) => {
+            Ok(Some((label, focus))) => {
                 self.status_message = format!("Redo: {label}");
+                if let Some(doc) = focus {
+                    self.open_document(doc);
+                    self.session.active_document = Some(doc);
+                    if let DocKind::Level(lid) = doc {
+                        self.session.active_level = Some(lid);
+                    }
+                }
             }
             Ok(None) => {}
             Err(e) => {
@@ -197,16 +231,22 @@ impl ShellApp {
 
     /// Renders the complete shell UI inside a top-level egui `Ui`.
     pub fn ui(&mut self, ui: &mut Ui) {
-        self.handle_shortcuts(ui.ctx());
+        // Ensure registered panels are tracked in dock layout
+        for panel in self.registry.panels() {
+            self.dock_layout
+                .ensure_panel(panel.id(), DockSlotLocation::Left);
+        }
+
+        crate::menu::handle_global_shortcuts(self, ui.ctx());
 
         // 1. Top menu bar
         Panel::top("menu_bar").show(ui, |ui| {
-            self.render_menu_bar(ui);
+            crate::menu::render_menu_bar(self, ui);
         });
 
         // 2. Bottom status bar
         Panel::bottom("status_bar").show(ui, |ui| {
-            self.render_status_bar(ui);
+            crate::status_bar::render_status_bar(self, ui);
         });
 
         // 3. Left dock panel
@@ -215,7 +255,7 @@ impl ShellApp {
                 .resizable(true)
                 .default_size(220.0)
                 .show(ui, |ui| {
-                    self.render_dock_slot(ui, DockSlotLocation::Left);
+                    crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Left);
                 });
         }
 
@@ -225,12 +265,12 @@ impl ShellApp {
                 .resizable(true)
                 .default_size(260.0)
                 .show(ui, |ui| {
-                    self.render_dock_slot(ui, DockSlotLocation::Right);
+                    crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Right);
                 });
         }
 
         // 5. Bottom dock (collapsible)
-        self.render_bottom_dock(ui);
+        crate::dock_panels::render_bottom_dock(self, ui);
 
         // 6. Central document area (egui_dock)
         CentralPanel::default().show(ui, |ui| {
@@ -239,327 +279,37 @@ impl ShellApp {
 
         // 7. Process deferred commands and events
         self.process_commands_and_events();
-    }
 
-    fn handle_shortcuts(&mut self, ctx: &Context) {
-        ctx.input(|i| {
-            // Ctrl+` (Backtick): Toggle bottom dock
-            if i.modifiers.ctrl && i.key_pressed(Key::Backtick) {
-                self.dock_layout.toggle_bottom_dock();
-            }
-
-            // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
-            if i.modifiers.ctrl && i.key_pressed(Key::Z) {
-                if i.modifiers.shift {
-                    self.redo();
-                } else {
-                    self.undo();
-                }
-            } else if i.modifiers.ctrl && i.key_pressed(Key::Y) {
-                self.redo();
-            }
-
-            // Ctrl+S: Save
-            if i.modifiers.ctrl && i.key_pressed(Key::S) {
-                self.events.push(EditorEvent::SaveProject);
-            }
-        });
-    }
-
-    fn render_menu_bar(&mut self, ui: &mut Ui) {
-        egui::MenuBar::new().ui(ui, |ui| {
-            ui.menu_button("File", |ui| {
-                if ui.button("New").clicked() {
-                    self.project = Project::new("Untitled");
-                    self.undo_stack.clear();
-                    self.open_documents.clear();
-                    self.dock_state = DockState::new(Vec::new());
-                    self.is_dirty = false;
-                    self.status_message = "New project created".to_string();
-                    ui.close();
-                }
-                if ui.button("Save (Ctrl+S)").clicked() {
-                    self.events.push(EditorEvent::SaveProject);
-                    ui.close();
-                }
-            });
-
-            ui.menu_button("Edit", |ui| {
-                let undo_label = self
-                    .undo_stack
-                    .undo_label()
-                    .map(|l| format!("Undo {l} (Ctrl+Z)"))
-                    .unwrap_or_else(|| "Undo (Ctrl+Z)".to_string());
-                if ui
-                    .add_enabled(self.undo_stack.can_undo(), egui::Button::new(undo_label))
-                    .clicked()
-                {
-                    self.undo();
-                    ui.close();
-                }
-
-                let redo_label = self
-                    .undo_stack
-                    .redo_label()
-                    .map(|l| format!("Redo {l} (Ctrl+Y)"))
-                    .unwrap_or_else(|| "Redo (Ctrl+Y)".to_string());
-                if ui
-                    .add_enabled(self.undo_stack.can_redo(), egui::Button::new(redo_label))
-                    .clicked()
-                {
-                    self.redo();
-                    ui.close();
-                }
-            });
-
-            ui.menu_button("View", |ui| {
-                let bottom_label = if self.dock_layout.bottom.collapsed {
-                    "Expand Bottom Dock (Ctrl+`)"
-                } else {
-                    "Collapse Bottom Dock (Ctrl+`)"
-                };
-                if ui.button(bottom_label).clicked() {
-                    self.dock_layout.toggle_bottom_dock();
-                    ui.close();
-                }
-
-                if ui.button("Reset Layout").clicked() {
-                    self.reset_layout();
-                    ui.close();
-                }
-            });
-        });
-    }
-
-    fn render_status_bar(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            // 1. Grid coordinates
-            if let Some(pos) = self.cursor_grid_pos {
-                ui.label(format!("Grid: [{}, {}]", pos.x, pos.y));
-            } else {
-                ui.label("Grid: -");
-            }
-            ui.separator();
-
-            // 2. Zoom percentage
-            ui.label(format!("{:.0}%", self.zoom_level * 100.0));
-            ui.separator();
-
-            // 3. Active tool
-            ui.label(&self.active_tool_name);
-            ui.separator();
-
-            // 4. Dirty indicator
-            if self.is_dirty() {
-                ui.colored_label(egui::Color32::from_rgb(255, 180, 50), "* Unsaved changes");
-            } else {
-                ui.colored_label(egui::Color32::GRAY, "Saved");
-            }
-            ui.separator();
-
-            // 5. Status message
-            ui.label(&self.status_message);
-        });
-    }
-
-    fn render_bottom_dock(&mut self, ui: &mut Ui) {
-        if self.dock_layout.bottom.panels.is_empty() {
-            return;
-        }
-
-        let is_collapsed = self.dock_layout.bottom.collapsed;
-        let height = if is_collapsed {
-            BottomDockState::COLLAPSED_HEIGHT
-        } else {
-            self.dock_layout.bottom.height
-        };
-
-        let bar_id = Id::new("bottom_dock");
-        if !is_collapsed {
-            if let Some(mut state) = egui::panel::PanelState::load(ui.ctx(), bar_id) {
-                if state.outer_rect.height() < BottomDockState::COLLAPSED_HEIGHT + 2.0 {
-                    state.outer_rect.min.y =
-                        state.outer_rect.max.y - self.dock_layout.bottom.height;
-                    ui.ctx().data_mut(|d| d.insert_persisted(bar_id, state));
-                }
-            }
-        }
-
-        let panel = if is_collapsed {
-            Panel::bottom("bottom_dock")
-                .resizable(false)
-                .exact_size(BottomDockState::COLLAPSED_HEIGHT)
-        } else {
-            Panel::bottom("bottom_dock")
-                .resizable(true)
-                .default_size(height)
-        };
-
-        let response = panel.show(ui, |ui| {
-            // Header bar
-            ui.horizontal(|ui| {
-                let collapse_icon = if is_collapsed { "▲" } else { "▼" };
-                if ui.button(collapse_icon).clicked() {
-                    self.dock_layout.bottom.toggle_collapsed();
-                }
-
-                let panels = self.dock_layout.bottom.panels.clone();
-                let active = self.dock_layout.bottom.active.clone();
-
-                for panel_id in panels {
-                    let is_selected = active.as_ref() == Some(&panel_id);
-                    let title = self
-                        .registry
-                        .find_panel(&panel_id)
-                        .map(|p| p.title())
-                        .unwrap_or_else(|| panel_id.as_str());
-
-                    let btn = ui.selectable_label(is_selected, title);
-                    if btn.clicked() {
-                        if is_selected {
-                            // Clicking active tab toggles collapse
-                            self.dock_layout.bottom.toggle_collapsed();
-                        } else {
-                            // Clicking inactive tab selects it and expands
-                            self.dock_layout.bottom.active = Some(panel_id.clone());
-                            self.dock_layout.bottom.collapsed = false;
-                        }
-                    }
-
-                    // Context menu to move dock
-                    btn.context_menu(|ui| {
-                        if ui.button("Move to Left Dock").clicked() {
-                            self.dock_layout
-                                .move_panel(&panel_id, DockSlotLocation::Left);
-                            ui.close();
-                        }
-                        if ui.button("Move to Right Dock").clicked() {
-                            self.dock_layout
-                                .move_panel(&panel_id, DockSlotLocation::Right);
-                            ui.close();
-                        }
-                    });
-                }
-            });
-
-            // Render content if expanded
-            if !is_collapsed {
-                ui.separator();
-                if let Some(active_id) = self.dock_layout.bottom.active.clone() {
-                    if let Some(panel) = self.registry.find_panel_mut(&active_id) {
-                        let mut cx = EditorCtx::new(
-                            &self.project,
-                            &self.undo_stack,
-                            &mut self.events,
-                            &mut self.pending_commands,
-                        );
-                        panel.ui(ui, &mut cx);
-                    }
-                }
-            }
-        });
-
-        if !is_collapsed {
-            let actual_h = response.response.rect.height();
-            if actual_h > BottomDockState::COLLAPSED_HEIGHT + 1.0 {
-                self.dock_layout.bottom.height = actual_h;
-            }
-        }
-    }
-
-    fn render_dock_slot(&mut self, ui: &mut Ui, location: DockSlotLocation) {
-        let (panels, active) = match location {
-            DockSlotLocation::Left => (
-                self.dock_layout.left.panels.clone(),
-                self.dock_layout.left.active.clone(),
-            ),
-            DockSlotLocation::Right => (
-                self.dock_layout.right.panels.clone(),
-                self.dock_layout.right.active.clone(),
-            ),
-            DockSlotLocation::Bottom => (
-                self.dock_layout.bottom.panels.clone(),
-                self.dock_layout.bottom.active.clone(),
-            ),
-        };
-
-        // Tab strip
-        ui.horizontal(|ui| {
-            for panel_id in &panels {
-                let is_selected = active.as_ref() == Some(panel_id);
-                let title = self
-                    .registry
-                    .find_panel(panel_id)
-                    .map(|p| p.title())
-                    .unwrap_or_else(|| panel_id.as_str());
-
-                let btn = ui.selectable_label(is_selected, title);
-                if btn.clicked() {
-                    match location {
-                        DockSlotLocation::Left => {
-                            self.dock_layout.left.set_active(panel_id.clone())
-                        }
-                        DockSlotLocation::Right => {
-                            self.dock_layout.right.set_active(panel_id.clone())
-                        }
-                        DockSlotLocation::Bottom => {
-                            self.dock_layout.bottom.set_active(panel_id.clone())
-                        }
-                    }
-                }
-
-                // Context menu to move panel
-                btn.context_menu(|ui| {
-                    if location != DockSlotLocation::Left
-                        && ui.button("Move to Left Dock").clicked()
-                    {
-                        self.dock_layout
-                            .move_panel(panel_id, DockSlotLocation::Left);
-                        ui.close();
-                    }
-                    if location != DockSlotLocation::Right
-                        && ui.button("Move to Right Dock").clicked()
-                    {
-                        self.dock_layout
-                            .move_panel(panel_id, DockSlotLocation::Right);
-                        ui.close();
-                    }
-                    if location != DockSlotLocation::Bottom
-                        && ui.button("Move to Bottom Dock").clicked()
-                    {
-                        self.dock_layout
-                            .move_panel(panel_id, DockSlotLocation::Bottom);
-                        ui.close();
-                    }
-                });
-            }
-        });
-
-        ui.separator();
-
-        // Render active panel content
-        if let Some(active_id) = active {
-            if let Some(panel) = self.registry.find_panel_mut(&active_id) {
-                let mut cx = EditorCtx::new(
-                    &self.project,
-                    &self.undo_stack,
-                    &mut self.events,
-                    &mut self.pending_commands,
-                );
-                panel.ui(ui, &mut cx);
-            }
+        // 8. Cancel dragging if pointer released outside dock slots
+        if ui.input(|i| i.pointer.any_released()) && self.dock_layout.dragging_panel.is_some() {
+            self.dock_layout.cancel_drag();
         }
     }
 
     fn render_central_documents(&mut self, ui: &mut Ui) {
         self.last_central_rect = Some(ui.max_rect());
         let is_dirty = self.is_dirty();
+
+        if let Some((_, active_tab)) = self.dock_state.find_active_focused() {
+            self.session.active_document = Some(*active_tab);
+            self.session.active_level = if let DocKind::Level(lid) = *active_tab {
+                Some(lid)
+            } else {
+                None
+            };
+        } else {
+            self.session.active_document = None;
+            self.session.active_level = None;
+        }
+
         let mut tab_viewer = DocTabViewer {
             project: &self.project,
             open_documents: &mut self.open_documents,
             undo_stack: &self.undo_stack,
+            session: &self.session,
             events: &mut self.events,
             pending_commands: &mut self.pending_commands,
+            assets: &*self.assets,
             is_dirty,
         };
 
@@ -580,6 +330,7 @@ impl ShellApp {
         let commands = std::mem::take(&mut self.pending_commands);
         for cmd in commands {
             let label = cmd.label();
+            let focus = cmd.focus();
             if let Err(e) = self.undo_stack.execute(cmd, &mut self.project) {
                 tracing::error!("Error executing {label}: {e}");
                 self.status_message = format!("Error executing {label}: {e}");
@@ -587,6 +338,13 @@ impl ShellApp {
                 tracing::debug!("Applied command: {label}");
                 self.is_dirty = true;
                 self.status_message = label;
+                if let Some(doc) = focus {
+                    self.open_document(doc);
+                    self.session.active_document = Some(doc);
+                    if let DocKind::Level(lid) = doc {
+                        self.session.active_level = Some(lid);
+                    }
+                }
             }
         }
 
@@ -594,11 +352,41 @@ impl ShellApp {
         let events = std::mem::take(&mut self.events);
         for event in events {
             match event {
-                EditorEvent::OpenDocument(kind) => self.open_document(kind),
-                EditorEvent::FocusDocument(kind) => self.focus_document(kind),
-                EditorEvent::CloseDocument(kind) => self.close_document(&kind),
+                EditorEvent::OpenDocument(kind) => {
+                    self.open_document(kind);
+                    self.session.active_document = Some(kind);
+                    if let DocKind::Level(lid) = kind {
+                        self.session.active_level = Some(lid);
+                    }
+                }
+                EditorEvent::FocusDocument(kind) => {
+                    self.focus_document(kind);
+                    self.session.active_document = Some(kind);
+                    if let DocKind::Level(lid) = kind {
+                        self.session.active_level = Some(lid);
+                    }
+                }
+                EditorEvent::CloseDocument(kind) => {
+                    self.close_document(&kind);
+                }
                 EditorEvent::Status(msg) => self.status_message = msg,
-                EditorEvent::SelectionChanged(_) => {}
+                EditorEvent::SelectionChanged(sel) => {
+                    tracing::debug!("Selection changed: {sel:?}");
+                    self.session.selection = sel;
+                }
+                EditorEvent::SetActiveLevel(id) => {
+                    self.session.active_level = id;
+                }
+                EditorEvent::SetActiveLayer(id) => {
+                    self.session.active_layer = id;
+                }
+                EditorEvent::SetActiveTool(name) => {
+                    self.active_tool_name = name.clone();
+                    self.session.active_tool_name = name;
+                }
+                EditorEvent::SetTileSelection(ts) => {
+                    self.session.tile_selection = ts;
+                }
                 EditorEvent::SaveProject => {
                     if let Some(ref path) = self.project_path {
                         if let Err(e) = lc_io::save_project(&self.project, path) {
@@ -609,8 +397,9 @@ impl ShellApp {
                             self.status_message = format!("Saved project to {}", path.display());
                         }
                     } else {
-                        self.is_dirty = false;
-                        self.status_message = "Project saved".to_string();
+                        tracing::warn!("Cannot save project: no project path configured");
+                        self.status_message =
+                            "Save failed: no project path configured (specify path or open project first)".to_string();
                     }
                 }
             }

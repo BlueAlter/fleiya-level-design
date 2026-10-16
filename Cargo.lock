@@ -1826,6 +1826,7 @@ dependencies = [
  "egui",
  "egui_dock",
  "glam",
+ "image",
  "lc_canvas",
  "lc_core",
  "lc_feature_entities",

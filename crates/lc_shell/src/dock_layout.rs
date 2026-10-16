@@ -117,6 +117,9 @@ pub struct ShellDockLayout {
     pub right: DockSlotState,
     /// Bottom dock slot (typically Console).
     pub bottom: BottomDockState,
+    /// Transient ID of the panel tab currently being dragged by the user, if any.
+    #[serde(skip)]
+    pub dragging_panel: Option<PanelId>,
 }
 
 impl Default for ShellDockLayout {
@@ -135,11 +138,32 @@ impl Default for ShellDockLayout {
                 vec![PanelId::new("console")],
                 Some(PanelId::new("console")),
             ),
+            dragging_panel: None,
         }
     }
 }
 
 impl ShellDockLayout {
+    /// Begins dragging a panel tab.
+    pub fn start_drag(&mut self, id: PanelId) {
+        self.dragging_panel = Some(id);
+    }
+
+    /// Completes the drop of the currently dragged panel into `target`, returning true if moved.
+    pub fn drop_dragged(&mut self, target: DockSlotLocation) -> bool {
+        if let Some(id) = self.dragging_panel.take() {
+            self.move_panel(&id, target);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Cancels dragging without moving.
+    pub fn cancel_drag(&mut self) {
+        self.dragging_panel = None;
+    }
+
     /// Moves a panel from its current slot to the specified target slot.
     pub fn move_panel(&mut self, id: &PanelId, target: DockSlotLocation) {
         // Remove from existing locations
@@ -172,5 +196,17 @@ impl ShellDockLayout {
                 DockSlotLocation::Bottom => self.bottom.add_panel(id),
             }
         }
+    }
+
+    /// Persists layout state into egui context storage.
+    pub fn save_to_memory(&self, ctx: &egui::Context) {
+        ctx.data_mut(|d| {
+            d.insert_persisted(egui::Id::new("shell_dock_layout"), self.clone());
+        });
+    }
+
+    /// Loads persisted layout state from egui context storage, if present.
+    pub fn load_from_memory(ctx: &egui::Context) -> Option<Self> {
+        ctx.data_mut(|d| d.get_persisted(egui::Id::new("shell_dock_layout")))
     }
 }

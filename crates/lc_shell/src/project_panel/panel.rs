@@ -9,6 +9,7 @@ use lc_core::commands::{
 };
 use lc_core::id::{LevelId, WorldId};
 use lc_core::level::Level;
+use lc_core::project::Project;
 use lc_core::world::World;
 use lc_ui_api::{EditorCtx, EditorEvent, PanelId, PanelView};
 use std::collections::BTreeSet;
@@ -86,7 +87,7 @@ impl PanelView for ProjectPanel {
                 .show(ui, |ui| {
                     // Button to add new world
                     if ui.button("+ Add World").clicked() {
-                        let next_id = (project.worlds.len() as u64) + 1;
+                        let next_id = project.worlds.iter().map(|w| w.id.0).max().unwrap_or(0) + 1;
                         let new_world_name = format!("World_{next_id}");
                         let cmd =
                             AddWorldCommand::new(World::new(WorldId(next_id), new_world_name));
@@ -94,7 +95,7 @@ impl PanelView for ProjectPanel {
                     }
 
                     for world in &project.worlds {
-                        self.render_world(ui, &mut actions, world);
+                        self.render_world(ui, &mut actions, world, project);
                     }
                 });
 
@@ -183,7 +184,13 @@ impl PanelView for ProjectPanel {
 }
 
 impl ProjectPanel {
-    fn render_world(&mut self, ui: &mut Ui, actions: &mut ActionQueue, world: &World) {
+    fn render_world(
+        &mut self,
+        ui: &mut Ui,
+        actions: &mut ActionQueue,
+        world: &World,
+        project: &Project,
+    ) {
         let world_id = world.id;
         let is_selected = self.selected_doc == Some(DocKind::World(world_id));
 
@@ -195,14 +202,22 @@ impl ProjectPanel {
             // Group levels by depth
             let mut depths = BTreeSet::new();
             depths.insert(0); // Ensure depth 0 is always available
+            depths.insert(1); // Common candidate depths for drag-and-drop
+            depths.insert(-1);
             for level in &world.levels {
                 depths.insert(level.world_depth);
             }
 
             for depth in depths {
-                self.render_depth_group(ui, actions, world, depth);
+                self.render_depth_group(ui, actions, world, depth, project);
             }
         });
+
+        // Double-click world header to open world tab
+        if header_resp.header_response.double_clicked() {
+            self.selected_doc = Some(DocKind::World(world_id));
+            actions.emit(EditorEvent::OpenDocument(DocKind::World(world_id)));
+        }
 
         // Context menu on world header
         header_resp.header_response.context_menu(|ui| {
@@ -212,7 +227,14 @@ impl ProjectPanel {
                 ui.close();
             }
             if ui.button("Add Level").clicked() {
-                let next_id = (world.levels.len() as u64) + 1;
+                let next_id = project
+                    .worlds
+                    .iter()
+                    .flat_map(|w| &w.levels)
+                    .map(|l| l.id.0)
+                    .max()
+                    .unwrap_or(0)
+                    + 1;
                 let level_name = format!("Level_{next_id}");
                 let level = Level::new(LevelId(next_id), level_name, glam::UVec2::new(32, 32));
                 actions.exec(AddLevelCommand::new(world_id, level));
@@ -241,6 +263,7 @@ impl ProjectPanel {
         actions: &mut ActionQueue,
         world: &World,
         depth: i32,
+        project: &Project,
     ) {
         let levels_at_depth: Vec<&Level> = world
             .levels
@@ -259,7 +282,7 @@ impl ProjectPanel {
                     }
 
                     for level in levels_at_depth {
-                        self.render_level_item(ui, actions, world.id, level);
+                        self.render_level_item(ui, actions, world.id, level, project);
                     }
                 });
         });
@@ -283,6 +306,7 @@ impl ProjectPanel {
         actions: &mut ActionQueue,
         world_id: WorldId,
         level: &Level,
+        project: &Project,
     ) {
         let level_id = level.id;
         let is_selected = self.selected_doc == Some(DocKind::Level(level_id));
@@ -318,17 +342,28 @@ impl ProjectPanel {
             }
             if ui.button("Duplicate Level").clicked() {
                 let mut duplicated = level.clone();
-                duplicated.id = LevelId(level.id.0 + 1000);
+                let next_id = project
+                    .worlds
+                    .iter()
+                    .flat_map(|w| &w.levels)
+                    .map(|l| l.id.0)
+                    .max()
+                    .unwrap_or(0)
+                    + 1;
+                duplicated.id = LevelId(next_id);
                 duplicated.name = format!("{}_copy", level.name);
                 duplicated.world_pos += IVec2::new(32, 0);
                 actions.exec(AddLevelCommand::new(world_id, duplicated));
                 ui.close();
             }
             ui.menu_button("Move to Depth...", |ui| {
-                for target_depth in [level.world_depth - 1, level.world_depth + 1, 0, 1, -1] {
-                    if target_depth != level.world_depth
-                        && ui.button(format!("Depth {target_depth}")).clicked()
-                    {
+                let mut target_depths =
+                    vec![level.world_depth - 1, level.world_depth + 1, 0, 1, -1];
+                target_depths.retain(|&d| d != level.world_depth);
+                target_depths.sort_unstable();
+                target_depths.dedup();
+                for target_depth in target_depths {
+                    if ui.button(format!("Depth {target_depth}")).clicked() {
                         actions.exec(MoveLevelCommand::new(
                             level_id,
                             level.world_pos,

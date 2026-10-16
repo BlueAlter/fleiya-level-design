@@ -5,6 +5,7 @@ use lc_core::project::Project;
 use lc_shell::dock_layout::{DockSlotLocation, ShellDockLayout};
 use lc_shell::ShellApp;
 use lc_ui_api::context::EditorCtx;
+use lc_ui_api::events::EditorEvent;
 use lc_ui_api::view::{DocumentView, PanelId, PanelView};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -398,5 +399,47 @@ fn test_bottom_dock_layout_and_persistence() {
     assert!(
         bottom_dock_reloaded.outer_rect.right() <= right_dock.outer_rect.left() + 0.5,
         "bottom dock reloaded must respect right dock bound"
+    );
+}
+
+#[test]
+fn test_dock_layout_memory_persistence() {
+    let ctx = Context::default();
+    let mut layout = ShellDockLayout::default();
+    layout.move_panel(&PanelId::new("console"), DockSlotLocation::Left);
+    layout.bottom.height = 240.0;
+    layout.bottom.collapsed = true;
+
+    layout.save_to_memory(&ctx);
+
+    let reloaded = ShellDockLayout::load_from_memory(&ctx).expect("layout should load from memory");
+    assert!(reloaded.left.panels.contains(&PanelId::new("console")));
+    assert_eq!(reloaded.bottom.height, 240.0);
+    assert!(reloaded.bottom.collapsed);
+}
+
+#[test]
+fn test_save_without_path_fails_safely_and_preserves_dirty() {
+    let mut app = ShellApp::new(Project::new("NoPathProject"));
+    app.is_dirty = true;
+    app.project_path = None;
+
+    app.events.push(EditorEvent::SaveProject);
+
+    let ctx = Context::default();
+    let raw_input = egui::RawInput::default();
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+
+    assert!(
+        app.is_dirty(),
+        "is_dirty must NOT be cleared when no project path is set"
+    );
+    assert!(
+        app.status_message.contains("no project path configured"),
+        "status message must warn about missing project path: {}",
+        app.status_message
     );
 }

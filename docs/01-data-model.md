@@ -35,3 +35,7 @@ worlds/<world>/levels/<lvl>.json   level content
 assets/...                         images
 ```
 Migration functions live in `lc_io::migrate`, one per version step, each with a test fixture.
+
+## Session state (lc_ui_api::session, ADR-0009)
+Transient runtime editor state (active document `DocKind`, active level `LevelId`, active layer `LayerDefId`, canvas `Selection`, active tool name, tile palette `TileSelection`) is managed in `SessionState` and exposed read-only via `EditorCtx`. It is never serialized into the project files and never stored on the command undo stack.
+
