@@ -12,3 +12,6 @@ workspace = true
 thiserror = { workspace = true }
 serde = { workspace = true }
 glam = { workspace = true }
+
+[dev-dependencies]
+ron = "0.12"
