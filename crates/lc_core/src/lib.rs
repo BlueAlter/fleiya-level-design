@@ -8,6 +8,8 @@
 //! `lc_core`: Core data model, identifiers, and grid storage for Level Craft.
 //! No egui dependency. No filesystem access.
 
+pub mod command;
+pub mod commands;
 pub mod defs;
 pub mod error;
 pub mod fields;
@@ -18,6 +20,11 @@ pub mod level;
 pub mod project;
 pub mod world;
 
+pub use command::{Command, DocKind, UndoStack};
+pub use commands::{
+    AddLevelCommand, AddWorldCommand, MoveLevelCommand, RemoveLevelCommand, RemoveWorldCommand,
+    RenameLevelCommand, RenameWorldCommand,
+};
 pub use defs::{
     Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TilesetDef,
 };
