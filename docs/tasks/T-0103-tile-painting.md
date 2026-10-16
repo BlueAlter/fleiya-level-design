@@ -10,8 +10,10 @@ skills: [incremental-implementation, test-driven-development, source-driven-deve
 ---
 
 ## Goal
-LayerHandler for Tiles and IntGrid layers + CanvasTools: paint, erase, rectangle, flood fill, eyedropper, flip x/y. A stroke is one merged Command.
+LayerHandler for Tiles and IntGrid layers + CanvasTools: paint, erase, rectangle, flood fill, eyedropper, flip x/y. A stroke is one merged Command. Active tile pattern is read from `cx.tile_selection()` and active layer from `cx.active_layer()`.
 ## Acceptance criteria
 - [ ] `PaintTilesCommand`, `FillCommand`, `RectCommand` with apply/revert/merge tests.
 - [ ] Flood fill is iterative (no recursion overflow) and tested on a 1024x1024 grid.
 - [ ] Rendering uses viewport culling.
+- [ ] Continuous mouse drag merges into a single undo step across frame boundaries.
+

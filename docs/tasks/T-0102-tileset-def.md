@@ -10,7 +10,9 @@ skills: [incremental-implementation, test-driven-development, source-driven-deve
 ---
 
 ## Goal
-Tileset tab (load PNG via an event/asset service from ctx, grid size, padding, spacing, preview) with Commands for tileset def edits; Tile palette panel to pick tiles (single + rectangle).
+Tileset tab (load PNG via `cx.assets().load_texture(ui.ctx(), &rel_path)`, grid size, padding, spacing, preview) with Commands for tileset def edits; Tile palette panel to pick tiles (single + rectangle).
 ## Acceptance criteria
 - [ ] Add/edit/remove TilesetDef through Commands with revert tests; references to removed tilesets handled per data-model rules.
-- [ ] Palette selection stored in view state, exposed via EditorCtx for tools (documented in the PR).
+- [ ] Palette selection emits `EditorEvent::SetTileSelection(Some(TileSelection))` and is readable via `cx.tile_selection()`.
+- [ ] Asset loading uses `cx.assets().load_texture` (no direct `std::fs` or `lc_io` in feature crate).
+
