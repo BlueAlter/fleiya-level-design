@@ -1,11 +1,14 @@
-# OWNERSHIP and cross-review
+# OWNERSHIP and Cross-Review
 
-A task may only edit files in its `scope`. Shared contract files (`lc_core` public traits/structs, `lc_ui_api`) belong to the INTEGRATOR
-after the contract freeze (T-0011); feature agents request changes via `docs/QUESTIONS.md`.
+## Status: CONTRACT FROZEN (tag `contract-v0.1`)
+As of the completion of Phase A (T-0011), the shared contract files (`crates/lc_core/*`, `crates/lc_ui_api/*`, and `crates/lc_io/*`) are **STRICTLY INTEGRATOR-OWNED**.
+Feature agents working on Phase B (T-01xx) and subsequent tasks must NOT modify these crates within feature tasks. Any requested contract changes or extensions must be proposed via `docs/QUESTIONS.md` for integrator review.
+
+A task may only edit files within its declared `scope`.
 
 | Area | Crates / paths | Role slot | Reviewed by (neighbour) |
 |---|---|---|---|
-| Core, io, ui_api, xtask, CI, docs | lc_core, lc_io, lc_ui_api, xtask | integrator | any feature reviewer (fresh session) |
+| Core, io, ui_api, xtask, CI, docs | lc_core, lc_io, lc_ui_api, xtask, docs/ | integrator | any feature reviewer (fresh session) |
 | Shell: docks, menu, console, project panel | lc_shell | shell | integrator |
 | Level canvas | lc_feature_level, lc_canvas | level | tileset |
 | Tilesets + tile painting | lc_feature_tileset | tileset | level |

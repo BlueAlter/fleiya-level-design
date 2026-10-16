@@ -48,3 +48,7 @@ Since agents cannot view graphical UI output directly, this document enumerates 
 ## Project Panel (T-0010)
 - [ ] Displays tree of Worlds, Levels, Entity Defs, Enum Defs, Tileset Defs, and Layer Defs.
 - [ ] Double-clicking an item opens its document view in the central area.
+- [ ] Context menus on World: Open World Tab, Add Level, Rename World, Delete World.
+- [ ] Context menus on Level: Open Level, Rename Level, Duplicate Level, Move to Depth, Delete Level.
+- [ ] Drag-and-drop a level onto a depth group moves level depth and issues an undoable `MoveLevelCommand`.
+- [ ] Project save (`File > Save` or `Ctrl+S`) writes multi-file JSON hierarchy (`project.lcproj`, `worlds/world_X/world.json`, `levels/level_Y.json`) via `lc_io`.
