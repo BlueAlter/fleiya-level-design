@@ -1,0 +1,3 @@
+# Enabled by T-0002 (xtask). Keep commented until the xtask crate exists.
+# [alias]
+# xtask = "run --package xtask --"
