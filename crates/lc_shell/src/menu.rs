@@ -25,7 +25,9 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 // If a project path was already used or default project exists, open it,
                 // or report status. Full native file picker integration is tracked in T-0109.
                 if let Some(ref path) = app.project_path.clone() {
-                    let _ = app.open_project_from_path(path);
+                    if let Err(e) = app.open_project_from_path(path) {
+                        app.status_message = format!("Failed to open project: {e}");
+                    }
                 } else {
                     app.status_message =
                         "Use File > Open Project in project panel or specify project file path"

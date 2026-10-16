@@ -180,20 +180,40 @@ impl ShellApp {
     pub fn close_document(&mut self, kind: &DocKind) {
         self.open_documents.remove(kind);
         self.dock_state.retain_tabs(|t| t != kind);
+        if self.session.active_document == Some(*kind) {
+            self.session.active_document = None;
+            if let DocKind::Level(_) = kind {
+                self.session.active_level = None;
+            }
+        }
     }
 
     /// Triggers an undo step.
     pub fn undo(&mut self) {
-        if let Some((label, _focus)) = self.undo_stack.undo(&mut self.project) {
+        if let Some((label, focus)) = self.undo_stack.undo(&mut self.project) {
             self.status_message = format!("Undo: {label}");
+            if let Some(doc) = focus {
+                self.open_document(doc);
+                self.session.active_document = Some(doc);
+                if let DocKind::Level(lid) = doc {
+                    self.session.active_level = Some(lid);
+                }
+            }
         }
     }
 
     /// Triggers a redo step.
     pub fn redo(&mut self) {
         match self.undo_stack.redo(&mut self.project) {
-            Ok(Some((label, _focus))) => {
+            Ok(Some((label, focus))) => {
                 self.status_message = format!("Redo: {label}");
+                if let Some(doc) = focus {
+                    self.open_document(doc);
+                    self.session.active_document = Some(doc);
+                    if let DocKind::Level(lid) = doc {
+                        self.session.active_level = Some(lid);
+                    }
+                }
             }
             Ok(None) => {}
             Err(e) => {
@@ -259,6 +279,11 @@ impl ShellApp {
 
         // 7. Process deferred commands and events
         self.process_commands_and_events();
+
+        // 8. Cancel dragging if pointer released outside dock slots
+        if ui.input(|i| i.pointer.any_released()) && self.dock_layout.dragging_panel.is_some() {
+            self.dock_layout.cancel_drag();
+        }
     }
 
     fn render_central_documents(&mut self, ui: &mut Ui) {
@@ -267,9 +292,14 @@ impl ShellApp {
 
         if let Some((_, active_tab)) = self.dock_state.find_active_focused() {
             self.session.active_document = Some(*active_tab);
-            if let DocKind::Level(lid) = *active_tab {
-                self.session.active_level = Some(lid);
-            }
+            self.session.active_level = if let DocKind::Level(lid) = *active_tab {
+                Some(lid)
+            } else {
+                None
+            };
+        } else {
+            self.session.active_document = None;
+            self.session.active_level = None;
         }
 
         let mut tab_viewer = DocTabViewer {
@@ -338,9 +368,6 @@ impl ShellApp {
                 }
                 EditorEvent::CloseDocument(kind) => {
                     self.close_document(&kind);
-                    if self.session.active_document == Some(kind) {
-                        self.session.active_document = None;
-                    }
                 }
                 EditorEvent::Status(msg) => self.status_message = msg,
                 EditorEvent::SelectionChanged(sel) => {

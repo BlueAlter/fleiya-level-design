@@ -24,4 +24,4 @@ Integrate asynchronous native file dialogs (`rfd`) for `File > Open` and `File >
 - Cloud storage providers.
 
 ## Notes
-- See ADR-0010 for rationale on deferring `rfd` to avoid Linux desktop-portal/GTK linkage dependencies during contract freeze.
+- See ADR-0011 for rationale on deferring `rfd` to avoid Linux desktop-portal/GTK linkage dependencies during contract freeze.

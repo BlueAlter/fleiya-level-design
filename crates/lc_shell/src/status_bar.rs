@@ -19,7 +19,7 @@ pub fn render_status_bar(app: &mut ShellApp, ui: &mut Ui) {
         ui.separator();
 
         // 3. Active tool
-        ui.label(&app.active_tool_name);
+        ui.label(&app.session.active_tool_name);
         ui.separator();
 
         // 4. Dirty indicator

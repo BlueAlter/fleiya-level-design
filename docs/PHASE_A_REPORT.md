@@ -375,7 +375,7 @@ pub enum FieldType {
 - **ProjectPanel ActionQueue**: Traversal of project hierarchy in `ProjectPanel::ui` collects commands and events into an `ActionQueue` flushed at end-of-frame to prevent borrow checker conflicts against immutable `EditorCtx::project()`.
 
 ## 6. Test and Gate Status
-- **Workspace Test Count**: 55 tests passing across all crates.
+- **Workspace Test Count**: 61 tests passing across all crates.
 - **Gate Output**:
 ```
  INFO === Gate 1: cargo fmt --all -- --check ===

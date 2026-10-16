@@ -43,12 +43,12 @@ Progress tracker and audit log for `fix/contract-v0.2` contract hardening.
   - [x] 3h: `rust-toolchain.toml`: pinned newest stable `1.99.0` (verified by building egui 0.36 on stable without nightly flags, documented in ADR-0012)
   - [x] 3i: Panel tab drag & drop between left, right, and bottom docks implemented in `lc_shell` (~50 lines in `dock_layout.rs` and `dock_panels.rs`), verified with `test_panel_tab_drag_and_drop_between_docks`
   - [x] Commit Step 3 contract patches and ADRs
-- [ ] **STEP 4: RELEASE contract-v0.2**
-  - [ ] Update `docs/PHASE_A_REPORT.md` Section 3 verbatim signatures (including `Selection`, `DocKind`, `PanelId`, `CanvasCtx`, `LayerRenderCtx`, session-state, asset APIs)
-  - [ ] Add Section "Contract v0.2 changes" in `docs/PHASE_A_REPORT.md` (what, why, Phase B tasks affected)
-  - [ ] Update Phase B task files (`docs/tasks/T-0101.md`..`T-0108.md`) if scope/description changed
-  - [ ] Verify `cargo xtask check` is green
-  - [ ] Fresh-context review of entire diff
+- [x] **STEP 4: RELEASE contract-v0.2**
+  - [x] Update `docs/PHASE_A_REPORT.md` Section 3 verbatim signatures (including `Selection`, `DocKind`, `PanelId`, `CanvasCtx`, `LayerRenderCtx`, session-state, asset APIs)
+  - [x] Add Section "Contract v0.2 changes" in `docs/PHASE_A_REPORT.md` (what, why, Phase B tasks affected)
+  - [x] Update Phase B task files (`docs/tasks/T-0101.md`..`T-0108.md`) if scope/description changed
+  - [x] Verify `cargo xtask check` is green (61 tests passing across workspace)
+  - [x] Fresh-context review of entire diff (APPROVED by independent reviewer, all Important findings addressed)
   - [ ] Merge to main with `git merge --no-ff`
   - [ ] Tag `contract-v0.2`
   - [ ] Remove worktree `../wt-contract-v0.2`
