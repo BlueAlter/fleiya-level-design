@@ -34,11 +34,16 @@ Since agents cannot view graphical UI output directly, this document enumerates 
   - [ ] Displays dirty status indicator (`* Unsaved changes` / `Saved`).
 
 ## Console Panel (T-0009)
-- [ ] Log messages from `tracing` appear in Console panel with level indicators.
-- [ ] Level filter buttons (Error, Warn, Info, Debug) filter console output.
-- [ ] Search input filters messages in real time.
+- [ ] Log messages from `tracing` appear in Console panel with colored level indicators.
+- [ ] Level filter buttons (Error, Warn, Info, Debug, Trace) toggle visibility of respective log levels.
+- [ ] Search input filters messages in real time (case-insensitive on text and target module).
+- [ ] Collapse checkbox groups consecutive identical log entries with a repeat badge `(xN)`.
+- [ ] Auto-scroll checkbox keeps view pinned to the newest entries, pausing when unchecked.
 - [ ] Clear button clears the log buffer.
-- [ ] Log lines with `DocKind` targets can be clicked to focus that document.
+- [ ] Copy button copies all filtered log entries to the system clipboard.
+- [ ] Log lines with `DocKind` targets (e.g. `Level(42)`) show a navigation button that opens/focuses that tab.
+- [ ] Worker thread logging streams into the console without blocking the UI thread.
+- [ ] Rotating `logs/editor.log` file is maintained on disk and rolls over upon exceeding max file size.
 
 ## Project Panel (T-0010)
 - [ ] Displays tree of Worlds, Levels, Entity Defs, Enum Defs, Tileset Defs, and Layer Defs.

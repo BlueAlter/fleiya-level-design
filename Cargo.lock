@@ -1724,6 +1724,7 @@ dependencies = [
  "eframe",
  "egui",
  "lc_shell",
+ "tracing",
 ]
 
 [[package]]
@@ -1837,6 +1838,7 @@ dependencies = [
  "lc_ui_api",
  "serde",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

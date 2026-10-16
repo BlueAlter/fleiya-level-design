@@ -53,11 +53,13 @@ impl<'a> EditorCtx<'a> {
 
     /// Submits a command to be executed by the editor undo system.
     pub fn exec(&mut self, cmd: impl Command + 'static) {
+        tracing::debug!("exec command: {}", cmd.label());
         self.pending_commands.push(Box::new(cmd));
     }
 
     /// Submits a pre-boxed command to be executed by the editor undo system.
     pub fn exec_boxed(&mut self, cmd: Box<dyn Command>) {
+        tracing::debug!("exec command: {}", cmd.label());
         self.pending_commands.push(cmd);
     }
 

@@ -12,6 +12,7 @@ use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
 use crate::doc_tab_viewer::DocTabViewer;
 use crate::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
 
@@ -45,6 +46,8 @@ pub struct ShellApp {
     pub zoom_level: f32,
     /// Tracks if there are unsaved modifications.
     pub is_dirty: bool,
+    /// Shared console log ring buffer.
+    pub console_buffer: SharedRingBuffer,
 }
 
 impl Default for ShellApp {
@@ -54,13 +57,27 @@ impl Default for ShellApp {
 }
 
 impl ShellApp {
-    /// Creates a new shell instance for a given project.
+    /// Creates a new shell instance for a given project with a default console buffer.
     pub fn new(project: Project) -> Self {
+        let buffer = SharedRingBuffer::new(BoundedRingBuffer::DEFAULT_CAPACITY);
+        Self::new_with_console(project, buffer)
+    }
+
+    /// Creates a shell instance with default project and specified console buffer.
+    pub fn from_console(console_buffer: SharedRingBuffer) -> Self {
+        Self::new_with_console(Project::new("Level Craft Project"), console_buffer)
+    }
+
+    /// Creates a new shell instance using an existing console ring buffer.
+    pub fn new_with_console(project: Project, console_buffer: SharedRingBuffer) -> Self {
+        let mut registry = Registry::new();
+        registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
+
         Self {
             project,
             project_path: None,
             undo_stack: UndoStack::new(),
-            registry: Registry::new(),
+            registry,
             dock_state: DockState::new(Vec::new()),
             open_documents: HashMap::new(),
             dock_layout: ShellDockLayout::default(),
@@ -71,7 +88,13 @@ impl ShellApp {
             cursor_grid_pos: None,
             zoom_level: 1.0,
             is_dirty: false,
+            console_buffer,
         }
+    }
+
+    /// Access to the console ring buffer.
+    pub fn console_buffer(&self) -> &SharedRingBuffer {
+        &self.console_buffer
     }
 
     /// Read-only access to registry.
@@ -502,8 +525,10 @@ impl ShellApp {
         for cmd in commands {
             let label = cmd.label();
             if let Err(e) = self.undo_stack.execute(cmd, &mut self.project) {
+                tracing::error!("Error executing {label}: {e}");
                 self.status_message = format!("Error executing {label}: {e}");
             } else {
+                tracing::debug!("Applied command: {label}");
                 self.is_dirty = true;
                 self.status_message = label;
             }

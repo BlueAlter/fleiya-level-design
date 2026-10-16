@@ -2,10 +2,33 @@
 
 #![forbid(unsafe_code)]
 
+pub mod console;
 pub mod doc_tab_viewer;
 pub mod dock_layout;
 pub mod shell_app;
 
+pub use console::{
+    parse_doc_kind, BoundedRingBuffer, CollapsedLogEntry, ConsoleFilter, ConsolePanel,
+    ConsoleSubscriberLayer, LogEntry, LogLevel, SharedRingBuffer,
+};
 pub use doc_tab_viewer::DocTabViewer;
 pub use dock_layout::{BottomDockState, DockSlotLocation, DockSlotState, ShellDockLayout};
 pub use shell_app::ShellApp;
+
+use lc_io::RotatingLogWriter;
+use std::sync::Arc;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+
+/// Initializes the global tracing subscriber with the console subscriber layer and rotating file log.
+///
+/// Returns the shared ring buffer and rotating file log writer handles.
+pub fn init_shell_logging() -> (SharedRingBuffer, Arc<RotatingLogWriter>) {
+    let buffer = SharedRingBuffer::new(BoundedRingBuffer::DEFAULT_CAPACITY);
+    let writer = Arc::new(RotatingLogWriter::with_default_path());
+    let layer = ConsoleSubscriberLayer::new(buffer.clone()).with_file_writer(writer.clone());
+
+    let _ = tracing_subscriber::registry().with(layer).try_init();
+
+    (buffer, writer)
+}

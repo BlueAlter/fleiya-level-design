@@ -1,5 +1,5 @@
 use eframe::egui;
-use lc_shell::ShellApp;
+use lc_shell::{init_shell_logging, ShellApp};
 
 struct LevelCraftApp {
     shell: ShellApp,
@@ -12,13 +12,16 @@ impl eframe::App for LevelCraftApp {
 }
 
 fn main() -> eframe::Result {
+    let (console_buffer, _writer) = init_shell_logging();
+    tracing::info!("Starting Level Craft editor...");
+
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "Level Craft",
         native_options,
-        Box::new(|_cc| {
+        Box::new(move |_cc| {
             Ok(Box::new(LevelCraftApp {
-                shell: ShellApp::default(),
+                shell: ShellApp::from_console(console_buffer),
             }))
         }),
     )
