@@ -10,3 +10,5 @@
 - 2026-10-16 T-0008 merged (result: APPROVE, reviewer: self, sha: 55c3d64)
 - 2026-10-16 T-0009 merged (result: APPROVE, reviewer: self, sha: 0413323)
 - 2026-10-16 T-0010 merged (result: APPROVE, reviewer: self, sha: 24fba7c)
+- 2026-10-16 T-0011 merged (result: APPROVE, reviewer: self, sha: b4cbcf4)
+- 2026-10-16 TAG contract-v0.1 created on main

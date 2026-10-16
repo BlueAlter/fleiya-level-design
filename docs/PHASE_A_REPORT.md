@@ -22,7 +22,7 @@
 | T-0008 | Shell: dock layout spike + impl, menu, status bar | done | 1 | self (`self`) | `55c3d64` |
 | T-0009 | Console panel with tracing layer, file log | done | 1 | self (`self`) | `0413323` |
 | T-0010 | Project panel tree and open-document flow | done | 1 | self (`self`) | `24fba7c` |
-| T-0011 | CONTRACT FREEZE: integration check, tag contract-v0.1 | done | 1 | self (`self`) | *current* |
+| T-0011 | CONTRACT FREEZE: integration check, tag contract-v0.1 | done | 1 | self (`self`) | `b4cbcf4` |
 
 ## 2. Pinned Versions and Architecture Decision Records (ADRs)
 
