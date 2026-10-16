@@ -1,0 +1,1 @@
+- 2026-10-16 SETUP completed: scaffold initialized, references cloned, agent-skills installed, toolchain verified
