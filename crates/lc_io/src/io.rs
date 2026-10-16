@@ -263,3 +263,14 @@ fn write_file_atomic(path: &Path, content: String) -> Result<(), IoError> {
         }
     })
 }
+
+/// Reads raw binary bytes of an asset or file from disk.
+pub fn read_bytes(path: &Path) -> Result<Vec<u8>, IoError> {
+    fs::read(path).map_err(|e| {
+        tracing::error!(path = %path.display(), error = %e, "Failed to read file bytes");
+        IoError::Fs {
+            path: path.to_path_buf(),
+            source: e,
+        }
+    })
+}

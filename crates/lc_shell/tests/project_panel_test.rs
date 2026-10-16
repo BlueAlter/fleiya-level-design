@@ -169,12 +169,21 @@ fn test_project_panel_renders_without_panic() {
     project.worlds.push(world);
 
     let undo_stack = lc_core::command::UndoStack::new();
+    let session = lc_ui_api::session::SessionState::default();
+    let assets = lc_ui_api::assets::NoopAssetService;
     let mut events = Vec::new();
     let mut pending_commands = Vec::new();
 
     let egui_ctx = Context::default();
     let mut output = egui_ctx.run_ui(Default::default(), |ui| {
-        let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut events,
+            &mut pending_commands,
+            &assets,
+        );
         panel.ui(ui, &mut cx);
     });
     output.textures_delta.clear();

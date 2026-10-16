@@ -40,6 +40,15 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
     };
 
     let response = panel.show(ui, |ui| {
+        // Drop zone detection for bottom dock
+        if ui.rect_contains_pointer(ui.max_rect())
+            && ui.input(|i| i.pointer.any_released())
+            && app.dock_layout.dragging_panel.is_some()
+        {
+            app.dock_layout.drop_dragged(DockSlotLocation::Bottom);
+            app.dock_layout.bottom.collapsed = false;
+        }
+
         // Header bar
         ui.horizontal(|ui| {
             let collapse_icon = if is_collapsed { "▲" } else { "▼" };
@@ -59,6 +68,9 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
                     .unwrap_or_else(|| panel_id.as_str());
 
                 let btn = ui.selectable_label(is_selected && !is_collapsed, title);
+                if btn.drag_started() {
+                    app.dock_layout.start_drag(panel_id.clone());
+                }
                 if btn.clicked() {
                     if is_selected {
                         // Clicking active tab toggles collapse
@@ -94,8 +106,10 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
                     let mut cx = EditorCtx::new(
                         &app.project,
                         &app.undo_stack,
+                        &app.session,
                         &mut app.events,
                         &mut app.pending_commands,
+                        &*app.assets,
                     );
                     panel.ui(ui, &mut cx);
                 }
@@ -126,6 +140,14 @@ pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocat
         DockSlotLocation::Bottom => app.dock_layout.bottom.active.clone(),
     };
 
+    // Drop zone detection for this dock slot
+    if ui.rect_contains_pointer(ui.max_rect())
+        && ui.input(|i| i.pointer.any_released())
+        && app.dock_layout.dragging_panel.is_some()
+    {
+        app.dock_layout.drop_dragged(location);
+    }
+
     // Tab strip
     ui.horizontal(|ui| {
         for panel_id in &panels {
@@ -137,6 +159,9 @@ pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocat
                 .unwrap_or_else(|| panel_id.as_str());
 
             let btn = ui.selectable_label(is_selected, title);
+            if btn.drag_started() {
+                app.dock_layout.start_drag(panel_id.clone());
+            }
             if btn.clicked() {
                 match location {
                     DockSlotLocation::Left => app.dock_layout.left.set_active(panel_id.clone()),
@@ -183,8 +208,10 @@ pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocat
             let mut cx = EditorCtx::new(
                 &app.project,
                 &app.undo_stack,
+                &app.session,
                 &mut app.events,
                 &mut app.pending_commands,
+                &*app.assets,
             );
             panel.ui(ui, &mut cx);
         }

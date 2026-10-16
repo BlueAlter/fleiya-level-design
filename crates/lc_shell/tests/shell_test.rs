@@ -443,3 +443,106 @@ fn test_save_without_path_fails_safely_and_preserves_dirty() {
         app.status_message
     );
 }
+
+#[derive(Debug)]
+struct FailingCommand;
+
+impl Command for FailingCommand {
+    fn apply(&mut self, _p: &mut Project) -> Result<(), lc_core::error::CoreError> {
+        Err(lc_core::error::CoreError::DefNotFound(
+            "Target entity was deleted".to_string(),
+        ))
+    }
+
+    fn revert(&mut self, _p: &mut Project) {}
+
+    fn merge(&mut self, _next: &dyn Command) -> bool {
+        false
+    }
+
+    fn label(&self) -> String {
+        "FailingCommand".to_string()
+    }
+
+    fn focus(&self) -> Option<DocKind> {
+        None
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+#[test]
+fn test_command_error_surfacing_in_status_bar() {
+    let mut app = ShellApp::new(Project::new("ErrorSurfacingProject"));
+
+    // Push failing command into pending commands queue
+    app.pending_commands.push(Box::new(FailingCommand));
+
+    let ctx = Context::default();
+    let raw_input = egui::RawInput::default();
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+
+    assert!(
+        app.status_message
+            .starts_with("Error executing FailingCommand"),
+        "Status bar must surface command apply error: {}",
+        app.status_message
+    );
+    assert!(
+        app.status_message.contains("Target entity was deleted"),
+        "Status bar message must contain typed error details: {}",
+        app.status_message
+    );
+}
+
+#[test]
+fn test_panel_tab_drag_and_drop_between_docks() {
+    let mut app = ShellApp::new(Project::new("DnDTestProject"));
+    let console_id = PanelId::new("console");
+
+    // Initially console is in bottom dock
+    assert!(app.dock_layout.bottom.panels.contains(&console_id));
+    assert!(!app.dock_layout.left.panels.contains(&console_id));
+
+    // Simulate drag start
+    app.dock_layout.start_drag(console_id.clone());
+    assert_eq!(app.dock_layout.dragging_panel, Some(console_id.clone()));
+
+    // Drop into left dock
+    let moved = app.dock_layout.drop_dragged(DockSlotLocation::Left);
+    assert!(moved);
+    assert_eq!(app.dock_layout.dragging_panel, None);
+    assert!(app.dock_layout.left.panels.contains(&console_id));
+    assert!(!app.dock_layout.bottom.panels.contains(&console_id));
+
+    // Drag from left to right dock
+    app.dock_layout.start_drag(console_id.clone());
+    app.dock_layout.drop_dragged(DockSlotLocation::Right);
+    assert!(app.dock_layout.right.panels.contains(&console_id));
+    assert!(!app.dock_layout.left.panels.contains(&console_id));
+}
+
+#[test]
+fn test_asset_service_typed_errors_and_invalidation() {
+    use lc_ui_api::assets::{AssetError, AssetService};
+
+    let service = lc_shell::ShellAssetService::new();
+    let ctx = Context::default();
+
+    // 1. Empty path -> InvalidPath
+    let err_empty = service.load_texture(&ctx, "   ");
+    assert!(matches!(err_empty, Err(AssetError::InvalidPath(_))));
+
+    // 2. Non-existent file -> NotFound
+    let err_not_found = service.load_texture(&ctx, "textures/missing_tileset.png");
+    assert!(matches!(err_not_found, Err(AssetError::NotFound(_))));
+
+    // 3. Invalidation works without panic
+    service.invalidate("textures/missing_tileset.png");
+    service.invalidate("*");
+}

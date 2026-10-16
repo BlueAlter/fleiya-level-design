@@ -126,11 +126,20 @@ fn test_logging_from_worker_threads_non_blocking() {
     let ctx = Context::default();
     let project = Project::new("Test");
     let undo_stack = UndoStack::new();
+    let session = lc_ui_api::session::SessionState::default();
+    let assets = lc_ui_api::assets::NoopAssetService;
     let mut events = Vec::new();
     let mut pending_commands = Vec::new();
 
     for _ in 0..10 {
-        let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut events,
+            &mut pending_commands,
+            &assets,
+        );
         let mut output = ctx.run_ui(Default::default(), |ui| {
             panel.ui(ui, &mut cx);
         });
@@ -165,11 +174,20 @@ fn test_command_application_logs_at_debug() {
         // Emit a command through EditorCtx
         let project = Project::new("Test");
         let undo_stack = UndoStack::new();
+        let session = lc_ui_api::session::SessionState::default();
+        let assets = lc_ui_api::assets::NoopAssetService;
         let mut events = Vec::new();
         let mut pending_commands = Vec::new();
 
         {
-            let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+            let mut cx = EditorCtx::new(
+                &project,
+                &undo_stack,
+                &session,
+                &mut events,
+                &mut pending_commands,
+                &assets,
+            );
             cx.exec(DummyCommand {
                 name: "ResizeCanvasCommand".to_string(),
             });
@@ -212,18 +230,34 @@ fn test_console_click_to_focus_doc_kind() {
     let ctx = Context::default();
     let project = Project::new("Test");
     let undo_stack = UndoStack::new();
+    let session = lc_ui_api::session::SessionState::default();
+    let assets = lc_ui_api::assets::NoopAssetService;
     let mut events = Vec::new();
     let mut pending_commands = Vec::new();
 
     // Render console panel in egui
     let mut output = ctx.run_ui(Default::default(), |ui| {
-        let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut events,
+            &mut pending_commands,
+            &assets,
+        );
         panel.ui(ui, &mut cx);
     });
     output.textures_delta.clear();
 
     // Simulated click on navigation button
-    let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+    let mut cx = EditorCtx::new(
+        &project,
+        &undo_stack,
+        &session,
+        &mut events,
+        &mut pending_commands,
+        &assets,
+    );
     cx.emit(EditorEvent::OpenDocument(DocKind::Level(LevelId(42))));
 
     assert_eq!(

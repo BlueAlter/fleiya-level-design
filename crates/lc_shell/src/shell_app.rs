@@ -11,9 +11,12 @@ use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::assets::ShellAssetService;
 use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
 use crate::doc_tab_viewer::DocTabViewer;
 use crate::dock_layout::{DockSlotLocation, ShellDockLayout};
+use lc_ui_api::session::SessionState;
+use std::sync::Arc;
 
 /// Main application shell orchestrating panels, document tabs, commands, and layout.
 pub struct ShellApp {
@@ -35,6 +38,10 @@ pub struct ShellApp {
     pub events: Vec<EditorEvent>,
     /// Queue of commands submitted for execution during frame rendering.
     pub pending_commands: Vec<Box<dyn Command>>,
+    /// Shared session state readable by panels, tools, and inspector sections.
+    pub session: SessionState,
+    /// Asset and texture service.
+    pub assets: Arc<ShellAssetService>,
     /// Current status bar notification message.
     pub status_message: String,
     /// Active canvas tool name shown in status bar.
@@ -75,6 +82,8 @@ impl ShellApp {
         registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
         registry.register_panel(Box::new(crate::project_panel::ProjectPanel::new()));
 
+        let assets = Arc::new(ShellAssetService::new());
+
         Self {
             project,
             project_path: None,
@@ -85,6 +94,8 @@ impl ShellApp {
             dock_layout: ShellDockLayout::default(),
             events: Vec::new(),
             pending_commands: Vec::new(),
+            session: SessionState::default(),
+            assets,
             status_message: "Ready".to_string(),
             active_tool_name: "Select".to_string(),
             cursor_grid_pos: None,
@@ -119,6 +130,8 @@ impl ShellApp {
     pub fn save_project_to_path(&mut self, path: &std::path::Path) -> Result<(), lc_io::IoError> {
         lc_io::save_project(&self.project, path)?;
         self.project_path = Some(path.to_path_buf());
+        self.assets
+            .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.is_dirty = false;
         self.status_message = format!("Project saved to {}", path.display());
         Ok(())
@@ -129,6 +142,8 @@ impl ShellApp {
         let loaded = lc_io::load_project(path)?;
         self.project = loaded;
         self.project_path = Some(path.to_path_buf());
+        self.assets
+            .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.undo_stack.clear();
         self.open_documents.clear();
         self.dock_state = DockState::new(Vec::new());
@@ -249,12 +264,22 @@ impl ShellApp {
     fn render_central_documents(&mut self, ui: &mut Ui) {
         self.last_central_rect = Some(ui.max_rect());
         let is_dirty = self.is_dirty();
+
+        if let Some((_, active_tab)) = self.dock_state.find_active_focused() {
+            self.session.active_document = Some(*active_tab);
+            if let DocKind::Level(lid) = *active_tab {
+                self.session.active_level = Some(lid);
+            }
+        }
+
         let mut tab_viewer = DocTabViewer {
             project: &self.project,
             open_documents: &mut self.open_documents,
             undo_stack: &self.undo_stack,
+            session: &self.session,
             events: &mut self.events,
             pending_commands: &mut self.pending_commands,
+            assets: &*self.assets,
             is_dirty,
         };
 
@@ -275,6 +300,7 @@ impl ShellApp {
         let commands = std::mem::take(&mut self.pending_commands);
         for cmd in commands {
             let label = cmd.label();
+            let focus = cmd.focus();
             if let Err(e) = self.undo_stack.execute(cmd, &mut self.project) {
                 tracing::error!("Error executing {label}: {e}");
                 self.status_message = format!("Error executing {label}: {e}");
@@ -282,6 +308,13 @@ impl ShellApp {
                 tracing::debug!("Applied command: {label}");
                 self.is_dirty = true;
                 self.status_message = label;
+                if let Some(doc) = focus {
+                    self.open_document(doc);
+                    self.session.active_document = Some(doc);
+                    if let DocKind::Level(lid) = doc {
+                        self.session.active_level = Some(lid);
+                    }
+                }
             }
         }
 
@@ -289,12 +322,43 @@ impl ShellApp {
         let events = std::mem::take(&mut self.events);
         for event in events {
             match event {
-                EditorEvent::OpenDocument(kind) => self.open_document(kind),
-                EditorEvent::FocusDocument(kind) => self.focus_document(kind),
-                EditorEvent::CloseDocument(kind) => self.close_document(&kind),
+                EditorEvent::OpenDocument(kind) => {
+                    self.open_document(kind);
+                    self.session.active_document = Some(kind);
+                    if let DocKind::Level(lid) = kind {
+                        self.session.active_level = Some(lid);
+                    }
+                }
+                EditorEvent::FocusDocument(kind) => {
+                    self.focus_document(kind);
+                    self.session.active_document = Some(kind);
+                    if let DocKind::Level(lid) = kind {
+                        self.session.active_level = Some(lid);
+                    }
+                }
+                EditorEvent::CloseDocument(kind) => {
+                    self.close_document(&kind);
+                    if self.session.active_document == Some(kind) {
+                        self.session.active_document = None;
+                    }
+                }
                 EditorEvent::Status(msg) => self.status_message = msg,
                 EditorEvent::SelectionChanged(sel) => {
                     tracing::debug!("Selection changed: {sel:?}");
+                    self.session.selection = sel;
+                }
+                EditorEvent::SetActiveLevel(id) => {
+                    self.session.active_level = id;
+                }
+                EditorEvent::SetActiveLayer(id) => {
+                    self.session.active_layer = id;
+                }
+                EditorEvent::SetActiveTool(name) => {
+                    self.active_tool_name = name.clone();
+                    self.session.active_tool_name = name;
+                }
+                EditorEvent::SetTileSelection(ts) => {
+                    self.session.tile_selection = ts;
                 }
                 EditorEvent::SaveProject => {
                     if let Some(ref path) = self.project_path {

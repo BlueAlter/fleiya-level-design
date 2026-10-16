@@ -32,17 +32,17 @@ Progress tracker and audit log for `fix/contract-v0.2` contract hardening.
     - Added `find_layer_handler` alias in `Registry`.
     - Replaced `SystemTime::now()` in `project_panel_test.rs` with process ID.
   - [x] Commit Step 2 fixes and reviews
-- [ ] **STEP 3: CONTRACT GAP CHECK**
-  - [ ] 3a: Shared session state readable by panels, tools, inspector sections (`EditorCtx`, `DocKind`, `LevelId`, `LayerDefId`, selection, active tool, tile selection)
-  - [ ] 3b: Asset/texture service (`lc_ui_api` trait in `EditorCtx`, implemented in `lc_shell` via `lc_io`, caching + typed errors)
-  - [ ] 3c: DocKind location confirmation (`lc_core` must not depend on `lc_ui_api`; update `docs/02-architecture.md`)
-  - [ ] 3d: Command error surfacing: log at error level and show in status bar on deferred apply failure + test
-  - [ ] 3e: Viewport `screen_to_world` negative coord floor verification and integer world coordinate documentation for zoom < 1
-  - [ ] 3f: Timing of `EditorCtx::exec` documentation + paint stroke multi-frame undo test
-  - [ ] 3g: Native file dialog (`rfd`) in `lc_shell` with ADR or document deferral & task `T-0109`
-  - [ ] 3h: `rust-toolchain.toml`: pin newest stable that builds `egui` 0.36, verify by building; ADR if nightly needed
-  - [ ] 3i: Panel tab drag & drop between left, right, and bottom docks (~300 lines) or task `T-0110` in `docs/QUESTIONS.md`
-  - [ ] Commit Step 3 contract patches and ADRs
+- [x] **STEP 3: CONTRACT GAP CHECK**
+  - [x] 3a: Shared session state readable by panels, tools, inspector sections (`SessionState` in `lc_ui_api::session`, exposed via `EditorCtx`, updated via commands and `EditorEvent`s, documented in ADR-0009)
+  - [x] 3b: Asset/texture service (`AssetService` trait in `lc_ui_api::assets`, implemented in `lc_shell` via `lc_io::read_bytes` and `image` decoding, cached, typed `AssetError`, documented in ADR-0010)
+  - [x] 3c: DocKind location confirmation (`DocKind` lives in `lc_core::command` so `Command::focus` can use it without depending on `lc_ui_api`; re-exported in `lc_ui_api`; updated `docs/02-architecture.md`)
+  - [x] 3d: Command error surfacing: logged at error level and surfaced in status bar on deferred apply failure; verified and covered with `test_command_error_surfacing_in_status_bar`
+  - [x] 3e: Viewport `screen_to_world` negative coord floor verification, added `screen_to_world_f32`, and documented integer world coordinate quantization for zoom < 1 in `docs/02-architecture.md`
+  - [x] 3f: Timing of `EditorCtx::exec` documented in `docs/02-architecture.md` + paint stroke multi-frame undo test `test_paint_stroke_multi_frame_undo_merging`
+  - [x] 3g: Native file dialog (`rfd`) deferred to task `T-0109` for shell role with ADR-0011 to prevent desktop-portal/GTK linkage dependencies in headless CI
+  - [x] 3h: `rust-toolchain.toml`: pinned newest stable `1.99.0` (verified by building egui 0.36 on stable without nightly flags, documented in ADR-0012)
+  - [x] 3i: Panel tab drag & drop between left, right, and bottom docks implemented in `lc_shell` (~50 lines in `dock_layout.rs` and `dock_panels.rs`), verified with `test_panel_tab_drag_and_drop_between_docks`
+  - [x] Commit Step 3 contract patches and ADRs
 - [ ] **STEP 4: RELEASE contract-v0.2**
   - [ ] Update `docs/PHASE_A_REPORT.md` Section 3 verbatim signatures (including `Selection`, `DocKind`, `PanelId`, `CanvasCtx`, `LayerRenderCtx`, session-state, asset APIs)
   - [ ] Add Section "Contract v0.2 changes" in `docs/PHASE_A_REPORT.md` (what, why, Phase B tasks affected)

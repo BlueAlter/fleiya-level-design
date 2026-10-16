@@ -204,3 +204,141 @@ fn test_undo_stack_clear_and_labels() {
     assert!(!undo_stack.can_undo());
     assert!(!undo_stack.can_redo());
 }
+
+#[derive(Debug, Clone)]
+struct MockPaintTilesCommand {
+    stroke_id: u64,
+    level_id: LevelId,
+    layer_id: LayerDefId,
+    /// (cell_coord, new_tile_id, previous_tile_id)
+    tiles: Vec<(IVec2, u32, Option<u32>)>,
+}
+
+impl Command for MockPaintTilesCommand {
+    fn apply(&mut self, _p: &mut Project) -> Result<(), lc_core::error::CoreError> {
+        Ok(())
+    }
+
+    fn revert(&mut self, _p: &mut Project) {}
+
+    fn merge(&mut self, next: &dyn Command) -> bool {
+        if let Some(other) = next.as_any().downcast_ref::<MockPaintTilesCommand>() {
+            if self.stroke_id == other.stroke_id
+                && self.level_id == other.level_id
+                && self.layer_id == other.layer_id
+            {
+                self.tiles.extend(other.tiles.iter().copied());
+                return true;
+            }
+        }
+        false
+    }
+
+    fn label(&self) -> String {
+        "Paint Tiles".to_string()
+    }
+
+    fn focus(&self) -> Option<DocKind> {
+        Some(DocKind::Level(self.level_id))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+#[test]
+fn test_paint_stroke_multi_frame_undo_merging() {
+    let mut project = create_sample_project();
+    let mut undo_stack = UndoStack::new();
+
+    let stroke_id = 42;
+    let level_id = LevelId(101);
+    let layer_id = LayerDefId(1);
+
+    // Frame 1: Mouse down at (0, 0)
+    undo_stack
+        .execute(
+            Box::new(MockPaintTilesCommand {
+                stroke_id,
+                level_id,
+                layer_id,
+                tiles: vec![(IVec2::new(0, 0), 10, None)],
+            }),
+            &mut project,
+        )
+        .expect("Frame 1 apply");
+
+    // Frame 2: Dragged to (1, 0)
+    undo_stack
+        .execute(
+            Box::new(MockPaintTilesCommand {
+                stroke_id,
+                level_id,
+                layer_id,
+                tiles: vec![(IVec2::new(1, 0), 10, None)],
+            }),
+            &mut project,
+        )
+        .expect("Frame 2 apply");
+
+    // Frame 3: Dragged to (2, 1)
+    undo_stack
+        .execute(
+            Box::new(MockPaintTilesCommand {
+                stroke_id,
+                level_id,
+                layer_id,
+                tiles: vec![(IVec2::new(2, 1), 10, None)],
+            }),
+            &mut project,
+        )
+        .expect("Frame 3 apply");
+
+    // Frame 4: Dragged to (3, 2)
+    undo_stack
+        .execute(
+            Box::new(MockPaintTilesCommand {
+                stroke_id,
+                level_id,
+                layer_id,
+                tiles: vec![(IVec2::new(3, 2), 10, None)],
+            }),
+            &mut project,
+        )
+        .expect("Frame 4 apply");
+
+    // Frame 5: Mouse released at (4, 2)
+    undo_stack
+        .execute(
+            Box::new(MockPaintTilesCommand {
+                stroke_id,
+                level_id,
+                layer_id,
+                tiles: vec![(IVec2::new(4, 2), 10, None)],
+            }),
+            &mut project,
+        )
+        .expect("Frame 5 apply");
+
+    // The entire multi-frame stroke must have merged into ONE command on the undo stack!
+    assert_eq!(undo_stack.undo_label().as_deref(), Some("Paint Tiles"));
+
+    // Exactly one undo operation reverts the entire stroke
+    let undo_result = undo_stack.undo(&mut project);
+    assert!(undo_result.is_some());
+    assert_eq!(undo_result.unwrap().0, "Paint Tiles");
+
+    // Undo stack is now empty (cannot undo again)
+    assert!(
+        !undo_stack.can_undo(),
+        "Stroke must produce exactly ONE undo step, not 5 separate steps"
+    );
+    assert!(undo_stack.can_redo());
+
+    // Single redo restores the whole stroke
+    let redo_result = undo_stack.redo(&mut project).expect("redo succeeded");
+    assert!(redo_result.is_some());
+    assert!(!undo_stack.can_redo());
+    assert!(undo_stack.can_undo());
+}

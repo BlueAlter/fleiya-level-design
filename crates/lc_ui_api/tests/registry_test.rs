@@ -130,11 +130,20 @@ fn test_dummy_feature_registration_and_dispatch() {
 
     // 3. Test EditorCtx interaction with DummyDocView
     let undo_stack = UndoStack::new();
+    let session = lc_ui_api::session::SessionState::default();
+    let assets = lc_ui_api::assets::NoopAssetService;
     let mut events = Vec::new();
     let mut pending_commands = Vec::new();
 
     {
-        let mut cx = EditorCtx::new(&project, &undo_stack, &mut events, &mut pending_commands);
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut events,
+            &mut pending_commands,
+            &assets,
+        );
 
         // We can test UI method with an egui test context
         let ctx = egui::Context::default();
