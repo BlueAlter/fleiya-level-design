@@ -1,0 +1,81 @@
+# Level Craft — Contract Patch Progress & Verification Log
+
+Progress tracker and audit log for `fix/contract-v0.2` contract hardening.
+
+## Progress Checklist
+
+- [x] **STEP 1: VERIFY**
+  - [x] Run `scripts/board.sh`, `git status`, `git tag`, `cargo xtask check`, `cargo test --workspace`
+  - [x] Compare results against claims in `docs/PHASE_A_REPORT.md` (47 tests, tag, gates)
+  - [x] List all discrepancies in `docs/CONTRACT_PATCH.md`
+  - [x] Commit Step 1 results
+- [ ] **STEP 2: INDEPENDENT RE-REVIEW of T-0008, T-0009, T-0010, T-0011**
+  - [ ] Re-review T-0008 (`docs/reviews/T-0008-rereview.md`)
+  - [ ] Re-review T-0009 (`docs/reviews/T-0009-rereview.md`)
+  - [ ] Re-review T-0010 (`docs/reviews/T-0010-rereview.md`)
+  - [ ] Re-review T-0011 (`docs/reviews/T-0011-rereview.md`)
+  - [ ] Fix every Critical and Important finding
+  - [ ] Commit Step 2 fixes and reviews
+- [ ] **STEP 3: CONTRACT GAP CHECK**
+  - [ ] 3a: Shared session state readable by panels, tools, inspector sections (`EditorCtx`, `DocKind`, `LevelId`, `LayerDefId`, selection, active tool, tile selection)
+  - [ ] 3b: Asset/texture service (`lc_ui_api` trait in `EditorCtx`, implemented in `lc_shell` via `lc_io`, caching + typed errors)
+  - [ ] 3c: DocKind location confirmation (`lc_core` must not depend on `lc_ui_api`; update `docs/02-architecture.md`)
+  - [ ] 3d: Command error surfacing: log at error level and show in status bar on deferred apply failure + test
+  - [ ] 3e: Viewport `screen_to_world` negative coord floor verification and integer world coordinate documentation for zoom < 1
+  - [ ] 3f: Timing of `EditorCtx::exec` documentation + paint stroke multi-frame undo test
+  - [ ] 3g: Native file dialog (`rfd`) in `lc_shell` with ADR or document deferral & task `T-0109`
+  - [ ] 3h: `rust-toolchain.toml`: pin newest stable that builds `egui` 0.36, verify by building; ADR if nightly needed
+  - [ ] 3i: Panel tab drag & drop between left, right, and bottom docks (~300 lines) or task `T-0110` in `docs/QUESTIONS.md`
+  - [ ] Commit Step 3 contract patches and ADRs
+- [ ] **STEP 4: RELEASE contract-v0.2**
+  - [ ] Update `docs/PHASE_A_REPORT.md` Section 3 verbatim signatures (including `Selection`, `DocKind`, `PanelId`, `CanvasCtx`, `LayerRenderCtx`, session-state, asset APIs)
+  - [ ] Add Section "Contract v0.2 changes" in `docs/PHASE_A_REPORT.md` (what, why, Phase B tasks affected)
+  - [ ] Update Phase B task files (`docs/tasks/T-0101.md`..`T-0108.md`) if scope/description changed
+  - [ ] Verify `cargo xtask check` is green
+  - [ ] Fresh-context review of entire diff
+  - [ ] Merge to main with `git merge --no-ff`
+  - [ ] Tag `contract-v0.2`
+  - [ ] Remove worktree `../wt-contract-v0.2`
+
+---
+
+## Step 1 Verification Report & Discrepancy Log
+
+### Command Executions & Outputs
+1. **`scripts/board.sh`**:
+   - Tasks T-0000 through T-0011 are all marked `done`.
+   - Phase B tasks T-0101 through T-0108 and integration task T-0190 are marked `todo`.
+   - Active branches: none.
+2. **`git status`**:
+   - Working tree clean on branch `fix/contract-v0.2`.
+3. **`git tag`**:
+   - Tag `contract-v0.1` present at commit `0c9c400`.
+4. **`cargo xtask check`**:
+   - Gate 1 (fmt): PASSED.
+   - Gate 2 (clippy -D warnings): PASSED.
+   - Gate 3 (cargo test): PASSED.
+   - Gate 4 (architecture lint): PASSED.
+5. **`cargo test --workspace`**:
+   - Total workspace tests executed: 48 passed, 0 failed, 0 ignored.
+     - `lc_core` (commands_test): 5 passed
+     - `lc_core` (round_trip): 1 passed
+     - `lc_io` (unittests): 3 passed
+     - `lc_io` (golden_test): 4 passed
+     - `lc_shell` (unittests): 6 passed
+     - `lc_shell` (console_test): 5 passed
+     - `lc_shell` (project_panel_test): 4 passed
+     - `lc_shell` (shell_test): 5 passed
+     - `lc_ui_api` (registry_test): 1 passed
+     - `lc_ui_api` (viewport_test): 5 passed
+     - `xtask` (unittests): 9 passed
+
+### Discrepancies vs `docs/PHASE_A_REPORT.md`
+1. **Workspace Test Count**:
+   - `docs/PHASE_A_REPORT.md` Section 6 claims: "Workspace Test Count: 47 tests passing across all crates."
+   - Current actual count: 48 tests.
+   - **Cause**: Commit `9fc81db` (merged in `b0eb5a7`) fixed the bottom dock layout constraint and added `test_bottom_dock_layout_and_persistence` in `crates/lc_shell/tests/shell_test.rs`. `docs/PHASE_A_REPORT.md` was generated at tag `contract-v0.1` (`0c9c400`) before this commit was merged.
+2. **Git Commit Alignment**:
+   - `docs/PHASE_A_REPORT.md` Section 1 lists T-0011 commit SHA as `b4cbcf4`, and was finalized at `0c9c400` (`contract-v0.1`).
+   - `main` is at `b0eb5a7`, containing 2 additional commits (`9fc81db` and `b0eb5a7`) for the bottom-dock layout fix.
+3. **Layout Documentation**:
+   - `docs/03-ui-layout.md` and `docs/decisions/0002-ui-docking.md` were modified on `main` to document that the bottom dock sits strictly between the left and right docks (center column only), but `docs/PHASE_A_REPORT.md` has not yet incorporated this revision.
