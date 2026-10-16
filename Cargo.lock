@@ -1842,6 +1842,7 @@ name = "lc_ui_api"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "glam",
  "lc_core",
  "thiserror 2.0.21",
  "tracing",

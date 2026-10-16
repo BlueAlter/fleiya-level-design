@@ -34,7 +34,7 @@ Third-party: egui/eframe only in ui_api, canvas, features, shell, app. egui_dock
 pub enum DocKind { Level(LevelId), World(WorldId), EntityDef(EntityDefId), EnumDef(EnumDefId),
                    TilesetDef(TilesetDefId), LayerDef(LayerDefId), ProjectSettings }
 pub trait DocumentView { fn title(&self, p:&Project)->String; fn ui(&mut self, ui:&mut egui::Ui, cx:&mut EditorCtx);
-                         fn is_valid(&self, p:&Project)->bool; /* false => shell closes the tab */ }
+                         fn is_valid(&self, p:&Project)->bool; fn doc_kind(&self)->DocKind; /* false => shell closes the tab */ }
 pub trait PanelView    { fn id(&self)->PanelId; fn title(&self)->&str; fn ui(&mut self, ui:&mut egui::Ui, cx:&mut EditorCtx); }
 pub trait LayerHandler { fn kind(&self)->LayerKind; fn render(&self, ...); fn tools(&self)->Vec<Box<dyn CanvasTool>>; }
 pub trait CanvasTool   { fn name(&self)->&str; fn on_input(&mut self, cv:&mut CanvasCtx, cx:&mut EditorCtx); }

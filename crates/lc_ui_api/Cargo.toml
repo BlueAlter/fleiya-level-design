@@ -11,5 +11,6 @@ workspace = true
 [dependencies]
 lc_core = { workspace = true }
 egui = { workspace = true }
+glam = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
