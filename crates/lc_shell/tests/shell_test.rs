@@ -219,3 +219,184 @@ fn test_panel_registration_and_dock_rendering() {
 
     assert_eq!(app.status_message, "Ready");
 }
+
+#[test]
+fn test_bottom_dock_layout_and_persistence() {
+    let screen_size = egui::vec2(1280.0, 720.0);
+    let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_size);
+
+    let mut app = ShellApp::new(Project::new("LayoutTestProject"));
+    app.registry_mut().register_panel(Box::new(TestPanelView {
+        id: PanelId::new("project"),
+    }));
+    app.registry_mut().register_panel(Box::new(TestPanelView {
+        id: PanelId::new("layers"),
+    }));
+    app.registry_mut().register_panel(Box::new(TestPanelView {
+        id: PanelId::new("tileset"),
+    }));
+    app.registry_mut().register_panel(Box::new(TestPanelView {
+        id: PanelId::new("tools"),
+    }));
+    app.registry_mut().register_panel(Box::new(TestPanelView {
+        id: PanelId::new("console"),
+    }));
+
+    let ctx = Context::default();
+    let raw_input = egui::RawInput {
+        screen_rect: Some(screen_rect),
+        ..Default::default()
+    };
+
+    // Frame 1: Expanded layout
+    let mut output1 = ctx.run_ui(raw_input.clone(), |ui| {
+        app.ui(ui);
+    });
+    output1.textures_delta.clear();
+
+    let menu_bar =
+        egui::panel::PanelState::load(&ctx, egui::Id::new("menu_bar")).expect("menu_bar state");
+    let status_bar =
+        egui::panel::PanelState::load(&ctx, egui::Id::new("status_bar")).expect("status_bar state");
+    let left_dock =
+        egui::panel::PanelState::load(&ctx, egui::Id::new("left_dock")).expect("left_dock state");
+    let right_dock =
+        egui::panel::PanelState::load(&ctx, egui::Id::new("right_dock")).expect("right_dock state");
+    let bottom_dock = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("bottom_dock state");
+
+    let central_rect_expanded = app.last_central_rect.expect("central panel rect");
+
+    // (a) Bottom dock lies fully inside [left_dock.right, right_dock.left] horizontally
+    assert!(
+        bottom_dock.outer_rect.left() >= left_dock.outer_rect.right() - 0.5,
+        "bottom_dock left ({}) must be >= left_dock right ({})",
+        bottom_dock.outer_rect.left(),
+        left_dock.outer_rect.right()
+    );
+    assert!(
+        bottom_dock.outer_rect.right() <= right_dock.outer_rect.left() + 0.5,
+        "bottom_dock right ({}) must be <= right_dock left ({})",
+        bottom_dock.outer_rect.right(),
+        right_dock.outer_rect.left()
+    );
+
+    // (b) Left and right dock rects reach from below the menu bar to above the status bar
+    assert!(
+        (left_dock.outer_rect.top() - menu_bar.outer_rect.bottom()).abs() <= 0.5,
+        "left_dock top must reach menu_bar bottom"
+    );
+    assert!(
+        (left_dock.outer_rect.bottom() - status_bar.outer_rect.top()).abs() <= 0.5,
+        "left_dock bottom must reach status_bar top"
+    );
+    assert!(
+        (right_dock.outer_rect.top() - menu_bar.outer_rect.bottom()).abs() <= 0.5,
+        "right_dock top must reach menu_bar bottom"
+    );
+    assert!(
+        (right_dock.outer_rect.bottom() - status_bar.outer_rect.top()).abs() <= 0.5,
+        "right_dock bottom must reach status_bar top"
+    );
+
+    // (c) Status bar spans the full width
+    assert!(
+        (status_bar.outer_rect.left() - screen_rect.left()).abs() <= 0.5,
+        "status_bar must start at screen left"
+    );
+    assert!(
+        (status_bar.outer_rect.right() - screen_rect.right()).abs() <= 0.5,
+        "status_bar must reach screen right"
+    );
+    assert!(
+        (status_bar.outer_rect.width() - screen_rect.width()).abs() <= 0.5,
+        "status_bar width must match screen width"
+    );
+
+    // Frame 2: Collapse bottom dock via toggle_bottom_dock()
+    app.dock_layout.toggle_bottom_dock();
+    assert!(app.dock_layout.bottom.collapsed);
+
+    let mut output2 = ctx.run_ui(raw_input.clone(), |ui| {
+        app.ui(ui);
+    });
+    output2.textures_delta.clear();
+
+    let bottom_dock_collapsed = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("bottom_dock collapsed state");
+    let central_rect_collapsed = app.last_central_rect.expect("central panel rect collapsed");
+
+    // (d) Collapsed bottom dock height is about 28px and the central panel grows by the same amount
+    assert!(
+        (bottom_dock_collapsed.outer_rect.height() - 28.0).abs() <= 1.0,
+        "collapsed bottom dock height must be about 28px, got {}",
+        bottom_dock_collapsed.outer_rect.height()
+    );
+
+    let bottom_height_reduction =
+        bottom_dock.outer_rect.height() - bottom_dock_collapsed.outer_rect.height();
+    let central_height_growth = central_rect_collapsed.height() - central_rect_expanded.height();
+    assert!(
+        (bottom_height_reduction - central_height_growth).abs() <= 1.5,
+        "central panel growth ({}) should match bottom dock reduction ({})",
+        central_height_growth,
+        bottom_height_reduction
+    );
+
+    // (e) A persisted layout from before the fix still loads without panic
+    let pre_fix_ron = r#"(
+        left: (
+            panels: [("project")],
+            active: Some(("project")),
+        ),
+        right: (
+            panels: [("layers"), ("tileset"), ("tools")],
+            active: Some(("layers")),
+        ),
+        bottom: (
+            panels: [("console")],
+            active: Some(("console")),
+            collapsed: false,
+            height: 180.0,
+        ),
+    )"#;
+    let loaded_layout: ShellDockLayout =
+        ron::from_str(pre_fix_ron).expect("deserialize pre-fix layout");
+    app.dock_layout = loaded_layout;
+
+    // Simulate pre-fix persisted egui PanelState where bottom dock spanned full window width
+    let bar_id = egui::Id::new("bottom_dock");
+    ctx.data_mut(|d| {
+        d.insert_persisted(
+            bar_id,
+            egui::panel::PanelState {
+                outer_rect: egui::Rect::from_min_max(
+                    egui::pos2(0.0, 500.0),
+                    egui::pos2(1280.0, 680.0),
+                ),
+            },
+        );
+    });
+
+    let mut output3 = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output3.textures_delta.clear();
+
+    assert_eq!(app.dock_layout.left.panels.len(), 1);
+    assert_eq!(app.dock_layout.right.panels.len(), 3);
+    assert_eq!(app.dock_layout.bottom.panels.len(), 1);
+    assert!(!app.dock_layout.bottom.collapsed);
+
+    // Verify it adapted to the center column constraint despite old full-width persisted state
+    let bottom_dock_reloaded = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("bottom_dock reloaded state");
+    assert!(
+        bottom_dock_reloaded.outer_rect.left() >= left_dock.outer_rect.right() - 0.5,
+        "bottom dock reloaded must respect left dock bound"
+    );
+    assert!(
+        bottom_dock_reloaded.outer_rect.right() <= right_dock.outer_rect.left() + 0.5,
+        "bottom dock reloaded must respect right dock bound"
+    );
+}

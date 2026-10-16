@@ -1,29 +1,34 @@
 # 03 — UI layout
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│ Menu bar                                                           │
-├──────────┬──────────────────────────────────────────┬──────────────┤
-│ LEFT DOCK│  EDITOR AREA (documents only, tab view)  │ RIGHT DOCK   │
-│ Project  │  [Level_1][World A][Enum: Biome][Entity] │ Layers       │
-│ panel    │ ┌──────────────────────────────────────┐ │ Tile palette │
-│ ...      │ │ canvas                ┌───────────┐  │ │ Tools        │
-│          │ │                       │ floating  │  │ │              │
-│          │ │                       │ entity    │  │ │              │
-│          │ │                       │ properties│  │ │              │
-│          │ │                       └───────────┘  │ │              │
-│          │ └──────────────────────────────────────┘ │              │
-├──────────┴──────────────────────────────────────────┴──────────────┤
-│ BOTTOM DOCK: [Console] [...]   (click active tab header or Ctrl+` to collapse/expand)
-└────────────────────────────────────────────────────────────────────┘
- Status bar: grid coords | zoom | tool | dirty indicator
+┌────────────────────────────────────────────────────────────────────────┐
+│ Menu bar                                                               │
+├────────────┬──────────────────────────────────────────────┬────────────┤
+│ LEFT DOCK  │  EDITOR AREA (documents only, tab view)      │ RIGHT DOCK │
+│ Project    │  [Level_1][World A][Enum: Biome][Entity]     │ Layers     │
+│ panel      │ ┌──────────────────────────────────────────┐ │ Tile       │
+│ ...        │ │ canvas                    ┌───────────┐  │ │ palette    │
+│            │ │                           │ floating  │  │ │ Tools      │
+│ (full      │ │                           │ entity    │  │ │            │
+│  height    │ │                           │ properties│  │ │ (full      │
+│  from menu │ │                           └───────────┘  │ │  height    │
+│  to status │ └──────────────────────────────────────────┘ │  from menu │
+│  bar)      ├──────────────────────────────────────────────┤  to status │
+│            │ BOTTOM DOCK: [Console] [...]                 │  bar)      │
+│            │ (center column only, between left/right dock;│            │
+│            │  click active tab header or Ctrl+` to toggle)│            │
+├────────────┴──────────────────────────────────────────────┴────────────┤
+│ Status bar: grid coords | zoom | tool | dirty indicator (full width)   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Panels (docks)
-- Panels (Project, Layers, Tile palette, Tools, Console, ...) are `PanelView`s. They can be dragged between left, right and bottom docks and
-  reordered/tabbed together. Layout persists to the user config dir. `View > Reset Layout` restores defaults.
+- Left and right docks run full height from below the menu bar down to above the status bar.
+- The bottom dock (Console and any panel placed in the bottom slot) sits directly under the editor area and spans ONLY the center column, between the left dock and the right dock.
+- The status bar is full width at the very bottom of the window.
+- Panels (Project, Layers, Tile palette, Tools, Console, ...) are `PanelView`s. They can be dragged/moved between left, right and bottom docks and reordered/tabbed together. Layout persists to the user config dir. `View > Reset Layout` restores defaults.
 - The editor area holds only `DocumentView` tabs. Panels cannot be dropped into it and documents cannot be dropped into docks.
-- Bottom dock collapses to a thin header bar (tab titles visible), expands on click. Size is remembered. Collapse state persists.
+- Collapsed state: bottom dock collapses to a ~28px header bar (tab titles visible) in the center column only, expanding the editor area to take the freed height. Expands on click or `Ctrl+``. Height is user-resizable and remembered/persisted.
 - Panels show context of the ACTIVE document tab (e.g. Layers panel follows the active level tab). No active level: panel shows an empty state.
 
 ## Documents (tabs)

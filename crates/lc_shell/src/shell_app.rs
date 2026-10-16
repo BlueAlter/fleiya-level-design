@@ -48,6 +48,8 @@ pub struct ShellApp {
     pub is_dirty: bool,
     /// Shared console log ring buffer.
     pub console_buffer: SharedRingBuffer,
+    /// Last recorded bounding rect of the central document area.
+    pub last_central_rect: Option<egui::Rect>,
 }
 
 impl Default for ShellApp {
@@ -90,6 +92,7 @@ impl ShellApp {
             zoom_level: 1.0,
             is_dirty: false,
             console_buffer,
+            last_central_rect: None,
         }
     }
 
@@ -206,10 +209,7 @@ impl ShellApp {
             self.render_status_bar(ui);
         });
 
-        // 3. Bottom dock (collapsible)
-        self.render_bottom_dock(ui);
-
-        // 4. Left dock panel
+        // 3. Left dock panel
         if !self.dock_layout.left.panels.is_empty() {
             Panel::left("left_dock")
                 .resizable(true)
@@ -219,7 +219,7 @@ impl ShellApp {
                 });
         }
 
-        // 5. Right dock panel
+        // 4. Right dock panel
         if !self.dock_layout.right.panels.is_empty() {
             Panel::right("right_dock")
                 .resizable(true)
@@ -228,6 +228,9 @@ impl ShellApp {
                     self.render_dock_slot(ui, DockSlotLocation::Right);
                 });
         }
+
+        // 5. Bottom dock (collapsible)
+        self.render_bottom_dock(ui);
 
         // 6. Central document area (egui_dock)
         CentralPanel::default().show(ui, |ui| {
@@ -371,72 +374,97 @@ impl ShellApp {
             self.dock_layout.bottom.height
         };
 
-        Panel::bottom("bottom_dock")
-            .resizable(!is_collapsed)
-            .default_size(height)
-            .show(ui, |ui| {
-                // Header bar
-                ui.horizontal(|ui| {
-                    let collapse_icon = if is_collapsed { "▲" } else { "▼" };
-                    if ui.button(collapse_icon).clicked() {
-                        self.dock_layout.bottom.toggle_collapsed();
-                    }
+        let bar_id = Id::new("bottom_dock");
+        if !is_collapsed {
+            if let Some(mut state) = egui::panel::PanelState::load(ui.ctx(), bar_id) {
+                if state.outer_rect.height() < BottomDockState::COLLAPSED_HEIGHT + 2.0 {
+                    state.outer_rect.min.y =
+                        state.outer_rect.max.y - self.dock_layout.bottom.height;
+                    ui.ctx().data_mut(|d| d.insert_persisted(bar_id, state));
+                }
+            }
+        }
 
-                    let panels = self.dock_layout.bottom.panels.clone();
-                    let active = self.dock_layout.bottom.active.clone();
+        let panel = if is_collapsed {
+            Panel::bottom("bottom_dock")
+                .resizable(false)
+                .exact_size(BottomDockState::COLLAPSED_HEIGHT)
+        } else {
+            Panel::bottom("bottom_dock")
+                .resizable(true)
+                .default_size(height)
+        };
 
-                    for panel_id in panels {
-                        let is_selected = active.as_ref() == Some(&panel_id);
-                        let title = self
-                            .registry
-                            .find_panel(&panel_id)
-                            .map(|p| p.title())
-                            .unwrap_or_else(|| panel_id.as_str());
+        let response = panel.show(ui, |ui| {
+            // Header bar
+            ui.horizontal(|ui| {
+                let collapse_icon = if is_collapsed { "▲" } else { "▼" };
+                if ui.button(collapse_icon).clicked() {
+                    self.dock_layout.bottom.toggle_collapsed();
+                }
 
-                        let btn = ui.selectable_label(is_selected, title);
-                        if btn.clicked() {
-                            if is_selected {
-                                // Clicking active tab toggles collapse
-                                self.dock_layout.bottom.toggle_collapsed();
-                            } else {
-                                // Clicking inactive tab selects it and expands
-                                self.dock_layout.bottom.active = Some(panel_id.clone());
-                                self.dock_layout.bottom.collapsed = false;
-                            }
-                        }
+                let panels = self.dock_layout.bottom.panels.clone();
+                let active = self.dock_layout.bottom.active.clone();
 
-                        // Context menu to move dock
-                        btn.context_menu(|ui| {
-                            if ui.button("Move to Left Dock").clicked() {
-                                self.dock_layout
-                                    .move_panel(&panel_id, DockSlotLocation::Left);
-                                ui.close();
-                            }
-                            if ui.button("Move to Right Dock").clicked() {
-                                self.dock_layout
-                                    .move_panel(&panel_id, DockSlotLocation::Right);
-                                ui.close();
-                            }
-                        });
-                    }
-                });
+                for panel_id in panels {
+                    let is_selected = active.as_ref() == Some(&panel_id);
+                    let title = self
+                        .registry
+                        .find_panel(&panel_id)
+                        .map(|p| p.title())
+                        .unwrap_or_else(|| panel_id.as_str());
 
-                // Render content if expanded
-                if !is_collapsed {
-                    ui.separator();
-                    if let Some(active_id) = self.dock_layout.bottom.active.clone() {
-                        if let Some(panel) = self.registry.find_panel_mut(&active_id) {
-                            let mut cx = EditorCtx::new(
-                                &self.project,
-                                &self.undo_stack,
-                                &mut self.events,
-                                &mut self.pending_commands,
-                            );
-                            panel.ui(ui, &mut cx);
+                    let btn = ui.selectable_label(is_selected, title);
+                    if btn.clicked() {
+                        if is_selected {
+                            // Clicking active tab toggles collapse
+                            self.dock_layout.bottom.toggle_collapsed();
+                        } else {
+                            // Clicking inactive tab selects it and expands
+                            self.dock_layout.bottom.active = Some(panel_id.clone());
+                            self.dock_layout.bottom.collapsed = false;
                         }
                     }
+
+                    // Context menu to move dock
+                    btn.context_menu(|ui| {
+                        if ui.button("Move to Left Dock").clicked() {
+                            self.dock_layout
+                                .move_panel(&panel_id, DockSlotLocation::Left);
+                            ui.close();
+                        }
+                        if ui.button("Move to Right Dock").clicked() {
+                            self.dock_layout
+                                .move_panel(&panel_id, DockSlotLocation::Right);
+                            ui.close();
+                        }
+                    });
                 }
             });
+
+            // Render content if expanded
+            if !is_collapsed {
+                ui.separator();
+                if let Some(active_id) = self.dock_layout.bottom.active.clone() {
+                    if let Some(panel) = self.registry.find_panel_mut(&active_id) {
+                        let mut cx = EditorCtx::new(
+                            &self.project,
+                            &self.undo_stack,
+                            &mut self.events,
+                            &mut self.pending_commands,
+                        );
+                        panel.ui(ui, &mut cx);
+                    }
+                }
+            }
+        });
+
+        if !is_collapsed {
+            let actual_h = response.response.rect.height();
+            if actual_h > BottomDockState::COLLAPSED_HEIGHT + 1.0 {
+                self.dock_layout.bottom.height = actual_h;
+            }
+        }
     }
 
     fn render_dock_slot(&mut self, ui: &mut Ui, location: DockSlotLocation) {
@@ -524,6 +552,7 @@ impl ShellApp {
     }
 
     fn render_central_documents(&mut self, ui: &mut Ui) {
+        self.last_central_rect = Some(ui.max_rect());
         let is_dirty = self.is_dirty();
         let mut tab_viewer = DocTabViewer {
             project: &self.project,
