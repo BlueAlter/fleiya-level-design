@@ -156,4 +156,27 @@ fn test_dummy_feature_registration_and_dispatch() {
         events[0],
         EditorEvent::Status("Dummy doc rendered".to_string())
     );
+
+    // 4. Verify LayerHandler registration and find_layer_handler alias
+    struct DummyLayerHandler;
+    impl lc_ui_api::canvas::LayerHandler for DummyLayerHandler {
+        fn kind(&self) -> lc_core::layer::LayerKind {
+            lc_core::layer::LayerKind::Tiles
+        }
+        fn render(&self, _ctx: &mut lc_ui_api::canvas::LayerRenderCtx) {}
+        fn tools(&self) -> Vec<Box<dyn lc_ui_api::canvas::CanvasTool>> {
+            Vec::new()
+        }
+    }
+
+    reg.register_layer_handler(Box::new(DummyLayerHandler));
+    assert!(reg
+        .layer_handler(lc_core::layer::LayerKind::Tiles)
+        .is_some());
+    assert!(reg
+        .find_layer_handler(lc_core::layer::LayerKind::Tiles)
+        .is_some());
+    assert!(reg
+        .find_layer_handler(lc_core::layer::LayerKind::Entities)
+        .is_none());
 }

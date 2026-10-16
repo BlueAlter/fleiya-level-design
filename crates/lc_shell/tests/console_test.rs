@@ -11,7 +11,6 @@ use lc_ui_api::{EditorCtx, EditorEvent, PanelView};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 use tracing_subscriber::layer::SubscriberExt;
 
 #[derive(Debug)]
@@ -136,7 +135,6 @@ fn test_logging_from_worker_threads_non_blocking() {
             panel.ui(ui, &mut cx);
         });
         output.textures_delta.clear();
-        thread::sleep(Duration::from_millis(2));
     }
 
     // Join all workers

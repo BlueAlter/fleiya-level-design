@@ -5,8 +5,11 @@
 pub mod console;
 pub mod doc_tab_viewer;
 pub mod dock_layout;
+pub mod dock_panels;
+pub mod menu;
 pub mod project_panel;
 pub mod shell_app;
+pub mod status_bar;
 
 pub use console::{
     parse_doc_kind, BoundedRingBuffer, CollapsedLogEntry, ConsoleFilter, ConsolePanel,

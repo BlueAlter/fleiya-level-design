@@ -173,4 +173,16 @@ impl ShellDockLayout {
             }
         }
     }
+
+    /// Persists layout state into egui context storage.
+    pub fn save_to_memory(&self, ctx: &egui::Context) {
+        ctx.data_mut(|d| {
+            d.insert_persisted(egui::Id::new("shell_dock_layout"), self.clone());
+        });
+    }
+
+    /// Loads persisted layout state from egui context storage, if present.
+    pub fn load_from_memory(ctx: &egui::Context) -> Option<Self> {
+        ctx.data_mut(|d| d.get_persisted(egui::Id::new("shell_dock_layout")))
+    }
 }

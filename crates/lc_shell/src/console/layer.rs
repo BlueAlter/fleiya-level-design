@@ -85,6 +85,9 @@ struct EventVisitor {
 impl Visit for EventVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
+            if !self.message.is_empty() {
+                self.message.push(' ');
+            }
             let _ = write!(self.message, "{value:?}");
         } else if field.name() == "doc_target" || field.name() == "doc_kind" {
             let s = format!("{value:?}");
@@ -99,6 +102,9 @@ impl Visit for EventVisitor {
 
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name() == "message" {
+            if !self.message.is_empty() {
+                self.message.push(' ');
+            }
             self.message.push_str(value);
         } else if field.name() == "doc_target" || field.name() == "doc_kind" {
             self.doc_target = parse_doc_kind(value);
@@ -128,34 +134,45 @@ pub fn parse_doc_kind(text: &str) -> Option<DocKind> {
         return Some(DocKind::ProjectSettings);
     }
 
-    if let Some(id) = extract_numeric_arg(text, "Level(") {
+    if let Some(id) = extract_id(text, &["Level(LevelId(", "LevelId(", "Level("]) {
         return Some(DocKind::Level(LevelId(id)));
     }
-    if let Some(id) = extract_numeric_arg(text, "World(") {
+    if let Some(id) = extract_id(text, &["World(WorldId(", "WorldId(", "World("]) {
         return Some(DocKind::World(WorldId(id)));
     }
-    if let Some(id) = extract_numeric_arg(text, "EntityDef(") {
+    if let Some(id) = extract_id(
+        text,
+        &["EntityDef(EntityDefId(", "EntityDefId(", "EntityDef("],
+    ) {
         return Some(DocKind::EntityDef(EntityDefId(id)));
     }
-    if let Some(id) = extract_numeric_arg(text, "EnumDef(") {
+    if let Some(id) = extract_id(text, &["EnumDef(EnumDefId(", "EnumDefId(", "EnumDef("]) {
         return Some(DocKind::EnumDef(EnumDefId(id)));
     }
-    if let Some(id) = extract_numeric_arg(text, "TilesetDef(") {
+    if let Some(id) = extract_id(
+        text,
+        &["TilesetDef(TilesetDefId(", "TilesetDefId(", "TilesetDef("],
+    ) {
         return Some(DocKind::TilesetDef(TilesetDefId(id)));
     }
-    if let Some(id) = extract_numeric_arg(text, "LayerDef(") {
+    if let Some(id) = extract_id(text, &["LayerDef(LayerDefId(", "LayerDefId(", "LayerDef("]) {
         return Some(DocKind::LayerDef(LayerDefId(id)));
     }
 
     None
 }
 
-fn extract_numeric_arg(text: &str, prefix: &str) -> Option<u64> {
-    let start = text.find(prefix)? + prefix.len();
-    let rest = text.get(start..)?;
-    let end = rest.find(')')?;
-    let num_str = rest.get(..end)?;
-    num_str.trim().parse::<u64>().ok()
+fn extract_id(text: &str, prefixes: &[&str]) -> Option<u64> {
+    for &prefix in prefixes {
+        if let Some(pos) = text.find(prefix) {
+            let rest = text.get(pos + prefix.len()..)?;
+            let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if let Ok(id) = digits.parse::<u64>() {
+                return Some(id);
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -169,11 +186,27 @@ mod tests {
             Some(DocKind::Level(LevelId(10)))
         );
         assert_eq!(
+            parse_doc_kind("doc_target: LevelId(10)"),
+            Some(DocKind::Level(LevelId(10)))
+        );
+        assert_eq!(
+            parse_doc_kind("doc_target: Level(LevelId(10))"),
+            Some(DocKind::Level(LevelId(10)))
+        );
+        assert_eq!(
             parse_doc_kind("Active World(3)"),
             Some(DocKind::World(WorldId(3)))
         );
         assert_eq!(
+            parse_doc_kind("WorldId(3) selected"),
+            Some(DocKind::World(WorldId(3)))
+        );
+        assert_eq!(
             parse_doc_kind("Edited EntityDef(5)"),
+            Some(DocKind::EntityDef(EntityDefId(5)))
+        );
+        assert_eq!(
+            parse_doc_kind("EntityDefId(5) updated"),
             Some(DocKind::EntityDef(EntityDefId(5)))
         );
         assert_eq!(

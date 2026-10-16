@@ -9,13 +9,29 @@ Progress tracker and audit log for `fix/contract-v0.2` contract hardening.
   - [x] Compare results against claims in `docs/PHASE_A_REPORT.md` (47 tests, tag, gates)
   - [x] List all discrepancies in `docs/CONTRACT_PATCH.md`
   - [x] Commit Step 1 results
-- [ ] **STEP 2: INDEPENDENT RE-REVIEW of T-0008, T-0009, T-0010, T-0011**
-  - [ ] Re-review T-0008 (`docs/reviews/T-0008-rereview.md`)
-  - [ ] Re-review T-0009 (`docs/reviews/T-0009-rereview.md`)
-  - [ ] Re-review T-0010 (`docs/reviews/T-0010-rereview.md`)
-  - [ ] Re-review T-0011 (`docs/reviews/T-0011-rereview.md`)
-  - [ ] Fix every Critical and Important finding
-  - [ ] Commit Step 2 fixes and reviews
+- [x] **STEP 2: INDEPENDENT RE-REVIEW of T-0008, T-0009, T-0010, T-0011**
+  - [x] Re-review T-0008 (`docs/reviews/T-0008-rereview.md`)
+  - [x] Re-review T-0009 (`docs/reviews/T-0009-rereview.md`)
+  - [x] Re-review T-0010 (`docs/reviews/T-0010-rereview.md`)
+  - [x] Re-review T-0011 (`docs/reviews/T-0011-rereview.md`)
+  - [x] Fix every Critical and Important finding:
+    - Fixed `RotatingLogWriter` mutex drop race condition and partial writes using `write_all`.
+    - Fixed `DocKind` parsing for `Display`/`Debug` formatted IDs (`LevelId(N)`, `Level(LevelId(N))`).
+    - Fixed `EventVisitor` field ordering space separation.
+    - Pre-lowercased search query in `ConsoleFilter` to avoid per-iteration heap allocations.
+    - Removed non-deterministic `thread::sleep` from `console_test.rs`.
+    - Generated World and Level IDs using `max(id) + 1` across existing IDs in the project to prevent collisions.
+    - Deduplicated "Move to Depth..." buttons in Level context menu and filtered current depth.
+    - Supported double-clicking World header in project panel to open World document tab.
+    - Included candidate depth drop slots (0, 1, -1) in World depth grouping.
+    - Reset `self.project_path = None` on `File > New`.
+    - Prevented clearing `is_dirty = false` on `SaveProject` when `project_path` is `None` (added error status and warning log).
+    - Re-queried active panel ID after tab rendering in `render_dock_slot` to eliminate duplicate rendering on move.
+    - Added `save_to_memory` and `load_from_memory` for `ShellDockLayout` via egui persisted memory.
+    - Split `shell_app.rs` into `menu.rs`, `status_bar.rs`, and `dock_panels.rs`, bringing `shell_app.rs` under 325 lines (well below the 500-line constraint).
+    - Added `find_layer_handler` alias in `Registry`.
+    - Replaced `SystemTime::now()` in `project_panel_test.rs` with process ID.
+  - [x] Commit Step 2 fixes and reviews
 - [ ] **STEP 3: CONTRACT GAP CHECK**
   - [ ] 3a: Shared session state readable by panels, tools, inspector sections (`EditorCtx`, `DocKind`, `LevelId`, `LayerDefId`, selection, active tool, tile selection)
   - [ ] 3b: Asset/texture service (`lc_ui_api` trait in `EditorCtx`, implemented in `lc_shell` via `lc_io`, caching + typed errors)

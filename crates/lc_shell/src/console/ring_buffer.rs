@@ -132,7 +132,15 @@ impl ConsoleFilter {
             return true;
         }
         let q = trimmed.to_lowercase();
-        text.to_lowercase().contains(&q) || target.to_lowercase().contains(&q)
+        self.matches_text_query(text, target, &q)
+    }
+
+    /// Checks whether text or target matches a pre-lowercased query string without reallocating query.
+    pub fn matches_text_query(&self, text: &str, target: &str, query_lower: &str) -> bool {
+        if query_lower.is_empty() {
+            return true;
+        }
+        text.to_lowercase().contains(query_lower) || target.to_lowercase().contains(query_lower)
     }
 }
 
@@ -192,12 +200,15 @@ impl BoundedRingBuffer {
     /// Produces a filtered and optionally collapsed list of entries according to `filter`.
     pub fn filtered_entries(&self, filter: &ConsoleFilter) -> Vec<CollapsedLogEntry> {
         let mut result: Vec<CollapsedLogEntry> = Vec::new();
+        let query_lower = filter.search_query.trim().to_lowercase();
+        let has_query = !query_lower.is_empty();
 
         for entry in &self.entries {
             if !filter.matches_level(entry.level) {
                 continue;
             }
-            if !filter.matches_text(&entry.message, &entry.target) {
+            if has_query && !filter.matches_text_query(&entry.message, &entry.target, &query_lower)
+            {
                 continue;
             }
 
