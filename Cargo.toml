@@ -1,0 +1,55 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lc_core",
+    "crates/lc_io",
+    "crates/lc_ui_api",
+    "crates/lc_canvas",
+    "crates/lc_feature_level",
+    "crates/lc_feature_tileset",
+    "crates/lc_feature_layers",
+    "crates/lc_feature_enums",
+    "crates/lc_feature_entities",
+    "crates/lc_feature_world",
+    "crates/lc_shell",
+    "crates/lc_app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Level Craft Team"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[workspace.dependencies]
+egui = "0.36.0"
+eframe = "0.36.0"
+egui_dock = "0.21.1"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+glam = { version = "0.29", features = ["serde"] }
+
+# Internal workspace crates
+lc_core = { path = "crates/lc_core" }
+lc_io = { path = "crates/lc_io" }
+lc_ui_api = { path = "crates/lc_ui_api" }
+lc_canvas = { path = "crates/lc_canvas" }
+lc_feature_level = { path = "crates/lc_feature_level" }
+lc_feature_tileset = { path = "crates/lc_feature_tileset" }
+lc_feature_layers = { path = "crates/lc_feature_layers" }
+lc_feature_enums = { path = "crates/lc_feature_enums" }
+lc_feature_entities = { path = "crates/lc_feature_entities" }
+lc_feature_world = { path = "crates/lc_feature_world" }
+lc_shell = { path = "crates/lc_shell" }

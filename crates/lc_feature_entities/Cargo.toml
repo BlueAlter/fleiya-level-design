@@ -1,0 +1,15 @@
+[package]
+name = "lc_feature_entities"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lc_core = { workspace = true }
+lc_ui_api = { workspace = true }
+lc_canvas = { workspace = true }
+egui = { workspace = true }

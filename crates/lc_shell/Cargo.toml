@@ -1,0 +1,24 @@
+[package]
+name = "lc_shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+lc_core = { workspace = true }
+lc_io = { workspace = true }
+lc_ui_api = { workspace = true }
+lc_canvas = { workspace = true }
+lc_feature_level = { workspace = true }
+lc_feature_tileset = { workspace = true }
+lc_feature_layers = { workspace = true }
+lc_feature_enums = { workspace = true }
+lc_feature_entities = { workspace = true }
+lc_feature_world = { workspace = true }
+egui = { workspace = true }
+egui_dock = { workspace = true }
+tracing = { workspace = true }

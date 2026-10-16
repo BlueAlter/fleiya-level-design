@@ -1,0 +1,18 @@
+[package]
+name = "lc_app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "levelcraft"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+lc_shell = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
