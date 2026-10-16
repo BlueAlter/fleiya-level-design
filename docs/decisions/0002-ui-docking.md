@@ -26,8 +26,9 @@ Adopt the dual-container architecture specified as the preferred fallback in ADR
    - Supports tab splits, side-by-side editing, reordering, and docking within the central document region.
    - Enforces the document barrier: documents can never be dragged into panel docks.
 2. **Dockable Panel Containers (Left, Right, Bottom)**:
-   - Left and Right docks use `egui::SidePanel`.
-   - Bottom dock uses `egui::TopBottomPanel`.
+   - Left and Right docks use `egui::SidePanel` (running full height from below the menu bar down to above the status bar).
+   - Bottom dock uses `egui::TopBottomPanel` (spanning ONLY the center column directly under the editor area, between the left and right docks).
+   - The status bar is full width at the very bottom.
    - Each dock slot manages a tabbed strip of `PanelView` instances.
    - Panels can be moved between Left, Right, and Bottom slots via tab bar context menu ("Move to Left", "Move to Right", "Move to Bottom") or drag-and-drop.
 3. **Collapsible Bottom Dock**:

@@ -1836,6 +1836,7 @@ dependencies = [
  "lc_feature_world",
  "lc_io",
  "lc_ui_api",
+ "ron",
  "serde",
  "tracing",
  "tracing-subscriber",

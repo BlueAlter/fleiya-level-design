@@ -23,9 +23,11 @@ Since agents cannot view graphical UI output directly, this document enumerates 
   - [ ] Right-clicking panel tab header allows moving panel between Left, Right, and Bottom docks.
   - [ ] Active tab selection changes rendered panel content.
 - [ ] **Collapsible Bottom Dock**:
+  - [ ] Dragging the bottom dock handle resizes its height between the left and right docks without overlapping side docks.
+  - [ ] Collapsing with `Ctrl+`` leaves a ~28px header bar in the center column only; editor area takes the freed height.
+  - [ ] Moving the Console to the left or right dock and back via context menu works smoothly and updates the respective dock layout.
   - [ ] When expanded, clicking the active tab header collapses the dock to a thin header bar showing tab titles.
   - [ ] Clicking any tab title in the collapsed header expands the dock and activates that tab.
-  - [ ] Pressing `Ctrl+`` toggles between collapsed and expanded states.
   - [ ] Resizing the bottom dock height is remembered when collapsed and re-expanded.
 - [ ] **Status Bar**:
   - [ ] Displays grid coordinates under pointer (e.g. `[12, 8]`).
