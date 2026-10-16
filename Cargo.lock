@@ -1810,6 +1810,7 @@ dependencies = [
 name = "lc_io"
 version = "0.1.0"
 dependencies = [
+ "glam",
  "lc_core",
  "serde",
  "serde_json",

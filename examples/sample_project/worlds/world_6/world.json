@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": 6,
+  "name": "SampleWorld",
+  "layout": "Free",
+  "default_grid": null,
+  "levels": [
+    {
+      "id": 7,
+      "name": "StartRoom",
+      "world_pos": [
+        0,
+        0
+      ],
+      "world_depth": 0,
+      "file": "levels/level_7.json"
+    }
+  ]
+}

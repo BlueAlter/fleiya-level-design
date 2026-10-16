@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "name": "GoldenSample",
+  "settings": {
+    "default_grid_size": [
+      16,
+      16
+    ]
+  },
+  "defs": {
+    "tilesets": [
+      {
+        "id": 1,
+        "name": "DungeonTiles",
+        "path": "assets/tilesets/dungeon.png",
+        "tile_size": [
+          16,
+          16
+        ],
+        "spacing": 0,
+        "padding": 0
+      }
+    ],
+    "enums": [
+      {
+        "id": 2,
+        "name": "Difficulty",
+        "values": [
+          {
+            "id": "Easy",
+            "name": "Easy Mode",
+            "color": [
+              0,
+              255,
+              0,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Hard",
+            "name": "Hardcore",
+            "color": [
+              255,
+              0,
+              0,
+              255
+            ],
+            "tile": {
+              "tileset_id": 1,
+              "tile_id": 1,
+              "flip_x": false,
+              "flip_y": false
+            }
+          }
+        ]
+      }
+    ],
+    "entities": [
+      {
+        "id": 3,
+        "name": "SpawnPoint",
+        "size_px": [
+          16,
+          16
+        ],
+        "color": [
+          0,
+          100,
+          255,
+          255
+        ],
+        "pivot": [
+          0.5,
+          0.5
+        ],
+        "tile": null,
+        "fields": [
+          {
+            "name": "checkpoint_id",
+            "field_type": "Int",
+            "default_value": {
+              "Int": 1
+            }
+          },
+          {
+            "name": "active",
+            "field_type": "Bool",
+            "default_value": {
+              "Bool": true
+            }
+          }
+        ]
+      }
+    ],
+    "layers": [
+      {
+        "id": 4,
+        "name": "Collisions",
+        "kind": "IntGrid",
+        "grid_size": [
+          16,
+          16
+        ],
+        "tileset_id": null,
+        "int_grid_values": [
+          {
+            "value": 1,
+            "name": "SolidWall",
+            "color": [
+              128,
+              128,
+              128,
+              255
+            ]
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "Entities",
+        "kind": "Entities",
+        "grid_size": [
+          16,
+          16
+        ],
+        "tileset_id": null,
+        "int_grid_values": []
+      }
+    ]
+  },
+  "worlds": [
+    {
+      "id": 6,
+      "name": "SampleWorld",
+      "file": "worlds/world_6/world.json"
+    }
+  ]
+}
