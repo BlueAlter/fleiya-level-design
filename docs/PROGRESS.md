@@ -1,1 +1,2 @@
 - 2026-10-16 SETUP completed: scaffold initialized, references cloned, agent-skills installed, toolchain verified
+- 2026-10-16 T-0000 merged (result: APPROVE, reviewer: subagent-reviewer, sha: f5eacec)
