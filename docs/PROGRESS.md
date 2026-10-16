@@ -3,3 +3,4 @@
 - 2026-10-16 T-0001 merged (result: APPROVE, reviewer: subagent-reviewer, sha: 218159c)
 - 2026-10-16 T-0002 merged (result: APPROVE, reviewer: subagent-reviewer, sha: 5a94417)
 - 2026-10-16 T-0003 merged (result: APPROVE, reviewer: subagent-reviewer, sha: a5410c1)
+- 2026-10-16 T-0004 merged (result: APPROVE, reviewer: subagent-reviewer, sha: 0c70625)
