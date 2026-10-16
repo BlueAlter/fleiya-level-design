@@ -65,3 +65,74 @@ impl<'a> TabViewer for DocTabViewer<'a> {
         }
     }
 }
+
+/// Fallback placeholder DocumentView implementation for shell tabs.
+pub struct PlaceholderDocumentView {
+    /// Document kind this view represents.
+    pub kind: DocKind,
+}
+
+impl DocumentView for PlaceholderDocumentView {
+    fn doc_kind(&self) -> DocKind {
+        self.kind
+    }
+
+    fn title(&self, project: &Project) -> String {
+        match self.kind {
+            DocKind::Level(id) => project
+                .level(id)
+                .map(|l| l.name.clone())
+                .unwrap_or_else(|| format!("Level({id})")),
+            DocKind::World(id) => project
+                .world(id)
+                .map(|w| w.name.clone())
+                .unwrap_or_else(|| format!("World({id})")),
+            DocKind::EntityDef(id) => project
+                .defs
+                .entities
+                .iter()
+                .find(|e| e.id == id)
+                .map(|e| e.name.clone())
+                .unwrap_or_else(|| format!("EntityDef({id})")),
+            DocKind::EnumDef(id) => project
+                .defs
+                .enums
+                .iter()
+                .find(|e| e.id == id)
+                .map(|e| e.name.clone())
+                .unwrap_or_else(|| format!("EnumDef({id})")),
+            DocKind::TilesetDef(id) => project
+                .defs
+                .tilesets
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| t.name.clone())
+                .unwrap_or_else(|| format!("TilesetDef({id})")),
+            DocKind::LayerDef(id) => project
+                .defs
+                .layers
+                .iter()
+                .find(|l| l.id == id)
+                .map(|l| l.name.clone())
+                .unwrap_or_else(|| format!("LayerDef({id})")),
+            DocKind::ProjectSettings => "Project Settings".to_string(),
+        }
+    }
+
+    fn is_valid(&self, project: &Project) -> bool {
+        match self.kind {
+            DocKind::Level(id) => project.level(id).is_some(),
+            DocKind::World(id) => project.world(id).is_some(),
+            DocKind::EntityDef(id) => project.defs.entities.iter().any(|e| e.id == id),
+            DocKind::EnumDef(id) => project.defs.enums.iter().any(|e| e.id == id),
+            DocKind::TilesetDef(id) => project.defs.tilesets.iter().any(|t| t.id == id),
+            DocKind::LayerDef(id) => project.defs.layers.iter().any(|l| l.id == id),
+            DocKind::ProjectSettings => true,
+        }
+    }
+
+    fn ui(&mut self, ui: &mut Ui, _cx: &mut EditorCtx) {
+        ui.heading(format!("{:?}", self.kind));
+        ui.label("Document view placeholder.");
+    }
+}

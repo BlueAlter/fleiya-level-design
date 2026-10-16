@@ -72,6 +72,7 @@ impl ShellApp {
     pub fn new_with_console(project: Project, console_buffer: SharedRingBuffer) -> Self {
         let mut registry = Registry::new();
         registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
+        registry.register_panel(Box::new(crate::project_panel::ProjectPanel::new()));
 
         Self {
             project,
@@ -112,6 +113,28 @@ impl ShellApp {
         self.is_dirty
     }
 
+    /// Saves the active project to the given directory path using `lc_io`.
+    pub fn save_project_to_path(&mut self, path: &std::path::Path) -> Result<(), lc_io::IoError> {
+        lc_io::save_project(&self.project, path)?;
+        self.project_path = Some(path.to_path_buf());
+        self.is_dirty = false;
+        self.status_message = format!("Project saved to {}", path.display());
+        Ok(())
+    }
+
+    /// Loads a project from the given directory path using `lc_io`.
+    pub fn open_project_from_path(&mut self, path: &std::path::Path) -> Result<(), lc_io::IoError> {
+        let loaded = lc_io::load_project(path)?;
+        self.project = loaded;
+        self.project_path = Some(path.to_path_buf());
+        self.undo_stack.clear();
+        self.open_documents.clear();
+        self.dock_state = DockState::new(Vec::new());
+        self.is_dirty = false;
+        self.status_message = format!("Opened project from {}", path.display());
+        Ok(())
+    }
+
     /// Opens or focuses a document tab. Guarantees the same `DocKind` never opens twice.
     pub fn open_document(&mut self, kind: DocKind) {
         if self.open_documents.contains_key(&kind) {
@@ -120,11 +143,13 @@ impl ShellApp {
             return;
         }
 
-        if let Some(doc) = self.registry.create_document(kind) {
-            self.open_documents.insert(kind, doc);
-            self.dock_state.push_to_first_leaf(kind);
-            self.status_message = format!("Opened {kind:?}");
-        }
+        let doc = self
+            .registry
+            .create_document(kind)
+            .unwrap_or_else(|| Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind }));
+        self.open_documents.insert(kind, doc);
+        self.dock_state.push_to_first_leaf(kind);
+        self.status_message = format!("Opened {kind:?}");
     }
 
     /// Focuses an existing open document tab in the dock state.
@@ -517,6 +542,8 @@ impl ShellApp {
         let active_tabs: Vec<DocKind> = self.dock_state.iter_all_tabs().map(|(_, t)| *t).collect();
         self.open_documents
             .retain(|k, v| active_tabs.contains(k) && v.is_valid(&self.project));
+        let valid_docs = self.open_documents.keys().copied().collect::<Vec<_>>();
+        self.dock_state.retain_tabs(|t| valid_docs.contains(t));
     }
 
     fn process_commands_and_events(&mut self) {
@@ -544,8 +571,18 @@ impl ShellApp {
                 EditorEvent::Status(msg) => self.status_message = msg,
                 EditorEvent::SelectionChanged(_) => {}
                 EditorEvent::SaveProject => {
-                    self.is_dirty = false;
-                    self.status_message = "Project saved".to_string();
+                    if let Some(ref path) = self.project_path {
+                        if let Err(e) = lc_io::save_project(&self.project, path) {
+                            tracing::error!("Failed to save project: {e}");
+                            self.status_message = format!("Failed to save project: {e}");
+                        } else {
+                            self.is_dirty = false;
+                            self.status_message = format!("Saved project to {}", path.display());
+                        }
+                    } else {
+                        self.is_dirty = false;
+                        self.status_message = "Project saved".to_string();
+                    }
                 }
             }
         }

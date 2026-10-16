@@ -5,14 +5,16 @@
 pub mod console;
 pub mod doc_tab_viewer;
 pub mod dock_layout;
+pub mod project_panel;
 pub mod shell_app;
 
 pub use console::{
     parse_doc_kind, BoundedRingBuffer, CollapsedLogEntry, ConsoleFilter, ConsolePanel,
     ConsoleSubscriberLayer, LogEntry, LogLevel, SharedRingBuffer,
 };
-pub use doc_tab_viewer::DocTabViewer;
+pub use doc_tab_viewer::{DocTabViewer, PlaceholderDocumentView};
 pub use dock_layout::{BottomDockState, DockSlotLocation, DockSlotState, ShellDockLayout};
+pub use project_panel::ProjectPanel;
 pub use shell_app::ShellApp;
 
 use lc_io::RotatingLogWriter;
