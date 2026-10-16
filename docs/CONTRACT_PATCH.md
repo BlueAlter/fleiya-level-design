@@ -49,9 +49,9 @@ Progress tracker and audit log for `fix/contract-v0.2` contract hardening.
   - [x] Update Phase B task files (`docs/tasks/T-0101.md`..`T-0108.md`) if scope/description changed
   - [x] Verify `cargo xtask check` is green (61 tests passing across workspace)
   - [x] Fresh-context review of entire diff (APPROVED by independent reviewer, all Important findings addressed)
-  - [ ] Merge to main with `git merge --no-ff`
-  - [ ] Tag `contract-v0.2`
-  - [ ] Remove worktree `../wt-contract-v0.2`
+  - [x] Merge to main with `git merge --no-ff`
+  - [x] Tag `contract-v0.2`
+  - [x] Remove worktree `../wt-contract-v0.2`
 
 ---
 
