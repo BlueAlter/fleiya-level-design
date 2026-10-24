@@ -2,7 +2,7 @@ use egui::Context;
 use lc_core::command::{Command, DocKind};
 use lc_core::error::CoreError;
 use lc_core::project::Project;
-use lc_shell::dock_layout::{DockSlotLocation, ShellDockLayout};
+use lc_shell::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
 use lc_shell::ShellApp;
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
@@ -399,6 +399,99 @@ fn test_bottom_dock_layout_and_persistence() {
     assert!(
         bottom_dock_reloaded.outer_rect.right() <= right_dock.outer_rect.left() + 0.5,
         "bottom dock reloaded must respect right dock bound"
+    );
+}
+
+#[test]
+fn test_bottom_dock_expand_restores_height_and_clamps_stale_state() {
+    let screen_size = egui::vec2(1280.0, 720.0);
+    let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_size);
+
+    let mut app = ShellApp::new(Project::new("BottomDockHeightTest"));
+    let ctx = Context::default();
+    let raw_input = egui::RawInput {
+        screen_rect: Some(screen_rect),
+        ..Default::default()
+    };
+
+    // Frame 1: expanded default height.
+    let mut output = ctx.run_ui(raw_input.clone(), |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    let expanded = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("expanded bottom dock state");
+    assert!(
+        (expanded.outer_rect.height() - BottomDockState::DEFAULT_HEIGHT).abs() <= 3.0,
+        "default expanded height should be {}, got {}",
+        BottomDockState::DEFAULT_HEIGHT,
+        expanded.outer_rect.height()
+    );
+
+    // Frame 2: collapsed.
+    app.dock_layout.toggle_bottom_dock();
+    let mut output = ctx.run_ui(raw_input.clone(), |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    let collapsed = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("collapsed bottom dock state");
+    assert!(
+        (collapsed.outer_rect.height() - BottomDockState::COLLAPSED_HEIGHT).abs() <= 1.0,
+        "collapsed height should be {}, got {}",
+        BottomDockState::COLLAPSED_HEIGHT,
+        collapsed.outer_rect.height()
+    );
+
+    // Frame 3: expanding again must restore the remembered height, not the
+    // collapsed header height or the full central area.
+    app.dock_layout.toggle_bottom_dock();
+    let mut output = ctx.run_ui(raw_input.clone(), |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    let reexpanded = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("re-expanded bottom dock state");
+    assert!(
+        (reexpanded.outer_rect.height() - BottomDockState::DEFAULT_HEIGHT).abs() <= 3.0,
+        "re-expanded height should be {}, got {}",
+        BottomDockState::DEFAULT_HEIGHT,
+        reexpanded.outer_rect.height()
+    );
+
+    // Frame 4: a stale full-height PanelState from an earlier session must be
+    // normalised instead of covering the editor.
+    ctx.data_mut(|d| {
+        d.insert_persisted(
+            egui::Id::new("bottom_dock"),
+            egui::panel::PanelState {
+                outer_rect: egui::Rect::from_min_max(
+                    egui::pos2(0.0, 0.0),
+                    egui::pos2(1280.0, 700.0),
+                ),
+            },
+        );
+    });
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    let clamped = egui::panel::PanelState::load(&ctx, egui::Id::new("bottom_dock"))
+        .expect("clamped bottom dock state");
+    assert!(
+        clamped.outer_rect.height() <= screen_size.y * BottomDockState::MAX_HEIGHT_FRACTION + 1.0,
+        "bottom dock must not exceed 55% of the window, got {}",
+        clamped.outer_rect.height()
+    );
+    assert!(
+        clamped.outer_rect.height() >= BottomDockState::MIN_EXPANDED_HEIGHT - 1.0,
+        "bottom dock must stay usable, got {}",
+        clamped.outer_rect.height()
+    );
+    assert!(
+        app.dock_layout.bottom.height <= screen_size.y * BottomDockState::MAX_HEIGHT_FRACTION + 1.0,
+        "remembered height must be clamped, got {}",
+        app.dock_layout.bottom.height
     );
 }
 

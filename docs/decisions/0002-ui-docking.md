@@ -42,3 +42,34 @@ Adopt the dual-container architecture specified as the preferred fallback in ADR
 - Clean separation of concerns between dynamic document tabs and fixed/dockable tool panels.
 - Guaranteed enforcement of the layout rules in `docs/03-ui-layout.md`.
 - Layout state serialization and `View > Reset Layout` are trivial and robust.
+
+## Refinement (T-0203): insertion indexes and bottom-dock height
+The custom side/bottom slots are flat tab strips, not split trees. Their drag
+and drop model is therefore an **insertion index**, not a split-pane overlay:
+
+- Each slot records its outer rect, tab-strip rect and per-tab rects while it is
+  rendered. Hit-testing runs once after the central panel so every slot is known.
+- Hovering a slot highlights it and draws an accent insertion line between tabs
+  (with end caps). Hovering the tab strip chooses an index from the tab centres;
+  hovering the slot content appends.
+- `DockSlotState::insert_panel` and `ShellDockLayout::move_panel_to` take the
+  index explicitly. Moving within the same slot adjusts the index after removing
+  the panel, so a no-op drop stays a no-op.
+- The central document area is not a drop target for panels. Releasing there
+  cancels the drag; `Esc` cancels it as well.
+- The drag preview is an `egui::Area` at `Order::Tooltip`; the slot highlight and
+  insertion line use an `Order::Foreground` layer. Both use `lc_canvas::theme`
+  tokens (accent, zero radius, hairlines).
+
+Bottom-dock height is owned by `BottomDockState`, not by egui's rendering cache:
+
+- Expanded height is clamped to `55%` of the central area with a `96 px`
+  minimum; `Panel::min_size`/`max_size` enforce the same range during a manual
+  resize.
+- A stale `PanelState` (for example a full-height rect left by an earlier
+  session) is normalised to the remembered expanded height before the panel is
+  shown. Collapsing and re-expanding therefore restores the remembered height.
+- The remembered height is clamped after every expanded frame.
+
+Central `egui_dock` document tabs keep their default drag preview and docking
+behaviour; panel drag previews are intentionally limited to the custom slots.
