@@ -33,6 +33,29 @@ impl DockSlotState {
         }
     }
 
+    /// Returns the index of a panel in this slot, if present.
+    pub fn position(&self, id: &PanelId) -> Option<usize> {
+        self.panels.iter().position(|panel| panel == id)
+    }
+
+    /// Inserts a panel at `index` and focuses it.
+    ///
+    /// If the panel already belongs to this slot it is removed first and the
+    /// index is adjusted, so dropping a tab onto its own position is a no-op.
+    pub fn insert_panel(&mut self, id: PanelId, index: usize) {
+        let mut index = index;
+        if let Some(current) = self.position(&id) {
+            self.panels.remove(current);
+            if current < index {
+                index -= 1;
+            }
+        }
+
+        let index = index.min(self.panels.len());
+        self.panels.insert(index, id.clone());
+        self.active = Some(id);
+    }
+
     /// Adds a panel to this slot and focuses it.
     pub fn add_panel(&mut self, id: PanelId) {
         if !self.panels.contains(&id) {
@@ -68,6 +91,21 @@ impl BottomDockState {
     pub const DEFAULT_HEIGHT: f32 = 180.0;
     /// Collapsed header bar height in pixels.
     pub const COLLAPSED_HEIGHT: f32 = 28.0;
+    /// Smallest useful expanded height in pixels.
+    pub const MIN_EXPANDED_HEIGHT: f32 = 96.0;
+    /// Maximum expanded height as a fraction of the central area.
+    pub const MAX_HEIGHT_FRACTION: f32 = 0.55;
+
+    /// Maximum expanded height for the available central area.
+    pub fn max_expanded_height(available_height: f32) -> f32 {
+        (available_height * Self::MAX_HEIGHT_FRACTION).max(Self::COLLAPSED_HEIGHT + 1.0)
+    }
+
+    /// Height to use when expanding, clamped to the available central area.
+    pub fn desired_expanded_height(&self, available_height: f32) -> f32 {
+        let max = Self::max_expanded_height(available_height);
+        self.height.clamp(Self::MIN_EXPANDED_HEIGHT.min(max), max)
+    }
 
     /// Creates a new bottom dock state.
     pub fn new(panels: Vec<PanelId>, active: Option<PanelId>) -> Self {
@@ -84,6 +122,26 @@ impl BottomDockState {
         if self.panels.contains(&id) {
             self.active = Some(id);
         }
+    }
+
+    /// Returns the index of a panel in this slot, if present.
+    pub fn position(&self, id: &PanelId) -> Option<usize> {
+        self.panels.iter().position(|panel| panel == id)
+    }
+
+    /// Inserts a panel at `index` and focuses it.
+    pub fn insert_panel(&mut self, id: PanelId, index: usize) {
+        let mut index = index;
+        if let Some(current) = self.position(&id) {
+            self.panels.remove(current);
+            if current < index {
+                index -= 1;
+            }
+        }
+
+        let index = index.min(self.panels.len());
+        self.panels.insert(index, id.clone());
+        self.active = Some(id);
     }
 
     /// Adds a panel to the bottom slot and focuses it.
@@ -151,8 +209,16 @@ impl ShellDockLayout {
 
     /// Completes the drop of the currently dragged panel into `target`, returning true if moved.
     pub fn drop_dragged(&mut self, target: DockSlotLocation) -> bool {
+        self.drop_dragged_at(target, usize::MAX)
+    }
+
+    /// Completes the drop at a specific tab index in `target`.
+    pub fn drop_dragged_at(&mut self, target: DockSlotLocation, index: usize) -> bool {
         if let Some(id) = self.dragging_panel.take() {
-            self.move_panel(&id, target);
+            self.move_panel_to(&id, target, index);
+            if target == DockSlotLocation::Bottom {
+                self.bottom.collapsed = false;
+            }
             true
         } else {
             false
@@ -164,18 +230,39 @@ impl ShellDockLayout {
         self.dragging_panel = None;
     }
 
+    /// Returns the slot currently containing `id`.
+    pub fn slot_of(&self, id: &PanelId) -> Option<DockSlotLocation> {
+        if self.left.panels.contains(id) {
+            Some(DockSlotLocation::Left)
+        } else if self.right.panels.contains(id) {
+            Some(DockSlotLocation::Right)
+        } else if self.bottom.panels.contains(id) {
+            Some(DockSlotLocation::Bottom)
+        } else {
+            None
+        }
+    }
+
     /// Moves a panel from its current slot to the specified target slot.
     pub fn move_panel(&mut self, id: &PanelId, target: DockSlotLocation) {
-        // Remove from existing locations
-        self.left.remove_panel(id);
-        self.right.remove_panel(id);
-        self.bottom.remove_panel(id);
+        self.move_panel_to(id, target, usize::MAX);
+    }
 
-        // Add to destination slot
+    /// Moves a panel to a specific tab index in the target slot.
+    pub fn move_panel_to(&mut self, id: &PanelId, target: DockSlotLocation, index: usize) {
+        let source = self.slot_of(id);
+        if source != Some(target) {
+            // Remove from every slot first; the target slot's insert handles
+            // same-slot reordering without losing the source index.
+            self.left.remove_panel(id);
+            self.right.remove_panel(id);
+            self.bottom.remove_panel(id);
+        }
+
         match target {
-            DockSlotLocation::Left => self.left.add_panel(id.clone()),
-            DockSlotLocation::Right => self.right.add_panel(id.clone()),
-            DockSlotLocation::Bottom => self.bottom.add_panel(id.clone()),
+            DockSlotLocation::Left => self.left.insert_panel(id.clone(), index),
+            DockSlotLocation::Right => self.right.insert_panel(id.clone(), index),
+            DockSlotLocation::Bottom => self.bottom.insert_panel(id.clone(), index),
         }
     }
 
@@ -208,5 +295,88 @@ impl ShellDockLayout {
     /// Loads persisted layout state from egui context storage, if present.
     pub fn load_from_memory(ctx: &egui::Context) -> Option<Self> {
         ctx.data_mut(|d| d.get_persisted(egui::Id::new("shell_dock_layout")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn panel(id: &str) -> PanelId {
+        PanelId::new(id)
+    }
+
+    #[test]
+    fn insert_panel_reorders_within_a_slot() {
+        let mut slot = DockSlotState::new(
+            vec![panel("project"), panel("console"), panel("tools")],
+            Some(panel("project")),
+        );
+
+        slot.insert_panel(panel("console"), 0);
+        assert_eq!(
+            slot.panels,
+            vec![panel("console"), panel("project"), panel("tools")]
+        );
+
+        slot.insert_panel(panel("project"), 2);
+        assert_eq!(
+            slot.panels,
+            vec![panel("console"), panel("project"), panel("tools")]
+        );
+    }
+
+    #[test]
+    fn move_panel_to_index_across_slots() {
+        let mut layout = ShellDockLayout::default();
+
+        layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 0);
+        assert_eq!(layout.left.panels, vec![panel("console"), panel("project")]);
+        assert!(layout.bottom.panels.is_empty());
+
+        layout.move_panel_to(&panel("project"), DockSlotLocation::Right, 1);
+        assert_eq!(
+            layout.right.panels,
+            vec![
+                panel("layers"),
+                panel("project"),
+                panel("tileset"),
+                panel("tools")
+            ]
+        );
+        assert!(layout.left.panels.contains(&panel("console")));
+    }
+
+    #[test]
+    fn moving_to_the_same_position_is_a_no_op() {
+        let mut layout = ShellDockLayout::default();
+        layout.left.insert_panel(panel("console"), 1);
+
+        layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 1);
+        assert_eq!(layout.left.panels, vec![panel("project"), panel("console")]);
+
+        layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 2);
+        assert_eq!(layout.left.panels, vec![panel("project"), panel("console")]);
+    }
+
+    #[test]
+    fn bottom_dock_height_is_clamped_to_available_space() {
+        let mut bottom = BottomDockState::new(vec![panel("console")], Some(panel("console")));
+
+        assert_eq!(bottom.desired_expanded_height(800.0), 180.0);
+
+        bottom.height = 1_000.0;
+        assert_eq!(
+            bottom.desired_expanded_height(800.0),
+            BottomDockState::max_expanded_height(800.0)
+        );
+
+        bottom.height = 10.0;
+        assert_eq!(
+            bottom.desired_expanded_height(800.0),
+            BottomDockState::MIN_EXPANDED_HEIGHT
+        );
+
+        assert_eq!(bottom.desired_expanded_height(100.0), 55.0);
     }
 }

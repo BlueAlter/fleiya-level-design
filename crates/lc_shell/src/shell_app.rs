@@ -272,6 +272,8 @@ impl ShellApp {
             .show(ui, |ui| {
                 crate::status_bar::render_status_bar(self, ui);
             });
+        let mut dock_geometry = crate::dock_panels::DockGeometry::default();
+
         // 3. Left dock panel
         if !self.dock_layout.left.panels.is_empty() {
             Panel::left("left_dock")
@@ -283,7 +285,11 @@ impl ShellApp {
                         .inner_margin(egui::Margin::ZERO),
                 )
                 .show(ui, |ui| {
-                    crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Left);
+                    dock_geometry.left = Some(crate::dock_panels::render_dock_slot(
+                        self,
+                        ui,
+                        DockSlotLocation::Left,
+                    ));
                 });
         }
         // 4. Right dock panel
@@ -297,11 +303,15 @@ impl ShellApp {
                         .inner_margin(egui::Margin::ZERO),
                 )
                 .show(ui, |ui| {
-                    crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Right);
+                    dock_geometry.right = Some(crate::dock_panels::render_dock_slot(
+                        self,
+                        ui,
+                        DockSlotLocation::Right,
+                    ));
                 });
         }
         // 5. Bottom dock (collapsible)
-        crate::dock_panels::render_bottom_dock(self, ui);
+        dock_geometry.bottom = crate::dock_panels::render_bottom_dock(self, ui);
         // 6. Central document area (egui_dock)
         CentralPanel::default()
             .frame(
@@ -313,13 +323,11 @@ impl ShellApp {
                 self.render_central_documents(ui);
             });
 
-        // 7. Process deferred commands and events
-        self.process_commands_and_events();
+        // 7. Drag preview, drop indicator and drop completion.
+        crate::dock_panels::handle_drag_and_drop(self, ui, &dock_geometry);
 
-        // 8. Cancel dragging if pointer released outside dock slots
-        if ui.input(|i| i.pointer.any_released()) && self.dock_layout.dragging_panel.is_some() {
-            self.dock_layout.cancel_drag();
-        }
+        // 8. Process deferred commands and events
+        self.process_commands_and_events();
     }
 
     fn render_central_documents(&mut self, ui: &mut Ui) {
