@@ -15,6 +15,7 @@ use crate::assets::ShellAssetService;
 use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
 use crate::doc_tab_viewer::DocTabViewer;
 use crate::dock_layout::{DockSlotLocation, ShellDockLayout};
+use lc_canvas::theme::{self, ThemeChoice};
 use lc_ui_api::session::SessionState;
 use std::sync::Arc;
 
@@ -52,6 +53,8 @@ pub struct ShellApp {
     pub zoom_level: f32,
     /// Tracks if there are unsaved modifications.
     pub is_dirty: bool,
+    /// Selected appearance preference.
+    pub theme_choice: ThemeChoice,
     /// Shared console log ring buffer.
     pub console_buffer: SharedRingBuffer,
     /// Last recorded bounding rect of the central document area.
@@ -101,6 +104,7 @@ impl ShellApp {
             cursor_grid_pos: None,
             zoom_level: 1.0,
             is_dirty: false,
+            theme_choice: ThemeChoice::Dark,
             console_buffer,
             last_central_rect: None,
         }
@@ -124,6 +128,12 @@ impl ShellApp {
     /// Returns true if there are uncommitted or unsaved changes.
     pub fn is_dirty(&self) -> bool {
         self.is_dirty
+    }
+
+    /// Applies a new appearance preference immediately.
+    pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
+        self.theme_choice = choice;
+        theme::apply(ctx, choice);
     }
 
     /// Saves the active project to the given directory path using `lc_io`.
@@ -239,43 +249,69 @@ impl ShellApp {
 
         crate::menu::handle_global_shortcuts(self, ui.ctx());
 
+        let tokens = theme::Tokens::get(ui.ctx());
+
         // 1. Top menu bar
-        Panel::top("menu_bar").show(ui, |ui| {
-            crate::menu::render_menu_bar(self, ui);
-        });
-
+        Panel::top("menu_bar")
+            .frame(
+                egui::Frame::new()
+                    .fill(tokens.bg)
+                    .inner_margin(egui::Margin::ZERO),
+            )
+            .show(ui, |ui| {
+                crate::menu::render_menu_bar(self, ui);
+            });
         // 2. Bottom status bar
-        Panel::bottom("status_bar").show(ui, |ui| {
-            crate::status_bar::render_status_bar(self, ui);
-        });
-
+        Panel::bottom("status_bar")
+            .exact_size(theme::STATUS_H)
+            .frame(
+                egui::Frame::new()
+                    .fill(tokens.bg)
+                    .inner_margin(egui::Margin::ZERO),
+            )
+            .show(ui, |ui| {
+                crate::status_bar::render_status_bar(self, ui);
+            });
         // 3. Left dock panel
         if !self.dock_layout.left.panels.is_empty() {
             Panel::left("left_dock")
                 .resizable(true)
                 .default_size(220.0)
+                .frame(
+                    egui::Frame::new()
+                        .fill(tokens.panel)
+                        .inner_margin(egui::Margin::ZERO),
+                )
                 .show(ui, |ui| {
                     crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Left);
                 });
         }
-
         // 4. Right dock panel
         if !self.dock_layout.right.panels.is_empty() {
             Panel::right("right_dock")
                 .resizable(true)
                 .default_size(260.0)
+                .frame(
+                    egui::Frame::new()
+                        .fill(tokens.panel)
+                        .inner_margin(egui::Margin::ZERO),
+                )
                 .show(ui, |ui| {
                     crate::dock_panels::render_dock_slot(self, ui, DockSlotLocation::Right);
                 });
         }
-
         // 5. Bottom dock (collapsible)
         crate::dock_panels::render_bottom_dock(self, ui);
-
         // 6. Central document area (egui_dock)
-        CentralPanel::default().show(ui, |ui| {
-            self.render_central_documents(ui);
-        });
+        CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(tokens.bg)
+                    .inner_margin(egui::Margin::ZERO),
+            )
+            .show(ui, |ui| {
+                self.render_central_documents(ui);
+            });
 
         // 7. Process deferred commands and events
         self.process_commands_and_events();
@@ -288,6 +324,14 @@ impl ShellApp {
 
     fn render_central_documents(&mut self, ui: &mut Ui) {
         self.last_central_rect = Some(ui.max_rect());
+
+        if self.open_documents.is_empty() && self.dock_state.iter_all_tabs().next().is_none() {
+            self.session.active_document = None;
+            self.session.active_level = None;
+            crate::workspace::render_workspace_empty(self, ui);
+            return;
+        }
+
         let is_dirty = self.is_dirty();
 
         if let Some((_, active_tab)) = self.dock_state.find_active_focused() {
@@ -313,8 +357,10 @@ impl ShellApp {
             is_dirty,
         };
 
+        let dock_style = crate::dock_style::style(&theme::Tokens::get(ui.ctx()));
         DockArea::new(&mut self.dock_state)
             .id(Id::new("central_document_dock_area"))
+            .style(dock_style)
             .show_inside(ui, &mut tab_viewer);
 
         // Prune any documents that were closed or became invalid

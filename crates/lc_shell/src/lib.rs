@@ -7,10 +7,12 @@ pub mod console;
 pub mod doc_tab_viewer;
 pub mod dock_layout;
 pub mod dock_panels;
+pub mod dock_style;
 pub mod menu;
 pub mod project_panel;
 pub mod shell_app;
 pub mod status_bar;
+pub mod workspace;
 
 pub use assets::ShellAssetService;
 pub use console::{
@@ -19,6 +21,7 @@ pub use console::{
 };
 pub use doc_tab_viewer::{DocTabViewer, PlaceholderDocumentView};
 pub use dock_layout::{BottomDockState, DockSlotLocation, DockSlotState, ShellDockLayout};
+pub use lc_canvas::theme;
 pub use project_panel::ProjectPanel;
 pub use shell_app::ShellApp;
 

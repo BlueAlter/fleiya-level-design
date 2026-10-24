@@ -1,6 +1,8 @@
 //! Panel dock rendering for side slots and collapsible bottom tray.
 
-use egui::{Id, Panel, Ui};
+use egui::{CornerRadius, Id, Panel, Stroke, StrokeKind, Ui};
+use lc_canvas::theme::{self, Tokens};
+use lc_canvas::widgets::{chevron, dock_tab, dock_tab_sized};
 use lc_ui_api::context::EditorCtx;
 
 use crate::dock_layout::{BottomDockState, DockSlotLocation};
@@ -12,6 +14,7 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
         return;
     }
 
+    let t = Tokens::get(ui.ctx());
     let is_collapsed = app.dock_layout.bottom.collapsed;
     let height = if is_collapsed {
         BottomDockState::COLLAPSED_HEIGHT
@@ -39,83 +42,121 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
             .default_size(height)
     };
 
-    let response = panel.show(ui, |ui| {
-        // Drop zone detection for bottom dock
-        if ui.rect_contains_pointer(ui.max_rect())
-            && ui.input(|i| i.pointer.any_released())
-            && app.dock_layout.dragging_panel.is_some()
-        {
-            app.dock_layout.drop_dragged(DockSlotLocation::Bottom);
-            app.dock_layout.bottom.collapsed = false;
-        }
-
-        // Header bar
-        ui.horizontal(|ui| {
-            let collapse_icon = if is_collapsed { "▲" } else { "▼" };
-            if ui.button(collapse_icon).clicked() {
-                app.dock_layout.bottom.toggle_collapsed();
+    let response = panel
+        .frame(
+            egui::Frame::new()
+                .fill(t.panel)
+                .inner_margin(egui::Margin::ZERO),
+        )
+        .show(ui, |ui| {
+            // Drop zone detection for bottom dock
+            if ui.rect_contains_pointer(ui.max_rect())
+                && ui.input(|i| i.pointer.any_released())
+                && app.dock_layout.dragging_panel.is_some()
+            {
+                app.dock_layout.drop_dragged(DockSlotLocation::Bottom);
+                app.dock_layout.bottom.collapsed = false;
             }
 
-            let panels = app.dock_layout.bottom.panels.clone();
-            let active = app.dock_layout.bottom.active.clone();
+            // Header bar
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), BottomDockState::COLLAPSED_HEIGHT),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.add_space(8.0);
+                    ui.spacing_mut().item_spacing.x = 0.0;
 
-            for panel_id in panels {
-                let is_selected = active.as_ref() == Some(&panel_id);
-                let title = app
-                    .registry
-                    .find_panel(&panel_id)
-                    .map(|p| p.title())
-                    .unwrap_or_else(|| panel_id.as_str());
-
-                let btn = ui.selectable_label(is_selected && !is_collapsed, title);
-                if btn.drag_started() {
-                    app.dock_layout.start_drag(panel_id.clone());
-                }
-                if btn.clicked() {
-                    if is_selected {
-                        // Clicking active tab toggles collapse
+                    let chev = chevron(ui, !is_collapsed, t.muted);
+                    if chev.clicked() {
                         app.dock_layout.bottom.toggle_collapsed();
-                    } else {
-                        // Clicking inactive tab selects it and expands
-                        app.dock_layout.bottom.active = Some(panel_id.clone());
-                        app.dock_layout.bottom.collapsed = false;
                     }
-                }
+                    ui.add_space(4.0);
 
-                // Context menu to move dock
-                btn.context_menu(|ui| {
-                    if ui.button("Move to Left Dock").clicked() {
-                        app.dock_layout
-                            .move_panel(&panel_id, DockSlotLocation::Left);
-                        ui.close();
+                    let panels = app.dock_layout.bottom.panels.clone();
+                    let active = app.dock_layout.bottom.active.clone();
+
+                    for panel_id in panels {
+                        let is_selected = active.as_ref() == Some(&panel_id);
+                        let title = app
+                            .registry
+                            .find_panel(&panel_id)
+                            .map(|p| p.title())
+                            .unwrap_or_else(|| panel_id.as_str());
+
+                        let btn = dock_tab(ui, title, is_selected && !is_collapsed);
+                        if btn.drag_started() {
+                            app.dock_layout.start_drag(panel_id.clone());
+                        }
+                        if btn.clicked() {
+                            if is_selected {
+                                // Clicking active tab toggles collapse
+                                app.dock_layout.bottom.toggle_collapsed();
+                            } else {
+                                // Clicking inactive tab selects it and expands
+                                app.dock_layout.bottom.active = Some(panel_id.clone());
+                                app.dock_layout.bottom.collapsed = false;
+                            }
+                        }
+
+                        // Context menu to move dock
+                        btn.context_menu(|ui| {
+                            if ui.button("Move to Left Dock").clicked() {
+                                app.dock_layout
+                                    .move_panel(&panel_id, DockSlotLocation::Left);
+                                ui.close();
+                            }
+                            if ui.button("Move to Right Dock").clicked() {
+                                app.dock_layout
+                                    .move_panel(&panel_id, DockSlotLocation::Right);
+                                ui.close();
+                            }
+                        });
                     }
-                    if ui.button("Move to Right Dock").clicked() {
-                        app.dock_layout
-                            .move_panel(&panel_id, DockSlotLocation::Right);
-                        ui.close();
-                    }
-                });
+                    ui.add_space(8.0);
+                },
+            );
+
+            // Divider under the header.
+            let divider = ui.min_rect().bottom() - 0.5;
+            ui.painter()
+                .hline(ui.max_rect().x_range(), divider, t.hairline());
+
+            // Content (only if expanded)
+            if !is_collapsed {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                egui::Frame::new()
+                    .inner_margin(egui::Margin::symmetric(theme::PANEL_PAD, 8))
+                    .show(ui, |ui| {
+                        ui.set_max_height(
+                            (height - BottomDockState::COLLAPSED_HEIGHT - 16.0).max(0.0),
+                        );
+                        if let Some(active_id) = app.dock_layout.bottom.active.clone() {
+                            if let Some(panel) = app.registry.find_panel_mut(&active_id) {
+                                let mut cx = EditorCtx::new(
+                                    &app.project,
+                                    &app.undo_stack,
+                                    &app.session,
+                                    &mut app.events,
+                                    &mut app.pending_commands,
+                                    &*app.assets,
+                                );
+                                panel.ui(ui, &mut cx);
+                            }
+                        }
+                    });
+            }
+
+            // Drop target highlight.
+            if app.dock_layout.dragging_panel.is_some() && ui.rect_contains_pointer(ui.max_rect()) {
+                ui.painter().rect_stroke(
+                    ui.max_rect().shrink(1.0),
+                    CornerRadius::ZERO,
+                    Stroke::new(1.0, t.accent),
+                    StrokeKind::Inside,
+                );
             }
         });
-
-        // Content (only if expanded)
-        if !is_collapsed {
-            ui.separator();
-            if let Some(active_id) = app.dock_layout.bottom.active.clone() {
-                if let Some(panel) = app.registry.find_panel_mut(&active_id) {
-                    let mut cx = EditorCtx::new(
-                        &app.project,
-                        &app.undo_stack,
-                        &app.session,
-                        &mut app.events,
-                        &mut app.pending_commands,
-                        &*app.assets,
-                    );
-                    panel.ui(ui, &mut cx);
-                }
-            }
-        }
-    });
 
     // Update remembered expanded height
     if !is_collapsed {
@@ -128,6 +169,7 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) {
 
 /// Renders a side dock slot (Left or Right).
 pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocation) {
+    let t = Tokens::get(ui.ctx());
     let panels = match location {
         DockSlotLocation::Left => app.dock_layout.left.panels.clone(),
         DockSlotLocation::Right => app.dock_layout.right.panels.clone(),
@@ -149,51 +191,69 @@ pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocat
     }
 
     // Tab strip
-    ui.horizontal(|ui| {
-        for panel_id in &panels {
-            let is_selected = active.as_ref() == Some(panel_id);
-            let title = app
-                .registry
-                .find_panel(panel_id)
-                .map(|p| p.title())
-                .unwrap_or_else(|| panel_id.as_str());
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), theme::TAB_H),
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            let tab_width = ((ui.available_width() - 16.0) / panels.len().max(1) as f32).max(60.0);
+            ui.add_space(8.0);
+            ui.spacing_mut().item_spacing.x = 0.0;
+            for panel_id in &panels {
+                let is_selected = active.as_ref() == Some(panel_id);
+                let title = app
+                    .registry
+                    .find_panel(panel_id)
+                    .map(|p| p.title())
+                    .unwrap_or_else(|| panel_id.as_str());
 
-            let btn = ui.selectable_label(is_selected, title);
-            if btn.drag_started() {
-                app.dock_layout.start_drag(panel_id.clone());
+                let btn = dock_tab_sized(ui, title, is_selected, tab_width);
+                if btn.drag_started() {
+                    app.dock_layout.start_drag(panel_id.clone());
+                }
+                if btn.clicked() {
+                    match location {
+                        DockSlotLocation::Left => app.dock_layout.left.set_active(panel_id.clone()),
+                        DockSlotLocation::Right => {
+                            app.dock_layout.right.set_active(panel_id.clone())
+                        }
+                        DockSlotLocation::Bottom => {
+                            app.dock_layout.bottom.set_active(panel_id.clone())
+                        }
+                    }
+                }
+
+                // Context menu to move panel
+                btn.context_menu(|ui| {
+                    if location != DockSlotLocation::Left
+                        && ui.button("Move to Left Dock").clicked()
+                    {
+                        app.dock_layout.move_panel(panel_id, DockSlotLocation::Left);
+                        ui.close();
+                    }
+                    if location != DockSlotLocation::Right
+                        && ui.button("Move to Right Dock").clicked()
+                    {
+                        app.dock_layout
+                            .move_panel(panel_id, DockSlotLocation::Right);
+                        ui.close();
+                    }
+                    if location != DockSlotLocation::Bottom
+                        && ui.button("Move to Bottom Dock").clicked()
+                    {
+                        app.dock_layout
+                            .move_panel(panel_id, DockSlotLocation::Bottom);
+                        ui.close();
+                    }
+                });
             }
-            if btn.clicked() {
-                match location {
-                    DockSlotLocation::Left => app.dock_layout.left.set_active(panel_id.clone()),
-                    DockSlotLocation::Right => app.dock_layout.right.set_active(panel_id.clone()),
-                    DockSlotLocation::Bottom => app.dock_layout.bottom.set_active(panel_id.clone()),
-                }
-            }
+            ui.add_space(8.0);
+        },
+    );
 
-            // Context menu to move panel
-            btn.context_menu(|ui| {
-                if location != DockSlotLocation::Left && ui.button("Move to Left Dock").clicked() {
-                    app.dock_layout.move_panel(panel_id, DockSlotLocation::Left);
-                    ui.close();
-                }
-                if location != DockSlotLocation::Right && ui.button("Move to Right Dock").clicked()
-                {
-                    app.dock_layout
-                        .move_panel(panel_id, DockSlotLocation::Right);
-                    ui.close();
-                }
-                if location != DockSlotLocation::Bottom
-                    && ui.button("Move to Bottom Dock").clicked()
-                {
-                    app.dock_layout
-                        .move_panel(panel_id, DockSlotLocation::Bottom);
-                    ui.close();
-                }
-            });
-        }
-    });
-
-    ui.separator();
+    // Divider under the tab strip.
+    let divider = ui.min_rect().bottom() - 0.5;
+    ui.painter()
+        .hline(ui.max_rect().x_range(), divider, t.hairline());
 
     // Re-query current active panel ID after tab clicks and context relocations
     let current_active = match location {
@@ -204,16 +264,30 @@ pub fn render_dock_slot(app: &mut ShellApp, ui: &mut Ui, location: DockSlotLocat
 
     // Render active panel content
     if let Some(active_id) = current_active {
-        if let Some(panel) = app.registry.find_panel_mut(&active_id) {
-            let mut cx = EditorCtx::new(
-                &app.project,
-                &app.undo_stack,
-                &app.session,
-                &mut app.events,
-                &mut app.pending_commands,
-                &*app.assets,
-            );
-            panel.ui(ui, &mut cx);
-        }
+        egui::Frame::new()
+            .inner_margin(egui::Margin::symmetric(theme::PANEL_PAD, 8))
+            .show(ui, |ui| {
+                if let Some(panel) = app.registry.find_panel_mut(&active_id) {
+                    let mut cx = EditorCtx::new(
+                        &app.project,
+                        &app.undo_stack,
+                        &app.session,
+                        &mut app.events,
+                        &mut app.pending_commands,
+                        &*app.assets,
+                    );
+                    panel.ui(ui, &mut cx);
+                }
+            });
+    }
+
+    // Drop target highlight.
+    if app.dock_layout.dragging_panel.is_some() && ui.rect_contains_pointer(ui.max_rect()) {
+        ui.painter().rect_stroke(
+            ui.max_rect().shrink(1.0),
+            CornerRadius::ZERO,
+            Stroke::new(1.0, t.accent),
+            StrokeKind::Inside,
+        );
     }
 }

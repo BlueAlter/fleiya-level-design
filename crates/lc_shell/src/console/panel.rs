@@ -1,7 +1,9 @@
 //! Console panel UI implementing `PanelView`.
 
-use super::ring_buffer::{ConsoleFilter, LogLevel, SharedRingBuffer};
-use egui::{Button, RichText, ScrollArea, TextEdit, Ui};
+use super::ring_buffer::{ConsoleFilter, SharedRingBuffer};
+use egui::{FontId, RichText, ScrollArea, TextEdit, Ui};
+use lc_canvas::theme::{self, Tokens};
+use lc_canvas::widgets::{button, hline, hud, hud_elided, tag, toggle_chip, ButtonKind};
 use lc_ui_api::{EditorCtx, EditorEvent, PanelId, PanelView};
 
 /// Godot-style console panel displaying real-time structured logs.
@@ -37,75 +39,79 @@ impl PanelView for ConsolePanel {
     }
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut EditorCtx) {
+        let t = Tokens::get(ui.ctx());
         let (err_c, warn_c, info_c, debug_c, trace_c) = self.buffer.counts_by_level();
 
         // 1. Toolbar
         ui.horizontal_wrapped(|ui| {
-            // Level toggles
-            let err_btn = ui.selectable_label(
-                self.filter.show_error,
-                RichText::new(format!("Error ({err_c})")).color(LogLevel::Error.color()),
-            );
-            if err_btn.clicked() {
+            ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+
+            if toggle_chip(ui, &format!("ERR {err_c}"), self.filter.show_error, t.bad).clicked() {
                 self.filter.show_error = !self.filter.show_error;
             }
-
-            let warn_btn = ui.selectable_label(
-                self.filter.show_warn,
-                RichText::new(format!("Warn ({warn_c})")).color(LogLevel::Warn.color()),
-            );
-            if warn_btn.clicked() {
+            if toggle_chip(ui, &format!("WARN {warn_c}"), self.filter.show_warn, t.warn).clicked() {
                 self.filter.show_warn = !self.filter.show_warn;
             }
-
-            let info_btn = ui.selectable_label(
+            if toggle_chip(
+                ui,
+                &format!("INFO {info_c}"),
                 self.filter.show_info,
-                RichText::new(format!("Info ({info_c})")).color(LogLevel::Info.color()),
-            );
-            if info_btn.clicked() {
+                t.accent_ink,
+            )
+            .clicked()
+            {
                 self.filter.show_info = !self.filter.show_info;
             }
-
-            let debug_btn = ui.selectable_label(
+            if toggle_chip(
+                ui,
+                &format!("DBG {debug_c}"),
                 self.filter.show_debug,
-                RichText::new(format!("Debug ({debug_c})")).color(LogLevel::Debug.color()),
-            );
-            if debug_btn.clicked() {
+                t.muted,
+            )
+            .clicked()
+            {
                 self.filter.show_debug = !self.filter.show_debug;
             }
-
-            let trace_btn = ui.selectable_label(
+            if toggle_chip(
+                ui,
+                &format!("TRACE {trace_c}"),
                 self.filter.show_trace,
-                RichText::new(format!("Trace ({trace_c})")).color(LogLevel::Trace.color()),
-            );
-            if trace_btn.clicked() {
+                t.faint,
+            )
+            .clicked()
+            {
                 self.filter.show_trace = !self.filter.show_trace;
             }
 
-            ui.separator();
+            ui.add_space(2.0);
 
             // Search query filter
             ui.add(
                 TextEdit::singleline(&mut self.filter.search_query)
-                    .hint_text("Search logs...")
-                    .desired_width(140.0),
+                    .hint_text("SEARCH")
+                    .desired_width(88.0)
+                    .font(FontId::new(11.0, theme::mono_for(ui.ctx())))
+                    .text_color(t.ink)
+                    .margin(egui::Margin::symmetric(6, 4)),
             );
 
             // Collapse identical toggle
-            ui.checkbox(&mut self.filter.collapse_duplicates, "Collapse");
+            if toggle_chip(ui, "DEDUPE", self.filter.collapse_duplicates, t.accent_ink).clicked() {
+                self.filter.collapse_duplicates = !self.filter.collapse_duplicates;
+            }
 
             // Auto-scroll toggle
-            ui.checkbox(&mut self.auto_scroll, "Auto-scroll");
+            if toggle_chip(ui, "FOLLOW", self.auto_scroll, t.accent_ink).clicked() {
+                self.auto_scroll = !self.auto_scroll;
+            }
 
-            ui.separator();
+            ui.add_space(2.0);
 
-            // Clear button
-            if ui.button("Clear").clicked() {
+            if button(ui, "CLEAR", ButtonKind::Ghost, true).clicked() {
                 self.buffer.clear();
             }
 
-            // Copy button
-            if ui.button("Copy").clicked() {
+            if button(ui, "COPY", ButtonKind::Ghost, true).clicked() {
                 let items = self.buffer.filtered_entries(&self.filter);
                 let mut text = String::new();
                 for item in items {
@@ -127,8 +133,7 @@ impl PanelView for ConsolePanel {
                 cx.status("Copied console logs to clipboard");
             }
         });
-
-        ui.separator();
+        hline(ui);
 
         // 2. Log message listing
         let entries = self.buffer.filtered_entries(&self.filter);
@@ -137,44 +142,55 @@ impl PanelView for ConsolePanel {
             .stick_to_bottom(self.auto_scroll)
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+
                 if entries.is_empty() {
-                    ui.label(RichText::new("No log messages match active filters.").weak());
+                    ui.add_space(16.0);
+                    ui.vertical_centered(|ui| {
+                        hud(ui, "NO LOG MESSAGES MATCH ACTIVE FILTERS", t.faint);
+                    });
                     return;
                 }
 
                 for item in entries {
                     ui.horizontal(|ui| {
-                        // Timestamp
-                        ui.label(RichText::new(&item.entry.timestamp).weak().monospace());
+                        ui.spacing_mut().item_spacing.x = 6.0;
 
-                        // Level badge
-                        ui.colored_label(
-                            item.entry.level.color(),
-                            format!("[{}]", item.entry.level.as_str()),
+                        hud(ui, &item.entry.timestamp, t.faint);
+
+                        let color = item.entry.level.color(&t);
+                        tag(
+                            ui,
+                            item.entry.level.as_str(),
+                            theme::tint(color, 0.14),
+                            color,
                         );
 
-                        // Target
-                        ui.label(RichText::new(format!("[{}]", item.entry.target)).weak());
+                        hud_elided(ui, &format!("[{}]", item.entry.target), t.faint, 150.0);
 
-                        // Message
-                        ui.label(&item.entry.message);
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(&item.entry.message)
+                                    .font(FontId::new(11.5, theme::medium_for(ui.ctx())))
+                                    .color(t.ink),
+                            )
+                            .truncate(),
+                        );
 
-                        // Duplicate badge
                         if item.count > 1 {
-                            ui.label(
-                                RichText::new(format!("(x{})", item.count))
-                                    .color(egui::Color32::from_rgb(255, 204, 0))
-                                    .strong(),
+                            tag(
+                                ui,
+                                &format!("x{}", item.count),
+                                theme::tint(t.warn, 0.14),
+                                t.warn,
                             );
                         }
 
                         // Click-to-focus DocKind link if present
                         if let Some(doc_kind) = item.entry.doc_target {
-                            let btn = ui.add(
-                                Button::new(RichText::new(format!("-> {doc_kind:?}")).small())
-                                    .small(),
-                            );
-                            if btn.clicked() {
+                            if button(ui, &format!("-> {doc_kind:?}"), ButtonKind::Ghost, true)
+                                .clicked()
+                            {
                                 cx.emit(EditorEvent::OpenDocument(doc_kind));
                                 cx.status(format!("Navigated to {doc_kind:?}"));
                             }

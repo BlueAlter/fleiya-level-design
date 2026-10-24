@@ -1,13 +1,25 @@
 use eframe::egui;
-use lc_shell::{init_shell_logging, ShellApp};
+use lc_shell::{init_shell_logging, theme, ShellApp};
 
 struct LevelCraftApp {
     shell: ShellApp,
+    /// `Context::set_fonts` only takes effect on the next frame.
+    fonts_ready: bool,
 }
 
 impl eframe::App for LevelCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if !self.fonts_ready {
+            self.fonts_ready = true;
+            // Fonts installed at startup become active on the next frame.
+            ui.ctx().request_repaint();
+            return;
+        }
         self.shell.ui(ui);
+    }
+
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        visuals.panel_fill.to_normalized_gamma_f32()
     }
 }
 
@@ -15,13 +27,22 @@ fn main() -> eframe::Result {
     let (console_buffer, _writer) = init_shell_logging();
     tracing::info!("Starting Level Craft editor...");
 
-    let native_options = eframe::NativeOptions::default();
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1280.0, 800.0])
+            .with_min_inner_size([960.0, 600.0]),
+        ..Default::default()
+    };
+
     eframe::run_native(
         "Level Craft",
         native_options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
+            theme::install_fonts(&cc.egui_ctx);
+            theme::apply(&cc.egui_ctx, theme::ThemeChoice::Dark);
             Ok(Box::new(LevelCraftApp {
                 shell: ShellApp::from_console(console_buffer),
+                fonts_ready: false,
             }))
         }),
     )

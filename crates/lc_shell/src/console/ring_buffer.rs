@@ -1,6 +1,7 @@
 //! Thread-safe bounded ring buffer and filtering structures for the console panel.
 
 use egui::Color32;
+use lc_canvas::theme::Tokens;
 use lc_ui_api::DocKind;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -33,13 +34,13 @@ impl LogLevel {
     }
 
     /// Color badge styling for egui rendering.
-    pub fn color(&self) -> Color32 {
+    pub fn color(&self, t: &Tokens) -> Color32 {
         match self {
-            Self::Error => Color32::from_rgb(235, 87, 87),
-            Self::Warn => Color32::from_rgb(242, 201, 76),
-            Self::Info => Color32::from_rgb(111, 207, 236),
-            Self::Debug => Color32::from_rgb(180, 180, 180),
-            Self::Trace => Color32::from_rgb(120, 120, 120),
+            Self::Error => t.bad,
+            Self::Warn => t.warn,
+            Self::Info => t.accent_ink,
+            Self::Debug => t.muted,
+            Self::Trace => t.faint,
         }
     }
 }
