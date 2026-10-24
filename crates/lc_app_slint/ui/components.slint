@@ -1,0 +1,273 @@
+// Reusable primitives for the Level Craft editor chrome.
+// Keeping these in one module keeps the window layout focused on structure.
+
+import { Theme } from "theme.slint";
+
+/// Compact command button. Used for toolbar actions, tabs' overflow buttons,
+/// filter chips, and the canvas tool switcher.
+export component GhostButton inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> primary: false;
+    in property <bool> quiet: false;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 26px;
+    min-width: 26px;
+    horizontal-stretch: 0;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: root.primary
+        ? transparent
+        : (root.active ? #2e4a63 : (ta.has-hover ? Theme.border : Theme.border-subtle));
+    background: !root.enabled
+        ? transparent
+        : root.primary
+            ? (ta.pressed ? Theme.accent-pressed : (ta.has-hover ? Theme.accent-hover : Theme.accent))
+            : root.active
+                ? Theme.accent-soft
+                : ta.pressed
+                    ? Theme.bg-control-active
+                    : ta.has-hover
+                        ? (root.quiet ? Theme.bg-control : Theme.bg-control-hover)
+                        : root.quiet ? transparent : Theme.bg-control;
+
+    animate background { duration: 120ms; easing: ease-out; }
+    animate border-color { duration: 120ms; easing: ease-out; }
+
+    HorizontalLayout {
+        padding-left: (root.icon == "" || root.label == "") ? 8px : 9px;
+        padding-right: (root.icon == "" || root.label == "") ? 8px : 9px;
+        spacing: 5px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        if root.icon != "" : Text {
+            text: root.icon;
+            color: root.primary
+                ? #f5fbff
+                : root.active ? Theme.accent : (root.enabled ? Theme.text-secondary : Theme.text-muted);
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        if root.label != "" : Text {
+            text: root.label;
+            color: root.primary
+                ? #f5fbff
+                : root.active ? Theme.accent : (root.enabled ? Theme.text : Theme.text-muted);
+            font-size: 11px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+/// Panel tab with an optional count badge and the Godot-style active underline.
+export component TabButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    in property <int> badge: 0;
+    callback clicked();
+
+    height: 30px;
+    min-width: 62px;
+    horizontal-stretch: 0;
+    background: root.active
+        ? Theme.bg-panel-raised
+        : (ta.has-hover ? Theme.bg-panel-raised : transparent);
+    animate background { duration: 100ms; easing: ease-out; }
+
+    Rectangle {
+        x: 10px;
+        y: parent.height - 2px;
+        width: parent.width - 20px;
+        height: 2px;
+        border-radius: 1px;
+        background: root.active ? Theme.accent : transparent;
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            color: root.active ? Theme.text : (ta.has-hover ? Theme.text : Theme.text-muted);
+            font-size: 11px;
+            font-weight: root.active ? 600 : 500;
+            vertical-alignment: center;
+        }
+
+        if root.badge > 0 : Rectangle {
+            height: 16px;
+            min-width: 16px;
+            border-radius: 8px;
+            background: root.active ? Theme.accent-soft : Theme.bg-control;
+
+            Text {
+                text: "" + root.badge;
+                color: root.active ? Theme.accent : Theme.text-secondary;
+                font-size: 9px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+/// Shared header for the side and bottom docks.
+export component DockHeader inherits Rectangle {
+    in property <string> title;
+    in property <bool> collapsed: false;
+    in property <bool> show-add: false;
+    callback collapse-clicked();
+    callback add-clicked();
+
+    height: 32px;
+    background: Theme.bg-header;
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: Theme.border-subtle;
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 6px;
+        spacing: 6px;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: 7px;
+            cross-axis-alignment: center;
+
+            Rectangle {
+                width: 3px;
+                height: 13px;
+                border-radius: 2px;
+                background: Theme.accent;
+            }
+
+            Text {
+                text: root.title;
+                color: Theme.text-secondary;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.9px;
+                vertical-alignment: center;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 2px;
+            cross-axis-alignment: center;
+
+            if root.show-add && !root.collapsed : GhostButton {
+                label: "+";
+                quiet: true;
+                clicked => { root.add-clicked(); }
+            }
+
+            GhostButton {
+                label: root.collapsed ? (root.title == "INSPECTOR" ? "‹" : "›") : (root.title == "INSPECTOR" ? "›" : "‹");
+                quiet: true;
+                clicked => { root.collapse-clicked(); }
+            }
+        }
+    }
+}
+
+/// Read-only inspector field row: label + inset value box.
+export component PropertyRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <color> value-color: Theme.text;
+
+    height: 30px;
+
+    HorizontalLayout {
+        spacing: 8px;
+        cross-axis-alignment: center;
+
+        Text {
+            width: 82px;
+            text: root.label;
+            color: Theme.text-secondary;
+            font-size: 11px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Rectangle {
+            height: 24px;
+            horizontal-stretch: 1;
+            background: Theme.bg-control;
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: row-ta.has-hover ? Theme.border-strong : Theme.border-subtle;
+            animate border-color { duration: 120ms; }
+
+            Text {
+                x: 8px;
+                width: parent.width - 16px;
+                height: parent.height;
+                text: root.value;
+                color: root.value-color;
+                font-size: 11px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            row-ta := TouchArea { mouse-cursor: text; }
+        }
+    }
+}
+
+/// Small on/off control used by the inspector.
+export component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked: true;
+
+    width: 30px;
+    height: 16px;
+    border-radius: 8px;
+    background: root.checked ? Theme.accent : Theme.bg-control;
+    border-width: 1px;
+    border-color: root.checked ? Theme.accent : Theme.border;
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
+    Rectangle {
+        width: 12px;
+        height: 12px;
+        y: 2px;
+        x: root.checked ? parent.width - self.width - 2px : 2px;
+        border-radius: 6px;
+        background: root.checked ? #ffffff : Theme.text-secondary;
+        animate x { duration: 120ms; easing: ease-out; }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.checked = !root.checked; }
+    }
+}

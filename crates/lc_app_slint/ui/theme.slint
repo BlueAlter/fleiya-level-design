@@ -1,0 +1,42 @@
+// Level Craft editor theme.
+// A compact, Godot-inspired dark palette: graphite surfaces, one clear blue
+// accent, and a small set of semantic colors for editor feedback.
+
+export global Theme {
+    // Surfaces, from deepest (viewport) to raised (headers and controls).
+    out property <color> bg-window: #14161b;
+    out property <color> bg-canvas: #101317;
+    out property <color> bg-panel: #1a1d24;
+    out property <color> bg-panel-raised: #20242c;
+    out property <color> bg-header: #22262f;
+    out property <color> bg-control: #292e38;
+    out property <color> bg-control-hover: #333a46;
+    out property <color> bg-control-active: #3b4554;
+    out property <color> bg-selection: #203447;
+
+    // Borders and separators.
+    out property <color> border-subtle: #252a33;
+    out property <color> border: #303641;
+    out property <color> border-strong: #3d4654;
+
+    // Text hierarchy.
+    out property <color> text: #e7eaf0;
+    out property <color> text-secondary: #9ba5b5;
+    out property <color> text-muted: #6d788a;
+
+    // The single accent used by tabs, selection, and primary actions.
+    out property <color> accent: #4f9cd8;
+    out property <color> accent-hover: #66b1e8;
+    out property <color> accent-pressed: #3c82b5;
+    out property <color> accent-soft: #1d3345;
+
+    // Semantic feedback.
+    out property <color> success: #67c98a;
+    out property <color> warning: #e6c46a;
+    out property <color> error: #eb6b74;
+    out property <color> info: #6fb6e8;
+
+    // Consistent corner radii. Nothing in the editor is more rounded than this.
+    out property <length> radius-sm: 4px;
+    out property <length> radius-md: 6px;
+}

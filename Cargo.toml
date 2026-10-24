@@ -13,6 +13,7 @@ members = [
     "crates/lc_feature_world",
     "crates/lc_shell",
     "crates/lc_app",
+    "crates/lc_app_slint",
     "xtask",
 ]
 

@@ -1,0 +1,1822 @@
+// Level Craft — Slint editor shell.
+//
+// Layout follows the project's UI contract: a menu bar and toolbar on top,
+// full-height side docks, a centre column with document tabs, canvas and a
+// collapsible bottom dock, and a full-width status bar.
+
+import { Theme } from "theme.slint";
+import {
+    GhostButton,
+    TabButton,
+    DockHeader,
+    PropertyRow,
+    ToggleSwitch,
+} from "components.slint";
+
+export struct LevelItem {
+    id: string,
+    name: string,
+    width: int,
+    height: int,
+}
+
+export struct LayerItem {
+    id: string,
+    name: string,
+    visible: bool,
+}
+
+export struct TilesetItem {
+    id: string,
+    name: string,
+    tile_count: int,
+}
+
+export struct ConsoleLogItem {
+    timestamp: string,
+    level: string,
+    target: string,
+    message: string,
+}
+
+/// A restrained 32 px editor grid with stronger major lines and a visible origin.
+component CanvasGrid inherits Rectangle {
+    in property <bool> show-grid: true;
+
+    clip: true;
+    opacity: root.show-grid ? 1.0 : 0.0;
+    animate opacity { duration: 140ms; }
+
+    for i in 81 : Rectangle {
+        x: root.width / 2 + (i - 40) * 32px;
+        y: 0;
+        width: 1px;
+        height: root.height;
+        background: Math.mod(i, 4) == 0 ? #1d2430 : #171b22;
+    }
+
+    for j in 61 : Rectangle {
+        x: 0;
+        y: root.height / 2 + (j - 30) * 32px;
+        width: root.width;
+        height: 1px;
+        background: Math.mod(j, 4) == 0 ? #1d2430 : #171b22;
+    }
+
+    Rectangle {
+        x: root.width / 2;
+        y: 0;
+        width: 1px;
+        height: root.height;
+        background: #293442;
+    }
+
+    Rectangle {
+        x: 0;
+        y: root.height / 2;
+        width: root.width;
+        height: 1px;
+        background: #293442;
+    }
+}
+
+/// Top-level menu item. Hover feedback only; menus themselves are not part of
+/// this UI spike yet.
+component MenuEntry inherits Rectangle {
+    in property <string> label;
+
+    height: 22px;
+    border-radius: 3px;
+    background: ta.has-hover ? Theme.bg-control : transparent;
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            color: ta.has-hover ? Theme.text : Theme.text-secondary;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea { mouse-cursor: pointer; }
+}
+
+/// One row in the Levels tree.
+component LevelRow inherits Rectangle {
+    in property <LevelItem> level;
+    in property <bool> active: false;
+    callback clicked();
+
+    height: 30px;
+    border-radius: Theme.radius-sm;
+    background: root.active
+        ? Theme.bg-selection
+        : (ta.has-hover ? Theme.bg-panel-raised : transparent);
+    animate background { duration: 100ms; }
+
+    Rectangle {
+        x: 0;
+        y: 6px;
+        width: 2px;
+        height: 18px;
+        border-radius: 1px;
+        background: root.active ? Theme.accent : transparent;
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 8px;
+        spacing: 8px;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: 7px;
+            cross-axis-alignment: center;
+
+            Text {
+                text: "▦";
+                color: root.active ? Theme.accent : Theme.text-muted;
+                font-size: 11px;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.level.name;
+                color: root.active ? Theme.text : Theme.text-secondary;
+                font-size: 11px;
+                font-weight: root.active ? 600 : 400;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            text: "" + root.level.width + " × " + root.level.height;
+            color: Theme.text-muted;
+            font-size: 9px;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+/// One row in the Layers tree.
+component LayerRow inherits Rectangle {
+    in property <LayerItem> layer;
+    in property <int> depth: 1;
+    in property <bool> active: false;
+
+    height: 28px;
+    border-radius: Theme.radius-sm;
+    background: ta.has-hover ? Theme.bg-panel-raised : (root.active ? Theme.bg-selection : transparent);
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 8px + root.depth * 12px;
+        padding-right: 8px;
+        spacing: 7px;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: 7px;
+            cross-axis-alignment: center;
+
+            Text {
+                text: "▤";
+                color: root.active ? Theme.accent : Theme.text-muted;
+                font-size: 10px;
+                vertical-alignment: center;
+            }
+
+            Text {
+                text: root.layer.name;
+                color: root.layer.visible ? Theme.text-secondary : Theme.text-muted;
+                font-size: 11px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            text: root.layer.visible ? "◉" : "○";
+            color: root.layer.visible ? Theme.accent : Theme.text-muted;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea { mouse-cursor: pointer; }
+}
+
+/// One tileset entry in the bottom dock.
+component TilesetRow inherits Rectangle {
+    in property <TilesetItem> tileset;
+
+    height: 40px;
+    border-radius: Theme.radius-sm;
+    background: ta.has-hover ? Theme.bg-panel-raised : Theme.bg-panel;
+    border-width: 1px;
+    border-color: ta.has-hover ? Theme.border : Theme.border-subtle;
+    animate background { duration: 100ms; }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 10px;
+        spacing: 9px;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            background: Theme.accent-soft;
+
+            Text {
+                text: "▧";
+                color: Theme.accent;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 0;
+            alignment: center;
+
+            Text {
+                text: root.tileset.name;
+                color: Theme.text;
+                font-size: 11px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+
+            Text {
+                text: "" + root.tileset.tile_count + " tiles";
+                color: Theme.text-muted;
+                font-size: 9px;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+
+        Text {
+            text: "Ready";
+            color: Theme.success;
+            font-size: 9px;
+            vertical-alignment: center;
+        }
+    }
+
+    ta := TouchArea { mouse-cursor: pointer; }
+}
+
+/// One console output line.
+component LogRow inherits Rectangle {
+    in property <ConsoleLogItem> log;
+
+    property <color> tone: root.log.level == "ERROR"
+        ? Theme.error
+        : (root.log.level == "WARN" || root.log.level == "WARNING")
+            ? Theme.warning
+            : root.log.level == "DEBUG" ? Theme.text-muted : Theme.info;
+
+    height: 24px;
+    background: ta.has-hover ? Theme.bg-panel-raised : transparent;
+
+    HorizontalLayout {
+        padding-left: 7px;
+        padding-right: 10px;
+        spacing: 9px;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 2px;
+            height: 12px;
+            border-radius: 1px;
+            background: root.tone;
+        }
+
+        Text {
+            width: 48px;
+            text: root.log.timestamp;
+            color: Theme.text-muted;
+            font-family: "DejaVu Sans Mono";
+            font-size: 9px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            width: 38px;
+            text: root.log.level;
+            color: root.tone;
+            font-family: "DejaVu Sans Mono";
+            font-size: 9px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        Text {
+            width: 62px;
+            text: root.log.target;
+            color: Theme.text-secondary;
+            font-size: 10px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        Text {
+            horizontal-stretch: 1;
+            text: root.log.message;
+            color: Theme.text;
+            font-size: 11px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    ta := TouchArea { mouse-cursor: text; }
+}
+
+export component MainWindow inherits Window {
+    title: "Level Craft — " + root.project_name;
+    preferred-width: 1400px;
+    preferred-height: 900px;
+    min-width: 1080px;
+    min-height: 680px;
+    background: Theme.bg-window;
+
+    // ---- Data ------------------------------------------------------------
+    in-out property <string> project_name: "Untitled Project";
+
+    in-out property <[LevelItem]> levels: [];
+    in-out property <[LayerItem]> layers: [
+        { id: "l1", name: "Ground Tiles", visible: true },
+        { id: "l2", name: "Decorations", visible: true },
+        { id: "l3", name: "Entities", visible: true },
+        { id: "l4", name: "Collisions", visible: false }
+    ];
+    in-out property <[TilesetItem]> tilesets: [
+        { id: "ts1", name: "dungeon_tiles.png", tile_count: 256 },
+        { id: "ts2", name: "props_nature.png", tile_count: 128 },
+        { id: "ts3", name: "ui_icons.png", tile_count: 64 }
+    ];
+    in-out property <[ConsoleLogItem]> console_logs: [];
+
+    in-out property <string> selected_level_info: "No level selected";
+    in-out property <string> active_level_id: "";
+    in-out property <string> active_level_name: "";
+    in-out property <int> active_level_width: 0;
+    in-out property <int> active_level_height: 0;
+    in-out property <bool> has_active_level: false;
+
+    // ---- View state ------------------------------------------------------
+    in-out property <int> left_active_tab: 0;
+    in-out property <bool> left_dock_minimized: false;
+    in-out property <int> bottom_active_tab: 0;
+    in-out property <bool> bottom_dock_minimized: false;
+    in-out property <bool> right_dock_minimized: false;
+
+    in-out property <string> active_tool: "Select";
+    in-out property <int> zoom_percent: 100;
+    in-out property <bool> show_grid: true;
+    in-out property <bool> inspector_visible: true;
+
+    in-out property <bool> show_info_logs: true;
+    in-out property <bool> show_warn_logs: true;
+    in-out property <bool> show_error_logs: true;
+
+    // ---- Actions ---------------------------------------------------------
+    callback new-project-clicked();
+    callback open-project-clicked();
+    callback save-project-clicked();
+    callback add-level-clicked();
+    callback select-level(string);
+    callback clear-console-clicked();
+
+    VerticalLayout {
+        // ==================================================================
+        // Menu bar
+        // ==================================================================
+        Rectangle {
+            height: 30px;
+            background: Theme.bg-panel;
+
+            Rectangle {
+                y: parent.height - 1px;
+                width: parent.width;
+                height: 1px;
+                background: Theme.border-subtle;
+            }
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 10px;
+                spacing: 2px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 2px;
+                    cross-axis-alignment: center;
+
+                    Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: Theme.accent;
+
+                        Text {
+                            text: "◆";
+                            color: #f5fbff;
+                            font-size: 9px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        text: "LEVEL CRAFT";
+                        color: Theme.text;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 1.1px;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 1px;
+                        height: 13px;
+                        background: Theme.border;
+                    }
+
+                    MenuEntry { label: "File"; }
+                    MenuEntry { label: "Edit"; }
+                    MenuEntry { label: "View"; }
+                    MenuEntry { label: "Help"; }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    Text {
+                        text: "v0.1.0";
+                        color: Theme.text-muted;
+                        font-size: 9px;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 6px;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: Theme.success;
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Main toolbar
+        // ==================================================================
+        Rectangle {
+            height: 42px;
+            background: Theme.bg-header;
+
+            Rectangle {
+                y: parent.height - 1px;
+                width: parent.width;
+                height: 1px;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 6px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 5px;
+                    cross-axis-alignment: center;
+
+                    GhostButton {
+                        label: "New";
+                        quiet: true;
+                        clicked => { root.new-project-clicked(); }
+                    }
+
+                    GhostButton {
+                        label: "Open";
+                        quiet: true;
+                        clicked => { root.open-project-clicked(); }
+                    }
+
+                    GhostButton {
+                        label: "Save";
+                        quiet: true;
+                        clicked => { root.save-project-clicked(); }
+                    }
+
+                    Rectangle {
+                        width: 1px;
+                        height: 18px;
+                        background: Theme.border;
+                    }
+
+                    GhostButton {
+                        label: "+ New Level";
+                        primary: true;
+                        clicked => { root.add-level-clicked(); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    Rectangle {
+                        height: 24px;
+                        border-radius: Theme.radius-sm;
+                        background: Theme.bg-control;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: Theme.success;
+                            }
+
+                            Text {
+                                width: 170px;
+                                text: root.project_name;
+                                color: Theme.text-secondary;
+                                font-size: 10px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 24px;
+                        border-radius: Theme.radius-sm;
+                        background: Theme.accent-soft;
+                        border-width: 1px;
+                        border-color: #2e4a63;
+
+                        HorizontalLayout {
+                            padding-left: 9px;
+                            padding-right: 9px;
+                            spacing: 5px;
+                            cross-axis-alignment: center;
+
+                            Text {
+                                text: "◆";
+                                color: Theme.accent;
+                                font-size: 8px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "2D";
+                                color: Theme.accent;
+                                font-size: 10px;
+                                font-weight: 700;
+                                letter-spacing: 0.5px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Workspace
+        // ==================================================================
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // --------------------------------------------------------------
+            // Left dock — Scene (Levels / Layers)
+            // --------------------------------------------------------------
+            Rectangle {
+                width: root.left_dock_minimized ? 44px : 256px;
+                background: Theme.bg-panel;
+
+                if root.left_dock_minimized : VerticalLayout {
+                    padding-top: 6px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        GhostButton {
+                            label: "›";
+                            quiet: true;
+                            clicked => { root.left_dock_minimized = false; }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: "▦";
+                            color: Theme.text-muted;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                if !root.left_dock_minimized : VerticalLayout {
+                    DockHeader {
+                        title: "SCENE";
+                        show-add: true;
+                        collapse-clicked => { root.left_dock_minimized = true; }
+                        add-clicked => { root.add-level-clicked(); }
+                    }
+
+                    Rectangle {
+                        height: 32px;
+                        background: Theme.bg-panel;
+
+                        Rectangle {
+                            y: parent.height - 1px;
+                            width: parent.width;
+                            height: 1px;
+                            background: Theme.border-subtle;
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 4px;
+                            padding-right: 4px;
+                            spacing: 0;
+
+                            TabButton {
+                                label: "Levels";
+                                active: root.left_active_tab == 0;
+                                badge: root.levels.length;
+                                clicked => { root.left_active_tab = 0; }
+                            }
+
+                            TabButton {
+                                label: "Layers";
+                                active: root.left_active_tab == 1;
+                                badge: root.layers.length;
+                                clicked => { root.left_active_tab = 1; }
+                            }
+                        }
+                    }
+
+                    if root.left_active_tab == 0 : Flickable {
+                        vertical-stretch: 1;
+                        content-width: self.width;
+                        content-height: levels-list.preferred-height;
+
+                        levels-list := VerticalLayout {
+                            width: parent.width;
+                            padding: 6px;
+                            spacing: 2px;
+
+                            if root.levels.length == 0 : Rectangle {
+                                height: 150px;
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: "▦";
+                                        color: Theme.text-muted;
+                                        font-size: 22px;
+                                        horizontal-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: "No levels yet";
+                                        color: Theme.text;
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        horizontal-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: "Create a level to start painting.";
+                                        color: Theme.text-muted;
+                                        font-size: 10px;
+                                        horizontal-alignment: center;
+                                    }
+
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        cross-axis-alignment: center;
+
+                                        GhostButton {
+                                            label: "+ Create Level";
+                                            primary: true;
+                                            clicked => { root.add-level-clicked(); }
+                                        }
+                                    }
+                                }
+                            }
+
+                            for level in root.levels : LevelRow {
+                                level: level;
+                                active: level.id == root.active_level_id;
+                                clicked => {
+                                    root.active_level_id = level.id;
+                                    root.select-level(level.id);
+                                }
+                            }
+                        }
+                    }
+
+                    if root.left_active_tab == 1 : Flickable {
+                        vertical-stretch: 1;
+                        content-width: self.width;
+                        content-height: layers-list.preferred-height;
+
+                        layers-list := VerticalLayout {
+                            width: parent.width;
+                            padding: 6px;
+                            spacing: 2px;
+
+                            Rectangle {
+                                height: 28px;
+                                border-radius: Theme.radius-sm;
+                                background: world-row.has-hover ? Theme.bg-panel-raised : transparent;
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 6px;
+                                    cross-axis-alignment: center;
+
+                                    Text {
+                                        text: "▾";
+                                        color: Theme.text-muted;
+                                        font-size: 9px;
+                                        vertical-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: "World";
+                                        color: Theme.text-secondary;
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        vertical-alignment: center;
+                                    }
+
+                                    Rectangle { horizontal-stretch: 1; }
+
+                                    Text {
+                                        text: "" + root.levels.length;
+                                        color: Theme.text-muted;
+                                        font-size: 9px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                world-row := TouchArea { mouse-cursor: pointer; }
+                            }
+
+                            for layer in root.layers : LayerRow {
+                                layer: layer;
+                                depth: 1;
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: Theme.border-subtle; }
+
+                    Rectangle {
+                        height: 26px;
+                        background: Theme.bg-panel;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            alignment: space-between;
+
+                            Text {
+                                text: root.left_active_tab == 0 ? "SELECT A LEVEL" : "LAYER VISIBILITY";
+                                color: Theme.text-muted;
+                                font-size: 8px;
+                                font-weight: 600;
+                                letter-spacing: 0.7px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "" + (root.left_active_tab == 0 ? root.levels.length : root.layers.length);
+                                color: Theme.text-muted;
+                                font-size: 9px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: 1px;
+                background: Theme.border-subtle;
+            }
+
+            // --------------------------------------------------------------
+            // Centre column — document tabs, canvas, bottom dock
+            // --------------------------------------------------------------
+            VerticalLayout {
+                horizontal-stretch: 1;
+
+                // Document tab strip
+                Rectangle {
+                    height: 36px;
+                    background: Theme.bg-panel;
+
+                    Rectangle {
+                        y: parent.height - 1px;
+                        width: parent.width;
+                        height: 1px;
+                        background: Theme.border-subtle;
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 8px;
+                        spacing: 4px;
+                        alignment: space-between;
+
+                        HorizontalLayout {
+                            spacing: 0;
+                            alignment: end;
+
+                            Rectangle {
+                                height: 36px;
+                                min-width: 150px;
+
+                                background: Theme.bg-canvas;
+
+                                Rectangle {
+                                    y: 0;
+                                    width: parent.width;
+                                    height: 2px;
+                                    background: Theme.accent;
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 12px;
+                                    spacing: 8px;
+                                    cross-axis-alignment: center;
+
+                                    Text {
+                                        text: "▦";
+                                        color: Theme.accent;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: root.has_active_level ? root.active_level_name : "Start";
+                                        color: Theme.text;
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+
+                                    if root.has_active_level : Text {
+                                        text: "" + root.active_level_width + " × " + root.active_level_height;
+                                        color: Theme.text-muted;
+                                        font-size: 9px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 7px;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: Theme.accent;
+                            }
+
+                            Text {
+                                text: "2D WORKSPACE";
+                                color: Theme.text-muted;
+                                font-size: 8px;
+                                font-weight: 600;
+                                letter-spacing: 0.8px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                // Canvas viewport
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: Theme.bg-canvas;
+                    clip: true;
+
+                    CanvasGrid {
+                        width: parent.width;
+                        height: parent.height;
+                        show-grid: root.show_grid;
+                    }
+
+                    // Tool switcher overlay
+                    Rectangle {
+                        x: 14px;
+                        y: 14px;
+                        width: 218px;
+                        height: 34px;
+                        background: #1b2028;
+                        border-radius: Theme.radius-md;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        drop-shadow-blur: 16px;
+                        drop-shadow-color: #00000080;
+                        drop-shadow-offset-y: 4px;
+
+                        HorizontalLayout {
+                            padding: 4px;
+                            spacing: 2px;
+                            alignment: start;
+                            cross-axis-alignment: center;
+
+                            GhostButton {
+                                label: "Select";
+                                active: root.active_tool == "Select";
+                                quiet: root.active_tool != "Select";
+                                clicked => { root.active_tool = "Select"; }
+                            }
+
+                            GhostButton {
+                                label: "Move";
+                                active: root.active_tool == "Move";
+                                quiet: root.active_tool != "Move";
+                                clicked => { root.active_tool = "Move"; }
+                            }
+
+                            GhostButton {
+                                label: "Paint";
+                                active: root.active_tool == "Paint";
+                                quiet: root.active_tool != "Paint";
+                                clicked => { root.active_tool = "Paint"; }
+                            }
+
+                            GhostButton {
+                                label: "Erase";
+                                active: root.active_tool == "Erase";
+                                quiet: root.active_tool != "Erase";
+                                clicked => { root.active_tool = "Erase"; }
+                            }
+                        }
+                    }
+
+                    // Zoom and grid controls overlay
+                    Rectangle {
+                        x: parent.width - 194px;
+                        y: 14px;
+                        width: 180px;
+                        height: 34px;
+                        background: #1b2028;
+                        border-radius: Theme.radius-md;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        drop-shadow-blur: 16px;
+                        drop-shadow-color: #00000080;
+                        drop-shadow-offset-y: 4px;
+
+                        HorizontalLayout {
+                            padding: 4px;
+                            spacing: 2px;
+                            alignment: start;
+                            cross-axis-alignment: center;
+
+                            GhostButton {
+                                label: "−";
+                                quiet: true;
+                                clicked => {
+                                    root.zoom_percent = max(25, root.zoom_percent - 10);
+                                }
+                            }
+
+                            Text {
+                                width: 38px;
+                                text: "" + root.zoom_percent + "%";
+                                color: Theme.text-secondary;
+                                font-size: 10px;
+                                font-family: "DejaVu Sans Mono";
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            GhostButton {
+                                label: "+";
+                                quiet: true;
+                                clicked => {
+                                    root.zoom_percent = min(400, root.zoom_percent + 10);
+                                }
+                            }
+
+                            Rectangle {
+                                width: 1px;
+                                height: 16px;
+                                background: Theme.border;
+                            }
+
+                            GhostButton {
+                                label: "Grid";
+                                active: root.show_grid;
+                                quiet: !root.show_grid;
+                                clicked => { root.show_grid = !root.show_grid; }
+                            }
+                        }
+                    }
+
+                    // Empty viewport state
+                    if !root.has_active_level : Rectangle {
+                        width: 368px;
+                        height: 196px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        background: Theme.bg-panel;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        drop-shadow-blur: 28px;
+                        drop-shadow-color: #00000066;
+                        drop-shadow-offset-y: 8px;
+
+                        VerticalLayout {
+                            padding: 22px;
+                            spacing: 7px;
+                            alignment: center;
+
+                            HorizontalLayout {
+                                alignment: center;
+                                cross-axis-alignment: center;
+
+                                Rectangle {
+                                    width: 42px;
+                                    height: 42px;
+                                    border-radius: 8px;
+                                    background: Theme.accent-soft;
+                                    border-width: 1px;
+                                    border-color: #2e4a63;
+
+                                    Text {
+                                        text: "▦";
+                                        color: Theme.accent;
+                                        font-size: 18px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "No level open";
+                                color: Theme.text;
+                                font-size: 14px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                            }
+
+                            Text {
+                                width: 280px;
+                                text: "Choose a level from the Scene panel, or create a new one to start editing.";
+                                color: Theme.text-muted;
+                                font-size: 10px;
+                                wrap: word-wrap;
+                                horizontal-alignment: center;
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                cross-axis-alignment: center;
+
+                                GhostButton {
+                                    label: "+ Create Level";
+                                    primary: true;
+                                    clicked => { root.add-level-clicked(); }
+                                }
+                            }
+                        }
+                    }
+
+                    // Viewport info chips
+                    Rectangle {
+                        x: 14px;
+                        y: parent.height - 38px;
+                        width: 286px;
+                        height: 24px;
+                        background: #1b2028;
+                        border-radius: Theme.radius-sm;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 5px;
+                                height: 5px;
+                                border-radius: 3px;
+                                background: root.has_active_level ? Theme.success : Theme.text-muted;
+                            }
+
+                            Text {
+                                horizontal-stretch: 1;
+                                text: root.has_active_level ? root.selected_level_info : "No level selected";
+                                color: Theme.text-secondary;
+                                font-size: 9px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        x: parent.width - 134px;
+                        y: parent.height - 38px;
+                        width: 120px;
+                        height: 24px;
+                        background: #1b2028;
+                        border-radius: Theme.radius-sm;
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 6px;
+                            cross-axis-alignment: center;
+
+                            Text {
+                                text: "GRID 32 PX";
+                                color: Theme.text-muted;
+                                font-size: 8px;
+                                font-weight: 600;
+                                letter-spacing: 0.5px;
+                                vertical-alignment: center;
+                            }
+
+                            Rectangle {
+                                width: 1px;
+                                height: 11px;
+                                background: Theme.border;
+                            }
+
+                            Text {
+                                text: "" + root.zoom_percent + "%";
+                                color: Theme.text-secondary;
+                                font-size: 9px;
+                                font-family: "DejaVu Sans Mono";
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+
+                // ----------------------------------------------------------
+                // Bottom dock — Output / Tilesets
+                // ----------------------------------------------------------
+                Rectangle {
+                    height: root.bottom_dock_minimized ? 32px : 204px;
+                    background: Theme.bg-panel;
+
+                    Rectangle {
+                        y: 0;
+                        width: parent.width;
+                        height: 1px;
+                        background: Theme.border;
+                    }
+
+                    VerticalLayout {
+                        Rectangle {
+                            height: 32px;
+                            background: Theme.bg-header;
+
+                            Rectangle {
+                                y: parent.height - 1px;
+                                width: parent.width;
+                                height: 1px;
+                                background: Theme.border-subtle;
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 4px;
+                                padding-right: 6px;
+                                spacing: 1px;
+
+                                TabButton {
+                                    label: "Output";
+                                    active: root.bottom_active_tab == 0;
+                                    badge: root.console_logs.length;
+                                    clicked => { root.bottom_active_tab = 0; }
+                                }
+
+                                TabButton {
+                                    label: "Tilesets";
+                                    active: root.bottom_active_tab == 1;
+                                    badge: root.tilesets.length;
+                                    clicked => { root.bottom_active_tab = 1; }
+                                }
+
+                                Rectangle { horizontal-stretch: 1; }
+
+                                HorizontalLayout {
+                                    horizontal-stretch: 0;
+                                    spacing: 3px;
+                                    cross-axis-alignment: center;
+
+                                    if !root.bottom_dock_minimized && root.bottom_active_tab == 0 : HorizontalLayout {
+                                        horizontal-stretch: 0;
+                                        spacing: 3px;
+                                        cross-axis-alignment: center;
+
+                                        GhostButton {
+                                            label: "Info";
+                                            active: root.show_info_logs;
+                                            quiet: !root.show_info_logs;
+                                            clicked => { root.show_info_logs = !root.show_info_logs; }
+                                        }
+
+                                        GhostButton {
+                                            label: "Warn";
+                                            active: root.show_warn_logs;
+                                            quiet: !root.show_warn_logs;
+                                            clicked => { root.show_warn_logs = !root.show_warn_logs; }
+                                        }
+
+                                        GhostButton {
+                                            label: "Error";
+                                            active: root.show_error_logs;
+                                            quiet: !root.show_error_logs;
+                                            clicked => { root.show_error_logs = !root.show_error_logs; }
+                                        }
+
+                                        Rectangle {
+                                            width: 1px;
+                                            height: 16px;
+                                            background: Theme.border;
+                                        }
+
+                                        GhostButton {
+                                            label: "Clear";
+                                            quiet: true;
+                                            clicked => { root.clear-console-clicked(); }
+                                        }
+                                    }
+
+                                    GhostButton {
+                                        label: root.bottom_dock_minimized ? "▲" : "▼";
+                                        quiet: true;
+                                        clicked => { root.bottom_dock_minimized = !root.bottom_dock_minimized; }
+                                    }
+                                }
+                            }
+                        }
+
+                        if !root.bottom_dock_minimized && root.bottom_active_tab == 0 : Rectangle {
+                            vertical-stretch: 1;
+                            background: Theme.bg-panel;
+
+                            if root.console_logs.length == 0 : Rectangle {
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 4px;
+
+                                    Text {
+                                        text: "▤";
+                                        color: Theme.text-muted;
+                                        font-size: 18px;
+                                        horizontal-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: "Output is empty";
+                                        color: Theme.text-secondary;
+                                        font-size: 11px;
+                                        horizontal-alignment: center;
+                                    }
+
+                                    Text {
+                                        text: "Editor messages will appear here.";
+                                        color: Theme.text-muted;
+                                        font-size: 10px;
+                                        horizontal-alignment: center;
+                                    }
+                                }
+                            }
+
+                            if root.console_logs.length > 0 : Flickable {
+                                content-width: self.width;
+                                content-height: log-list.preferred-height;
+
+                                log-list := VerticalLayout {
+                                    width: parent.width;
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+                                    spacing: 0;
+
+                                    for log in root.console_logs : LogRow {
+                                        log: log;
+                                        visible: (log.level == "INFO" && root.show_info_logs)
+                                            || ((log.level == "WARN" || log.level == "WARNING") && root.show_warn_logs)
+                                            || (log.level == "ERROR" && root.show_error_logs)
+                                            || (log.level != "INFO" && log.level != "WARN" && log.level != "WARNING" && log.level != "ERROR");
+                                    }
+                                }
+                            }
+                        }
+
+                        if !root.bottom_dock_minimized && root.bottom_active_tab == 1 : Rectangle {
+                            vertical-stretch: 1;
+                            background: Theme.bg-panel;
+
+                            Flickable {
+                                content-width: self.width;
+                                content-height: tileset-list.preferred-height;
+
+                                tileset-list := VerticalLayout {
+                                    width: parent.width;
+                                    padding: 8px;
+                                    spacing: 4px;
+
+                                    for tileset in root.tilesets : TilesetRow {
+                                        tileset: tileset;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: 1px;
+                background: Theme.border-subtle;
+            }
+
+            // --------------------------------------------------------------
+            // Right dock — Inspector
+            // --------------------------------------------------------------
+            Rectangle {
+                width: root.right_dock_minimized ? 44px : 296px;
+                background: Theme.bg-panel;
+
+                if root.right_dock_minimized : VerticalLayout {
+                    padding-top: 6px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        GhostButton {
+                            label: "‹";
+                            quiet: true;
+                            clicked => { root.right_dock_minimized = false; }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            text: "▦";
+                            color: Theme.text-muted;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                if !root.right_dock_minimized : VerticalLayout {
+                    DockHeader {
+                        title: "INSPECTOR";
+                        collapse-clicked => { root.right_dock_minimized = true; }
+                    }
+
+                    Rectangle {
+                        height: 58px;
+                        background: Theme.bg-panel;
+
+                        Rectangle {
+                            y: parent.height - 1px;
+                            width: parent.width;
+                            height: 1px;
+                            background: Theme.border-subtle;
+                        }
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 9px;
+                            cross-axis-alignment: center;
+
+                            Rectangle {
+                                width: 32px;
+                                height: 32px;
+                                border-radius: Theme.radius-md;
+                                background: Theme.accent-soft;
+                                border-width: 1px;
+                                border-color: #2e4a63;
+
+                                Text {
+                                    text: "▦";
+                                    color: Theme.accent;
+                                    font-size: 13px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                spacing: 1px;
+                                alignment: center;
+
+                                Text {
+                                    text: root.has_active_level ? root.active_level_name : "Nothing selected";
+                                    color: Theme.text;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+
+                                Text {
+                                    text: root.has_active_level ? "Level document" : "No node selected";
+                                    color: Theme.text-muted;
+                                    font-size: 9px;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+
+                    if !root.has_active_level : Rectangle {
+                        vertical-stretch: 1;
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 6px;
+
+                            Text {
+                                text: "▦";
+                                color: Theme.text-muted;
+                                font-size: 22px;
+                                horizontal-alignment: center;
+                            }
+
+                            Text {
+                                text: "Nothing selected";
+                                color: Theme.text;
+                                font-size: 12px;
+                                font-weight: 600;
+                                horizontal-alignment: center;
+                            }
+
+                            Text {
+                                text: "Select a level in the Scene panel\nto inspect its properties.";
+                                color: Theme.text-muted;
+                                font-size: 10px;
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+
+                    if root.has_active_level : Flickable {
+                        vertical-stretch: 1;
+                        content-width: self.width;
+                        content-height: inspector-content.preferred-height;
+
+                        inspector-content := VerticalLayout {
+                            width: parent.width;
+                            padding: 10px;
+                            spacing: 10px;
+
+                            // Node section
+                            HorizontalLayout {
+                                spacing: 8px;
+                                cross-axis-alignment: center;
+
+                                Text {
+                                    text: "NODE";
+                                    color: Theme.text-muted;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    letter-spacing: 1.1px;
+                                    vertical-alignment: center;
+                                }
+
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 1px;
+                                    background: Theme.border-subtle;
+                                }
+                            }
+
+                            PropertyRow {
+                                label: "Name";
+                                value: root.active_level_name;
+                            }
+
+                            PropertyRow {
+                                label: "Width";
+                                value: "" + root.active_level_width + " px";
+                            }
+
+                            PropertyRow {
+                                label: "Height";
+                                value: "" + root.active_level_height + " px";
+                            }
+
+                            PropertyRow {
+                                label: "Position";
+                                value: "0, 0";
+                            }
+
+                            // View section
+                            HorizontalLayout {
+                                spacing: 8px;
+                                cross-axis-alignment: center;
+
+                                Text {
+                                    text: "VIEW";
+                                    color: Theme.text-muted;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    letter-spacing: 1.1px;
+                                    vertical-alignment: center;
+                                }
+
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 1px;
+                                    background: Theme.border-subtle;
+                                }
+                            }
+
+                            PropertyRow {
+                                label: "Grid";
+                                value: "32 × 32 px";
+                            }
+
+                            PropertyRow {
+                                label: "Zoom";
+                                value: "" + root.zoom_percent + "%";
+                            }
+
+                            Rectangle {
+                                height: 30px;
+
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    cross-axis-alignment: center;
+
+                                    Text {
+                                        width: 82px;
+                                        text: "Visible";
+                                        color: Theme.text-secondary;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                    }
+
+                                    Rectangle {
+                                        height: 24px;
+                                        horizontal-stretch: 1;
+                                        background: Theme.bg-control;
+                                        border-radius: Theme.radius-sm;
+                                        border-width: 1px;
+                                        border-color: Theme.border-subtle;
+
+                                        HorizontalLayout {
+                                            padding-left: 8px;
+                                            padding-right: 6px;
+                                            alignment: space-between;
+
+                                            Text {
+                                                text: root.inspector_visible ? "On" : "Off";
+                                                color: root.inspector_visible ? Theme.success : Theme.text-muted;
+                                                font-size: 10px;
+                                                vertical-alignment: center;
+                                            }
+
+                                            ToggleSwitch {
+                                                checked <=> root.inspector_visible;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Project section
+                            HorizontalLayout {
+                                spacing: 8px;
+                                cross-axis-alignment: center;
+
+                                Text {
+                                    text: "PROJECT";
+                                    color: Theme.text-muted;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    letter-spacing: 1.1px;
+                                    vertical-alignment: center;
+                                }
+
+                                Rectangle {
+                                    horizontal-stretch: 1;
+                                    height: 1px;
+                                    background: Theme.border-subtle;
+                                }
+                            }
+
+                            PropertyRow {
+                                label: "Project";
+                                value: root.project_name;
+                            }
+
+                            PropertyRow {
+                                label: "File";
+                                value: "project.lcproj";
+                            }
+
+                            PropertyRow {
+                                label: "Format";
+                                value: "Level Craft 0.1";
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 1px; background: Theme.border-subtle; }
+
+                    Rectangle {
+                        height: 26px;
+                        background: Theme.bg-panel;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            alignment: space-between;
+
+                            Text {
+                                text: "PROPERTIES";
+                                color: Theme.text-muted;
+                                font-size: 8px;
+                                font-weight: 600;
+                                letter-spacing: 0.7px;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: root.has_active_level ? "1 SELECTED" : "0 SELECTED";
+                                color: Theme.text-muted;
+                                font-size: 8px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        // Status bar
+        // ==================================================================
+        Rectangle {
+            height: 26px;
+            background: Theme.bg-panel;
+
+            Rectangle {
+                y: 0;
+                width: parent.width;
+                height: 1px;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 10px;
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    Rectangle {
+                        width: 6px;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: Theme.success;
+                    }
+
+                    Text {
+                        text: "Ready";
+                        color: Theme.text-secondary;
+                        font-size: 9px;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 1px;
+                        height: 11px;
+                        background: Theme.border;
+                    }
+
+                    Text {
+                        text: root.active_tool + " tool";
+                        color: Theme.text-muted;
+                        font-size: 9px;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 1px;
+                        height: 11px;
+                        background: Theme.border;
+                    }
+
+                    Text {
+                        text: root.has_active_level ? root.selected_level_info : "No level selected";
+                        color: Theme.text-muted;
+                        font-size: 9px;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    cross-axis-alignment: center;
+
+                    Text {
+                        text: "GRID 32 PX";
+                        color: Theme.text-muted;
+                        font-size: 8px;
+                        font-weight: 600;
+                        letter-spacing: 0.5px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "ZOOM " + root.zoom_percent + "%";
+                        color: Theme.text-muted;
+                        font-size: 8px;
+                        font-weight: 600;
+                        letter-spacing: 0.5px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "LEVEL CRAFT 0.1";
+                        color: Theme.text-muted;
+                        font-size: 8px;
+                        font-weight: 600;
+                        letter-spacing: 0.5px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
