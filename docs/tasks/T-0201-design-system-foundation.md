@@ -1,8 +1,8 @@
 ---
 id: T-0201
 title: Design-system foundation: tokens, fonts, widgets, grid and shell chrome
-status: in_progress
-owner: -
+status: in_review
+owner: deepseek-v4.1-flash-free
 role: shell
 scope: [crates/lc_canvas, crates/lc_app, crates/lc_shell/src, assets/, ATTRIBUTION.md, docs/decisions/0013-design-system.md, docs/tasks/T-0201-design-system-foundation.md, docs/MANUAL_CHECKS.md]
 depends_on: [T-0008]
@@ -24,9 +24,9 @@ the same; only the visual system changes.
 - [x] `lc_canvas::grid` draws a zoom-aware grid, checkerboard, selection and handles.
 - [x] Unit tests cover token/visual application, font installation, and grid drawing.
 - [x] The shared shell chrome uses the new tokens/widgets and `egui_dock` is styled from them.
-- [ ] `cargo xtask check` is green. The architecture-lint gate is blocked by the
-  pre-existing untracked `crates/lc_app_slint` package using `serde_json`; fmt,
-  clippy (`-D warnings`) and tests pass for the touched crates.
+- [x] `cargo xtask check` is green. The pre-existing `lc_app_slint` prototype
+  was moved to the `slint-app` branch so the egui workspace and architecture
+  lint stay clean.
 
 ## Out of scope
 - Custom frameless title bar (planned as T-0210).

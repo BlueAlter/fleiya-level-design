@@ -1,8 +1,8 @@
 ---
 id: T-0202
 title: Design-system: workspace empty state and document pages
-status: in_progress
-owner: -
+status: in_review
+owner: deepseek-v4.1-flash-free
 role: shell
 scope: [crates/lc_canvas/src/widgets/, crates/lc_shell/src/, docs/tasks/T-0202-workspace-and-document-pages.md, docs/MANUAL_CHECKS.md, docs/QUESTIONS.md]
 depends_on: [T-0201]
@@ -30,9 +30,8 @@ existing `DocumentView` placeholders.
 - [x] The console toolbar stays on one row at the default bottom-dock width,
   including three-digit filter counts.
 - [x] `cargo fmt`, clippy (`-D warnings`) and tests pass for the touched crates.
-- [ ] `cargo xtask check` is green. The architecture-lint gate is still blocked
-  by the pre-existing untracked `crates/lc_app_slint` package using
-  `serde_json` outside `lc_io` (same blocker as T-0201).
+- [x] `cargo xtask check` is green after the `lc_app_slint` prototype was moved
+  to the `slint-app` branch.
 
 ## Out of scope
 - Real feature editors and canvas hosts (T-0101–T-0108).
