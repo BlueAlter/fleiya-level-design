@@ -85,6 +85,10 @@ impl ShellApp {
         registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
         registry.register_panel(Box::new(crate::project_panel::ProjectPanel::new()));
 
+        lc_feature_level::register(&mut registry);
+        lc_feature_tileset::register(&mut registry);
+        lc_feature_layers::register(&mut registry);
+
         let assets = Arc::new(ShellAssetService::new());
 
         Self {
@@ -123,6 +127,26 @@ impl ShellApp {
     /// Mutable access to registry for feature registration.
     pub fn registry_mut(&mut self) -> &mut Registry {
         &mut self.registry
+    }
+
+    /// Read-only access to the loaded project model.
+    pub fn project(&self) -> &Project {
+        &self.project
+    }
+
+    /// Mutable access to the project model.
+    pub fn project_mut(&mut self) -> &mut Project {
+        &mut self.project
+    }
+
+    /// Read-only access to shared session state.
+    pub fn session(&self) -> &SessionState {
+        &self.session
+    }
+
+    /// Mutable access to shared session state.
+    pub fn session_mut(&mut self) -> &mut SessionState {
+        &mut self.session
     }
 
     /// Returns true if there are uncommitted or unsaved changes.
@@ -170,13 +194,42 @@ impl ShellApp {
             return;
         }
 
-        let doc = self
-            .registry
-            .create_document(kind)
-            .unwrap_or_else(|| Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind }));
+        let doc = match kind {
+            DocKind::Level(level_id) => {
+                let mut view = lc_feature_level::LevelDocumentView::new(level_id);
+                view.add_handler(Box::new(lc_feature_tileset::TilesLayerHandler::new()));
+                view.add_handler(Box::new(lc_feature_tileset::IntGridLayerHandler::new()));
+                view.set_tool(Box::new(lc_feature_tileset::TileCanvasTool::new(
+                    lc_core::layer::LayerKind::Tiles,
+                )));
+                Box::new(view) as Box<dyn DocumentView>
+            }
+            _ => self.registry.create_document(kind).unwrap_or_else(|| {
+                Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+            }),
+        };
         self.open_documents.insert(kind, doc);
         self.dock_state.push_to_first_leaf(kind);
         self.status_message = format!("Opened {kind:?}");
+    }
+
+    /// Automatically opens the first level of the project into a document tab and focuses it.
+    pub fn open_first_level(&mut self) {
+        if let Some(level_id) = self
+            .project
+            .worlds
+            .first()
+            .and_then(|w| w.levels.first())
+            .map(|l| l.id)
+        {
+            self.open_document(DocKind::Level(level_id));
+            self.session.active_level = Some(level_id);
+            self.session.active_document = Some(DocKind::Level(level_id));
+
+            if let Some(first_layer) = self.project.level(level_id).and_then(|l| l.layers.first()) {
+                self.session.active_layer = Some(first_layer.def_id);
+            }
+        }
     }
 
     /// Focuses an existing open document tab in the dock state.

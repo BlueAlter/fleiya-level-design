@@ -40,8 +40,29 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             theme::install_fonts(&cc.egui_ctx);
             theme::apply(&cc.egui_ctx, theme::ThemeChoice::Dark);
+
+            let mut shell = ShellApp::from_console(console_buffer);
+
+            let project_path_arg = std::env::args().nth(1);
+            let candidate_path = project_path_arg.map(std::path::PathBuf::from).or_else(|| {
+                let sample = std::path::PathBuf::from("examples/sample_project/project.lcproj");
+                if sample.exists() {
+                    Some(sample)
+                } else {
+                    None
+                }
+            });
+
+            if let Some(ref path) = candidate_path {
+                if let Err(e) = shell.open_project_from_path(path) {
+                    tracing::warn!("Failed to auto-load project {}: {e}", path.display());
+                } else {
+                    shell.open_first_level();
+                }
+            }
+
             Ok(Box::new(LevelCraftApp {
-                shell: ShellApp::from_console(console_buffer),
+                shell,
                 fonts_ready: false,
             }))
         }),

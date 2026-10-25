@@ -66,7 +66,12 @@ impl CanvasTool for PaintTool {
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
         self.handle_shortcuts(cv, cx);
 
-        let active_layer_id = match cv.active_layer_id {
+        let active_layer_id = cv.active_layer_id.or_else(|| {
+            cx.project()
+                .level(cv.active_level_id)
+                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
+        });
+        let active_layer_id = match active_layer_id {
             Some(id) => id,
             None => return,
         };
@@ -82,7 +87,16 @@ impl CanvasTool for PaintTool {
 
             let stroke_id = *self.active_stroke_id.get_or_insert_with(next_stroke_id);
 
-            match self.kind {
+            let layer_kind = cx
+                .project()
+                .defs
+                .layers
+                .iter()
+                .find(|l| l.id == active_layer_id)
+                .map(|l| l.kind)
+                .unwrap_or(self.kind);
+
+            match layer_kind {
                 LayerKind::Tiles => {
                     if let Some(ts) = cx.tile_selection() {
                         let mut cells = Vec::new();
@@ -149,7 +163,12 @@ impl CanvasTool for EraseTool {
     }
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = match cv.active_layer_id {
+        let active_layer_id = cv.active_layer_id.or_else(|| {
+            cx.project()
+                .level(cv.active_level_id)
+                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
+        });
+        let active_layer_id = match active_layer_id {
             Some(id) => id,
             None => return,
         };
@@ -165,7 +184,16 @@ impl CanvasTool for EraseTool {
 
             let stroke_id = *self.active_stroke_id.get_or_insert_with(next_stroke_id);
 
-            match self.kind {
+            let layer_kind = cx
+                .project()
+                .defs
+                .layers
+                .iter()
+                .find(|l| l.id == active_layer_id)
+                .map(|l| l.kind)
+                .unwrap_or(self.kind);
+
+            match layer_kind {
                 LayerKind::Tiles => {
                     let cmd = PaintTilesCommand::with_stroke(
                         cv.active_level_id,
@@ -223,10 +251,24 @@ impl CanvasTool for RectTool {
     }
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = match cv.active_layer_id {
+        let active_layer_id = cv.active_layer_id.or_else(|| {
+            cx.project()
+                .level(cv.active_level_id)
+                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
+        });
+        let active_layer_id = match active_layer_id {
             Some(id) => id,
             None => return,
         };
+
+        let layer_kind = cx
+            .project()
+            .defs
+            .layers
+            .iter()
+            .find(|l| l.id == active_layer_id)
+            .map(|l| l.kind)
+            .unwrap_or(self.kind);
 
         if cv.response.drag_started() {
             if let Some(pos) = cv.grid_pos {
@@ -243,7 +285,7 @@ impl CanvasTool for RectTool {
             {
                 if pos.x >= 0 && pos.y >= 0 {
                     let current = UVec2::new(pos.x as u32, pos.y as u32);
-                    let fill_val = match self.kind {
+                    let fill_val = match layer_kind {
                         LayerKind::Tiles => {
                             let tile = cx.tile_selection().and_then(|ts| {
                                 ts.primary_tile().map(|mut t| {
@@ -303,16 +345,30 @@ impl CanvasTool for FillTool {
     }
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = match cv.active_layer_id {
+        let active_layer_id = cv.active_layer_id.or_else(|| {
+            cx.project()
+                .level(cv.active_level_id)
+                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
+        });
+        let active_layer_id = match active_layer_id {
             Some(id) => id,
             None => return,
         };
+
+        let layer_kind = cx
+            .project()
+            .defs
+            .layers
+            .iter()
+            .find(|l| l.id == active_layer_id)
+            .map(|l| l.kind)
+            .unwrap_or(self.kind);
 
         if cv.response.clicked_by(PointerButton::Primary) {
             if let Some(pos) = cv.grid_pos {
                 if pos.x >= 0 && pos.y >= 0 {
                     let start = UVec2::new(pos.x as u32, pos.y as u32);
-                    match self.kind {
+                    match layer_kind {
                         LayerKind::Tiles => {
                             let target_tile = cx.tile_selection().and_then(|ts| {
                                 ts.primary_tile().map(|mut t| {
@@ -357,6 +413,11 @@ impl EyedropperTool {
     pub fn new(kind: LayerKind) -> Self {
         Self { kind }
     }
+
+    /// Default target layer kind.
+    pub fn kind(&self) -> LayerKind {
+        self.kind
+    }
 }
 
 impl CanvasTool for EyedropperTool {
@@ -365,7 +426,12 @@ impl CanvasTool for EyedropperTool {
     }
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = match cv.active_layer_id {
+        let active_layer_id = cv.active_layer_id.or_else(|| {
+            cx.project()
+                .level(cv.active_level_id)
+                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
+        });
+        let active_layer_id = match active_layer_id {
             Some(id) => id,
             None => return,
         };
@@ -379,13 +445,13 @@ impl CanvasTool for EyedropperTool {
 
                     if let Some(level) = cx.project().level(cv.active_level_id) {
                         if let Some(layer) = level.layer(active_layer_id) {
-                            match (&self.kind, &layer.data) {
-                                (LayerKind::Tiles, LayerData::Tiles(grid)) => {
+                            match &layer.data {
+                                LayerData::Tiles(grid) => {
                                     if let Some(Some(tile_ref)) = grid.get(x, y) {
                                         tile_to_pick = Some(*tile_ref);
                                     }
                                 }
-                                (LayerKind::IntGrid, LayerData::IntGrid(grid)) => {
+                                LayerData::IntGrid(grid) => {
                                     if let Some(&val) = grid.get(x, y) {
                                         int_to_pick = Some(val);
                                     }
@@ -431,6 +497,12 @@ impl TileCanvasTool {
             fill: FillTool::new(kind),
             eyedropper: EyedropperTool::new(kind),
         }
+    }
+}
+
+impl Default for TileCanvasTool {
+    fn default() -> Self {
+        Self::new(LayerKind::Tiles)
     }
 }
 

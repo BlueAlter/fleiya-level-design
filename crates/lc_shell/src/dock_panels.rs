@@ -266,6 +266,13 @@ pub fn render_dock_slot(
                     let title = app
                         .registry
                         .find_panel(panel_id)
+                        .or_else(|| {
+                            if panel_id.as_str() == "tileset" {
+                                app.registry.find_panel(&PanelId::new("tile_palette"))
+                            } else {
+                                None
+                            }
+                        })
                         .map(|p| p.title())
                         .unwrap_or_else(|| panel_id.as_str());
 
@@ -335,7 +342,15 @@ pub fn render_dock_slot(
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(theme::PANEL_PAD, 8))
             .show(ui, |ui| {
-                if let Some(panel) = app.registry.find_panel_mut(&active_id) {
+                let target_id = if app.registry.find_panel(&active_id).is_none()
+                    && active_id.as_str() == "tileset"
+                {
+                    PanelId::new("tile_palette")
+                } else {
+                    active_id
+                };
+
+                if let Some(panel) = app.registry.find_panel_mut(&target_id) {
                     let mut cx = EditorCtx::new(
                         &app.project,
                         &app.undo_stack,

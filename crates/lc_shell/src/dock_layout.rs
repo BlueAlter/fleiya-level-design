@@ -185,11 +185,7 @@ impl Default for ShellDockLayout {
         Self {
             left: DockSlotState::new(vec![PanelId::new("project")], Some(PanelId::new("project"))),
             right: DockSlotState::new(
-                vec![
-                    PanelId::new("layers"),
-                    PanelId::new("tileset"),
-                    PanelId::new("tools"),
-                ],
+                vec![PanelId::new("layers"), PanelId::new("tile_palette")],
                 Some(PanelId::new("layers")),
             ),
             bottom: BottomDockState::new(
@@ -273,10 +269,15 @@ impl ShellDockLayout {
 
     /// Ensures a panel is registered in a dock slot if not already present.
     pub fn ensure_panel(&mut self, id: PanelId, default_loc: DockSlotLocation) {
-        if !self.left.panels.contains(&id)
-            && !self.right.panels.contains(&id)
-            && !self.bottom.panels.contains(&id)
-        {
+        let is_present = self.left.panels.contains(&id)
+            || self.right.panels.contains(&id)
+            || self.bottom.panels.contains(&id)
+            || (id.as_str() == "tile_palette"
+                && (self.left.panels.contains(&PanelId::new("tileset"))
+                    || self.right.panels.contains(&PanelId::new("tileset"))
+                    || self.bottom.panels.contains(&PanelId::new("tileset"))));
+
+        if !is_present {
             match default_loc {
                 DockSlotLocation::Left => self.left.add_panel(id),
                 DockSlotLocation::Right => self.right.add_panel(id),
@@ -337,12 +338,7 @@ mod tests {
         layout.move_panel_to(&panel("project"), DockSlotLocation::Right, 1);
         assert_eq!(
             layout.right.panels,
-            vec![
-                panel("layers"),
-                panel("project"),
-                panel("tileset"),
-                panel("tools")
-            ]
+            vec![panel("layers"), panel("project"), panel("tile_palette"),]
         );
         assert!(layout.left.panels.contains(&panel("console")));
     }
