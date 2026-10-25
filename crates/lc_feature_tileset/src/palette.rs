@@ -127,6 +127,35 @@ impl PanelView for TilePalettePanel {
                 });
             });
 
+        // 1b. Canvas Tools toolbar
+        Frame::new()
+            .fill(t.panel)
+            .inner_margin(Margin::symmetric(8, 3))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let active_tool = cx.active_tool_name().to_string();
+
+                    let tools = [
+                        ("Paint", "Paint / Stamp Tiles (B)"),
+                        ("Erase", "Erase Tiles (E)"),
+                        ("Rectangle", "Rectangle Fill (R)"),
+                        ("Fill", "Flood Fill (F)"),
+                        ("Eyedropper", "Pick Tile from Canvas (I)"),
+                    ];
+
+                    for (tool_name, tooltip) in tools {
+                        let is_active = active_tool == tool_name;
+                        if ui
+                            .selectable_label(is_active, tool_name)
+                            .on_hover_text(tooltip)
+                            .clicked()
+                        {
+                            cx.emit(EditorEvent::SetActiveTool(tool_name.to_string()));
+                        }
+                    }
+                });
+            });
+
         ui.add_space(4.0);
 
         // 2. Palette content area

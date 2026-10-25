@@ -151,3 +151,14 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Clicking "+ Add Layer" allows adding a new Tiles, IntGrid, or Entities layer, which instantiates layer instances across levels and selects the new layer.
 - [ ] Moving layers up (▲) or down (▼) reorders project definitions and synchronizes level render order via `ReorderLayerDefsCommand`.
 - [ ] Deleting a layer (🗑) cascades removal from the project definitions and all level layer instances with complete revert support.
+
+## Tile and IntGrid Layer Painting (T-0103)
+- [ ] In the Tile Palette panel, tool buttons (Paint, Erase, Rectangle, Fill, Eyedropper) switch the active tool and highlight the active button.
+- [ ] With a Tiles layer active and a tile selected in the palette, clicking or dragging on the canvas stamps tiles with `PaintTilesCommand`.
+- [ ] Dragging continuously across frame boundaries merges into a single undo entry; pressing `Ctrl+Z` reverts the entire stroke at once.
+- [ ] Erase tool clears tiles to empty / sets IntGrid cells to 0, also merging continuous drags into a single undo entry.
+- [ ] Rectangle tool drags from origin to destination and fills the rectangular region on release.
+- [ ] Flood fill tool fills all contiguous matching cells iteratively without recursion overflow.
+- [ ] Pressing `X` or `Y` key toggles horizontal / vertical flip of the placed tile.
+- [ ] Eyedropper tool clicks any placed tile on the canvas and picks it into the tile palette selection.
+- [ ] Viewport culling ensures only visible grid cells inside the canvas viewport are rendered.

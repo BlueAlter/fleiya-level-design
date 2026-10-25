@@ -1,5 +1,9 @@
 //! Commands for managing Tileset definitions in the editor data model.
 
+pub use crate::paint_commands::{
+    FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
+};
+
 use lc_core::command::{Command, DocKind};
 use lc_core::defs::TilesetDef;
 use lc_core::error::CoreError;

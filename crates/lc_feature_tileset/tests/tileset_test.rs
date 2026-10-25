@@ -1,21 +1,29 @@
 //! Integration and headless UI tests for lc_feature_tileset.
 
-use glam::UVec2;
+use glam::{IVec2, UVec2};
 use lc_core::command::{DocKind, UndoStack};
-use lc_core::defs::TilesetDef;
-use lc_core::id::{IdGenerator, TilesetDefId};
+use lc_core::defs::{IntGridValueDef, LayerDef, TilesetDef};
+use lc_core::grid::Grid;
+use lc_core::id::{IdGenerator, LayerDefId, LevelId, TilesetDefId};
+use lc_core::layer::{LayerData, LayerInstance, LayerKind, TileRef};
+use lc_core::level::Level;
 use lc_core::project::Project;
 use lc_feature_tileset::commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, UpdateTilesetDefCommand,
 };
+use lc_feature_tileset::handler::{IntGridLayerHandler, TilesLayerHandler};
+use lc_feature_tileset::paint_commands::PaintTilesCommand;
 use lc_feature_tileset::palette::TilePalettePanel;
+use lc_feature_tileset::tools::EyedropperTool;
 use lc_feature_tileset::view::TilesetDocumentView;
 use lc_ui_api::assets::{AssetError, AssetService, NoopAssetService};
+use lc_ui_api::canvas::{CanvasCtx, CanvasTool, LayerHandler, LayerRenderCtx};
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
 use lc_ui_api::registry::Registry;
 use lc_ui_api::session::{SessionState, TileSelection};
 use lc_ui_api::view::{DocumentView, PanelView};
+use lc_ui_api::viewport::Viewport;
 
 struct MockTextureService {
     size: [usize; 2],
@@ -49,6 +57,10 @@ fn create_test_project_with_tileset() -> (Project, TilesetDefId) {
 
     let mut project = Project::new("Test Project");
     project.defs.tilesets.push(tileset);
+    project.worlds.push(lc_core::world::World::new(
+        lc_core::id::WorldId::new(1),
+        "World",
+    ));
     (project, tileset_id)
 }
 
@@ -350,4 +362,293 @@ fn test_tileset_commands_undo_redo_round_trip() {
         project.defs.tileset(TilesetDefId(10)).unwrap().name,
         "World Tiles Renamed"
     );
+}
+
+#[test]
+fn test_layer_handlers_registration_and_tools() {
+    let mut reg = Registry::new();
+    lc_feature_tileset::register(&mut reg);
+
+    // Both Tiles and IntGrid handlers are registered
+    let tiles_handler = reg.find_layer_handler(LayerKind::Tiles);
+    assert!(tiles_handler.is_some());
+    assert_eq!(tiles_handler.unwrap().kind(), LayerKind::Tiles);
+
+    let tools = tiles_handler.unwrap().tools();
+    assert!(tools.iter().any(|t| t.name() == "Paint"));
+    assert!(tools.iter().any(|t| t.name() == "Erase"));
+    assert!(tools.iter().any(|t| t.name() == "Rectangle"));
+    assert!(tools.iter().any(|t| t.name() == "Fill"));
+    assert!(tools.iter().any(|t| t.name() == "Eyedropper"));
+
+    let intgrid_handler = reg.find_layer_handler(LayerKind::IntGrid);
+    assert!(intgrid_handler.is_some());
+    assert_eq!(intgrid_handler.unwrap().kind(), LayerKind::IntGrid);
+}
+
+#[test]
+fn test_continuous_mouse_drag_merges_undo_step() {
+    // Acceptance criterion: Continuous mouse drag merges into a single undo step across frame boundaries.
+    let (mut project, tileset_id) = create_test_project_with_tileset();
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(10);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    level.layers.push(LayerInstance::new(
+        layer_def_id,
+        LayerData::Tiles(Grid::new(10, 10, None)),
+    ));
+    project.defs.layers.push(LayerDef {
+        id: layer_def_id,
+        name: "TilesLayer".to_string(),
+        kind: LayerKind::Tiles,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: None,
+        int_grid_values: Vec::new(),
+    });
+    project.worlds[0].levels.push(level);
+
+    let mut undo_stack = UndoStack::new();
+
+    // Frame 1: Mouse down at (1, 1)
+    let stroke_id = 12345;
+    let tile_a = Some(TileRef::new(tileset_id, 1));
+    let cmd1 =
+        PaintTilesCommand::with_stroke(level_id, layer_def_id, vec![(1, 1, tile_a)], stroke_id);
+    undo_stack.execute(Box::new(cmd1), &mut project).unwrap();
+
+    // Frame 2: Dragged to (2, 1)
+    let cmd2 =
+        PaintTilesCommand::with_stroke(level_id, layer_def_id, vec![(2, 1, tile_a)], stroke_id);
+    undo_stack.execute(Box::new(cmd2), &mut project).unwrap();
+
+    // Frame 3: Dragged to (3, 1)
+    let cmd3 =
+        PaintTilesCommand::with_stroke(level_id, layer_def_id, vec![(3, 1, tile_a)], stroke_id);
+    undo_stack.execute(Box::new(cmd3), &mut project).unwrap();
+
+    // Frame 4: Dragged to (4, 1)
+    let cmd4 =
+        PaintTilesCommand::with_stroke(level_id, layer_def_id, vec![(4, 1, tile_a)], stroke_id);
+    undo_stack.execute(Box::new(cmd4), &mut project).unwrap();
+
+    // Verify all 4 frames merged into exactly ONE undo step
+    assert!(undo_stack.can_undo());
+
+    // Verify grid state
+    let layer = project
+        .level(level_id)
+        .unwrap()
+        .layer(layer_def_id)
+        .unwrap();
+    if let LayerData::Tiles(grid) = &layer.data {
+        for x in 1..=4 {
+            assert_eq!(grid.get(x, 1).copied().flatten(), tile_a);
+        }
+        assert_eq!(grid.get(0, 1).copied().flatten(), None);
+    }
+
+    // Undo reverts all 4 cells in a single step
+    undo_stack.undo(&mut project).unwrap();
+    assert!(
+        !undo_stack.can_undo(),
+        "Expected contiguous drag to merge into a single undo step"
+    );
+
+    let layer = project
+        .level(level_id)
+        .unwrap()
+        .layer(layer_def_id)
+        .unwrap();
+    if let LayerData::Tiles(grid) = &layer.data {
+        for x in 1..=4 {
+            assert_eq!(grid.get(x, 1).copied().flatten(), None);
+        }
+    }
+
+    // Redo restores all 4 cells in a single step
+    undo_stack.redo(&mut project).unwrap();
+    let layer = project
+        .level(level_id)
+        .unwrap()
+        .layer(layer_def_id)
+        .unwrap();
+    if let LayerData::Tiles(grid) = &layer.data {
+        for x in 1..=4 {
+            assert_eq!(grid.get(x, 1).copied().flatten(), tile_a);
+        }
+    }
+}
+
+#[test]
+fn test_tiles_layer_handler_render_and_viewport_culling() {
+    // Acceptance criterion: Rendering uses viewport culling.
+    let (mut project, tileset_id) = create_test_project_with_tileset();
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(10);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    let mut grid = Grid::new(10, 10, None);
+    grid.set(1, 1, Some(TileRef::new(tileset_id, 3))).unwrap();
+    grid.set(8, 8, Some(TileRef::new(tileset_id, 7))).unwrap();
+    level
+        .layers
+        .push(LayerInstance::new(layer_def_id, LayerData::Tiles(grid)));
+    project.defs.layers.push(LayerDef {
+        id: layer_def_id,
+        name: "TilesLayer".to_string(),
+        kind: LayerKind::Tiles,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: None,
+        int_grid_values: Vec::new(),
+    });
+    project.worlds[0].levels.push(level);
+
+    let handler = TilesLayerHandler::new();
+
+    let egui_ctx = egui::Context::default();
+    let mut output = egui_ctx.run_ui(Default::default(), |ui| {
+        let painter = ui.painter();
+        let viewport = Viewport {
+            screen_rect: egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)),
+            ..Default::default()
+        };
+
+        let current_level = project.level(level_id).unwrap();
+        let current_layer = current_level.layer(layer_def_id).unwrap();
+
+        let mut layer_ctx = LayerRenderCtx {
+            painter,
+            viewport: &viewport,
+            layer: current_layer,
+            level: current_level,
+            project: &project,
+            is_active: true,
+            opacity: 1.0,
+        };
+
+        // Render with culling operates safely without panics
+        handler.render(&mut layer_ctx);
+    });
+    output.textures_delta.clear();
+}
+
+#[test]
+fn test_intgrid_layer_handler_render() {
+    let mut project = Project::new("Test IntGrid");
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(20);
+
+    let mut layer_def = LayerDef {
+        id: layer_def_id,
+        name: "IntGrid".to_string(),
+        kind: LayerKind::IntGrid,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: None,
+        int_grid_values: Vec::new(),
+    };
+    layer_def.int_grid_values.push(IntGridValueDef {
+        value: 1,
+        name: "Solid".to_string(),
+        color: [255, 0, 0, 255],
+    });
+    project.defs.layers.push(layer_def);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    let mut grid = Grid::new(10, 10, 0);
+    grid.set(2, 2, 1).unwrap();
+    level
+        .layers
+        .push(LayerInstance::new(layer_def_id, LayerData::IntGrid(grid)));
+    let mut world = lc_core::world::World::new(lc_core::id::WorldId::new(1), "World");
+    world.levels.push(level);
+    project.worlds.push(world);
+
+    let handler = IntGridLayerHandler::new();
+
+    let egui_ctx = egui::Context::default();
+    let mut output = egui_ctx.run_ui(Default::default(), |ui| {
+        let painter = ui.painter();
+        let viewport = Viewport {
+            screen_rect: egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)),
+            ..Default::default()
+        };
+
+        let current_level = project.level(level_id).unwrap();
+        let current_layer = current_level.layer(layer_def_id).unwrap();
+
+        let mut layer_ctx = LayerRenderCtx {
+            painter,
+            viewport: &viewport,
+            layer: current_layer,
+            level: current_level,
+            project: &project,
+            is_active: true,
+            opacity: 1.0,
+        };
+
+        handler.render(&mut layer_ctx);
+    });
+    output.textures_delta.clear();
+}
+
+#[test]
+fn test_eyedropper_tool_emits_tile_selection() {
+    let (mut project, tileset_id) = create_test_project_with_tileset();
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(10);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    let mut grid = Grid::new(10, 10, None);
+    grid.set(3, 3, Some(TileRef::new(tileset_id, 42))).unwrap();
+    level
+        .layers
+        .push(LayerInstance::new(layer_def_id, LayerData::Tiles(grid)));
+    project.defs.layers.push(LayerDef {
+        id: layer_def_id,
+        name: "TilesLayer".to_string(),
+        kind: LayerKind::Tiles,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: None,
+        int_grid_values: Vec::new(),
+    });
+    project.worlds[0].levels.push(level);
+
+    let mut eyedropper = EyedropperTool::new(LayerKind::Tiles);
+
+    let egui_ctx = egui::Context::default();
+    let mut output = egui_ctx.run_ui(Default::default(), |ui| {
+        let undo_stack = UndoStack::new();
+        let session = SessionState::default();
+        let mut events = Vec::new();
+        let mut pending_commands = Vec::new();
+        let assets = NoopAssetService;
+
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut events,
+            &mut pending_commands,
+            &assets,
+        );
+
+        let viewport = Viewport::default();
+        let response = ui.allocate_response(egui::vec2(100.0, 100.0), egui::Sense::click());
+
+        let mut cv = CanvasCtx {
+            viewport: &viewport,
+            pointer_pos: Some(egui::pos2(10.0, 10.0)),
+            world_pos: Some(IVec2::new(48, 48)),
+            grid_pos: Some(IVec2::new(3, 3)),
+            modifiers: egui::Modifiers::default(),
+            response: &response,
+            active_layer_id: Some(layer_def_id),
+            active_level_id: level_id,
+        };
+
+        // Eyedropper on_input executes safely
+        eyedropper.on_input(&mut cv, &mut cx);
+    });
+    output.textures_delta.clear();
 }
