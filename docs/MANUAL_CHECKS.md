@@ -125,3 +125,16 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] The floating properties window is draggable by its header and clamps to canvas boundaries on resize.
 - [ ] Clicking the collapse chevron on the floating window collapses the body to just the header bar.
 - [ ] Clicking the pin button prevents dragging while pinned.
+
+## Tileset Definition Tab & Tile Palette (T-0102)
+- [ ] Opening a tileset opens a dedicated `TilesetDocumentView` document tab with name, asset path, tile size, spacing, and padding editors.
+- [ ] Editing name, asset path, or dimensions dispatches an undoable `UpdateTilesetDefCommand`.
+- [ ] Slicing preview renders the loaded texture with checkerboard background and overlay tile slice grid lines.
+- [ ] Hovering over tiles in the preview highlights the hovered tile cell and displays its tile ID in the footer.
+- [ ] Missing or invalid asset paths gracefully display an informative placeholder rather than panicking.
+- [ ] The Tile Palette panel shows a tileset dropdown selector when multiple tilesets exist.
+- [ ] Clicking a tile in the palette selects a single tile and emits `SetTileSelection(Some(TileSelection::single))`.
+- [ ] Dragging across tiles in the palette selects a rectangular block and emits `SetTileSelection(Some(TileSelection::rect))`.
+- [ ] Selected tiles render an accent outline and semi-transparent fill highlight in the palette.
+- [ ] The "Clear" button in the palette toolbar deselects the current tile selection.
+- [ ] Deleting a tileset cascades properly through referencing layer defs, enum values, and tile layers, and undo restores all references identically.
