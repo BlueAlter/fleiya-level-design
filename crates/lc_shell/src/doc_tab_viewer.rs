@@ -376,6 +376,10 @@ impl DocumentView for PlaceholderDocumentView {
                         "Defaults, validation and the save flow arrive with the project settings work. This page is a read-only summary.",
                         "READ-ONLY SUMMARY",
                     );
+                    ui.add_space(20.0);
+                    hud(ui, "ICON SET", Tokens::get(ui.ctx()).faint);
+                    ui.add_space(6.0);
+                    lc_canvas::icons::gallery(ui);
                 }
             }
         });

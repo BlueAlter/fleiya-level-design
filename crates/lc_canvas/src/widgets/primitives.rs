@@ -5,8 +5,9 @@
 
 use std::sync::Arc;
 
-use egui::{vec2, Color32, CornerRadius, Galley, Rect, Response, Sense, Stroke, Ui};
+use egui::{vec2, Color32, CornerRadius, Galley, Rect, Response, Sense, Ui};
 
+use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 
 /// Lays out `text` upper case in `family`, with `spacing` points between letters.
@@ -145,19 +146,12 @@ pub fn status_dot(ui: &mut Ui, color: Color32) -> Response {
 /// A small chevron; `open` points down, otherwise right.
 pub fn chevron(ui: &mut Ui, open: bool, color: Color32) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::click());
-    let c = rect.center();
-    let stroke = Stroke::new(1.2, color);
-    if open {
-        ui.painter()
-            .line_segment([c + vec2(-4.0, -2.0), c + vec2(0.0, 2.0)], stroke);
-        ui.painter()
-            .line_segment([c + vec2(0.0, 2.0), c + vec2(4.0, -2.0)], stroke);
+    let icon = if open {
+        Icon::ChevronDown
     } else {
-        ui.painter()
-            .line_segment([c + vec2(-2.0, -4.0), c + vec2(2.0, 0.0)], stroke);
-        ui.painter()
-            .line_segment([c + vec2(2.0, 0.0), c + vec2(-2.0, 4.0)], stroke);
-    }
+        Icon::ChevronRight
+    };
+    icons::paint_icon(ui.painter(), rect.center(), icon, 13.0, color);
     resp.widget_info(|| {
         egui::WidgetInfo::labeled(
             egui::WidgetType::Button,
@@ -171,13 +165,7 @@ pub fn chevron(ui: &mut Ui, open: bool, color: Color32) -> Response {
 /// A close glyph.
 pub fn close_icon(ui: &mut Ui, color: Color32) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::click());
-    let c = rect.center();
-    let stroke = Stroke::new(1.2, color);
-    let s = 4.0;
-    ui.painter()
-        .line_segment([c + vec2(-s, -s), c + vec2(s, s)], stroke);
-    ui.painter()
-        .line_segment([c + vec2(-s, s), c + vec2(s, -s)], stroke);
+    icons::paint_icon(ui.painter(), rect.center(), Icon::Close, 12.0, color);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Close"));
     resp
 }

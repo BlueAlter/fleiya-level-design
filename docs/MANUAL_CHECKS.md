@@ -103,3 +103,12 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Press `Esc` during a drag: the ghost and indicator disappear and the panel stays in its original dock.
 - [ ] Drag a panel onto the collapsed bottom header: the dock expands and accepts the panel at the indicated index.
 - [ ] Resize the window to 960x600 and repeat expand/collapse: the bottom dock stays within 55% and the Console toolbar still fits.
+
+## Icon Set (T-0204)
+- [ ] Project Settings shows an `ICON SET` gallery; every tile renders an icon and its semantic name without missing-glyph boxes.
+- [ ] Dock collapse chevrons render the Phosphor caret at the same optical size as before the change.
+- [ ] Close buttons in document tabs and panels render a crisp `x` glyph, not a painted line pair.
+- [ ] Icons remain visible in HUD/mono labels (dock titles, status bar, console) and in proportional text.
+- [ ] Light theme: icon ink uses the token colour and stays readable on panel/canvas surfaces.
+- [ ] At 960x600 the icon gallery wraps and does not overflow the page width.
+- [ ] Headless test mode (no installed fonts) does not panic and falls back to the proportional family.

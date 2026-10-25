@@ -1,8 +1,9 @@
 //! Interactive editor controls.
 
-use egui::{vec2, Align2, Color32, CornerRadius, FontId, Response, Sense, Stroke, StrokeKind, Ui};
+use egui::{vec2, Color32, CornerRadius, FontId, Response, Sense, Stroke, StrokeKind, Ui};
 
 use super::primitives::{caps, paint_centred};
+use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 
 /// Visual weight of a button.
@@ -84,7 +85,7 @@ pub fn button(ui: &mut Ui, text: &str, kind: ButtonKind, enabled: bool) -> Respo
 }
 
 /// A square icon button with a tooltip.
-pub fn icon_button(ui: &mut Ui, symbol: &str, tip: &str) -> Response {
+pub fn icon_button(ui: &mut Ui, icon: Icon, tip: &str) -> Response {
     let t = Tokens::get(ui.ctx());
     let (rect, resp) =
         ui.allocate_exact_size(vec2(theme::CONTROL_H, theme::CONTROL_H), Sense::click());
@@ -94,11 +95,11 @@ pub fn icon_button(ui: &mut Ui, symbol: &str, tip: &str) -> Response {
         if hovered {
             p.rect_filled(rect, CornerRadius::ZERO, t.sunken);
         }
-        p.text(
+        icons::paint_icon(
+            p,
             rect.center(),
-            Align2::CENTER_CENTER,
-            symbol,
-            FontId::new(14.0, theme::mono_for(ui.ctx())),
+            icon,
+            14.0,
             if hovered { t.ink_strong } else { t.muted },
         );
     }

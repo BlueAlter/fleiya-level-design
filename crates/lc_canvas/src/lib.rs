@@ -3,5 +3,6 @@
 #![forbid(unsafe_code)]
 
 pub mod grid;
+pub mod icons;
 pub mod theme;
 pub mod widgets;

@@ -407,6 +407,11 @@ pub fn install_fonts(ctx: &egui::Context) {
         .cloned()
         .unwrap_or_default();
 
+    // Phosphor supplies editor icons. `add_to_fonts` registers the "phosphor"
+    // family and makes it a proportional fallback; the loop below also appends
+    // it to every text family so inline icons resolve in HUD/mono labels.
+    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+
     let faces: [Face<'_>; 7] = [
         (
             "Inter",
@@ -459,7 +464,7 @@ pub fn install_fonts(ctx: &egui::Context) {
             name.to_owned(),
             Arc::new(FontData::from_static(bytes).tweak(tweak)),
         );
-        let mut stack = vec![name.to_owned()];
+        let mut stack = vec![name.to_owned(), crate::icons::FONT_FAMILY.to_owned()];
         stack.extend(fallback.iter().cloned());
         fonts.families.insert(family, stack);
     }
@@ -506,7 +511,12 @@ mod tests {
                     .font(FontId::new(10.0, mono()))
                     .size(10.0),
             );
+            ui.label(crate::icons::Icon::Layer.rich(&ctx, 14.0, Color32::WHITE));
         });
+        assert_eq!(
+            crate::icons::family(&ctx),
+            FontFamily::Name(crate::icons::FONT_FAMILY.into())
+        );
         output.textures_delta.clear();
     }
 }

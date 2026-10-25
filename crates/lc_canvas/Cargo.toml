@@ -12,3 +12,4 @@ workspace = true
 lc_core = { workspace = true }
 lc_ui_api = { workspace = true }
 egui = { workspace = true }
+egui-phosphor = { workspace = true }
