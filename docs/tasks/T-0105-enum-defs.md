@@ -1,8 +1,8 @@
 ---
 id: T-0105
 title: Enum def tab
-status: todo
-owner: -
+status: in_progress
+owner: agy-enums
 role: enums
 scope: [crates/lc_feature_enums]
 depends_on: [T-0011]
