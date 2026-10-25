@@ -1,7 +1,7 @@
 ---
 id: T-0201
 title: Design-system foundation: tokens, fonts, widgets, grid and shell chrome
-status: in_review
+status: done
 owner: deepseek-v4.1-flash-free
 role: shell
 scope: [crates/lc_canvas, crates/lc_app, crates/lc_shell/src, assets/, ATTRIBUTION.md, docs/decisions/0013-design-system.md, docs/tasks/T-0201-design-system-foundation.md, docs/MANUAL_CHECKS.md]

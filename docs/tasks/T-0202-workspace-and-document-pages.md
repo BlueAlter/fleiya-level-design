@@ -1,7 +1,7 @@
 ---
 id: T-0202
 title: Design-system: workspace empty state and document pages
-status: in_review
+status: done
 owner: deepseek-v4.1-flash-free
 role: shell
 scope: [crates/lc_canvas/src/widgets/, crates/lc_shell/src/, docs/tasks/T-0202-workspace-and-document-pages.md, docs/MANUAL_CHECKS.md, docs/QUESTIONS.md]
