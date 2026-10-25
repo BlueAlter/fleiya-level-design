@@ -88,6 +88,7 @@ impl ShellApp {
         lc_feature_level::register(&mut registry);
         lc_feature_tileset::register(&mut registry);
         lc_feature_layers::register(&mut registry);
+        lc_feature_enums::register(&mut registry);
 
         let assets = Arc::new(ShellAssetService::new());
 

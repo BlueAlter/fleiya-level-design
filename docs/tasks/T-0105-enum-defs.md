@@ -1,7 +1,7 @@
 ---
 id: T-0105
 title: Enum def tab
-status: in_progress
+status: done
 owner: agy-enums
 role: enums
 scope: [crates/lc_feature_enums]
@@ -12,5 +12,5 @@ skills: [incremental-implementation, test-driven-development, source-driven-deve
 ## Goal
 EnumDef tab: values with colors, optional tile icon, reorder, rename. Deleting a value or enum that is referenced by fields is blocked with a clear message, or cascades via an explicit Command.
 ## Acceptance criteria
-- [ ] Commands + revert tests incl. reference handling.
-- [ ] Rename updates dependent displays without breaking IDs.
+- [x] Commands + revert tests incl. reference handling.
+- [x] Rename updates dependent displays without breaking IDs.
