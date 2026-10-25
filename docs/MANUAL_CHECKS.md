@@ -138,3 +138,16 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Selected tiles render an accent outline and semi-transparent fill highlight in the palette.
 - [ ] The "Clear" button in the palette toolbar deselects the current tile selection.
 - [ ] Deleting a tileset cascades properly through referencing layer defs, enum values, and tile layers, and undo restores all references identically.
+
+## Layer Definition Tab & Layers Panel (T-0104)
+- [ ] Opening a layer definition opens a dedicated `LayerDefDocumentView` tab showing name, layer kind, grid size, tileset link, and IntGrid value editors.
+- [ ] Editing layer definition name, kind, or grid dimensions dispatches an undoable `UpdateLayerDefCommand`.
+- [ ] For IntGrid layers, adding/removing values or picking colors in the table updates definition and reverts cleanly.
+- [ ] Layers panel displays an empty state ("No active level") when no level tab is active (`cx.active_level()` is None).
+- [ ] When a level tab is active, the Layers panel lists its layer instances in top-to-bottom visual order (matching canvas render order).
+- [ ] Clicking a layer row selects the layer, emits `SetActiveLayer(Some(id))`, and highlights the row with accent styling.
+- [ ] Double-clicking a layer row opens the layer definition document view tab.
+- [ ] Clicking the eye icon toggles layer visibility via `ToggleLayerVisibilityCommand` and updates the icon.
+- [ ] Clicking "+ Add Layer" allows adding a new Tiles, IntGrid, or Entities layer, which instantiates layer instances across levels and selects the new layer.
+- [ ] Moving layers up (▲) or down (▼) reorders project definitions and synchronizes level render order via `ReorderLayerDefsCommand`.
+- [ ] Deleting a layer (🗑) cascades removal from the project definitions and all level layer instances with complete revert support.
