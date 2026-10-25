@@ -146,6 +146,56 @@ fn test_panel_tab_drag_and_drop_between_docks() {
 }
 
 #[test]
+fn test_panel_tab_reorder_and_insert_at_index() {
+    let mut app = ShellApp::new(Project::new("DnDIndexTestProject"));
+    let project_id = PanelId::new("project");
+    let console_id = PanelId::new("console");
+
+    // Insert Project at the front of the bottom dock.
+    app.dock_layout.start_drag(project_id.clone());
+    assert!(app.dock_layout.drop_dragged_at(DockSlotLocation::Bottom, 0));
+    assert_eq!(
+        app.dock_layout.bottom.panels,
+        vec![project_id.clone(), console_id.clone()]
+    );
+    assert!(!app.dock_layout.bottom.collapsed);
+
+    // Reorder within the same dock by dropping past the last tab.
+    app.dock_layout.start_drag(project_id.clone());
+    assert!(app
+        .dock_layout
+        .drop_dragged_at(DockSlotLocation::Bottom, usize::MAX));
+    assert_eq!(app.dock_layout.bottom.panels, vec![console_id, project_id]);
+}
+
+#[test]
+fn test_escape_cancels_panel_drag() {
+    let mut app = ShellApp::new(Project::new("DragEscapeProject"));
+    app.dock_layout.start_drag(PanelId::new("console"));
+    assert!(app.dock_layout.dragging_panel.is_some());
+
+    let ctx = Context::default();
+    let mut raw_input = egui::RawInput::default();
+    raw_input.events.push(egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+
+    assert_eq!(
+        app.dock_layout.dragging_panel, None,
+        "Escape must cancel a panel drag"
+    );
+}
+
+#[test]
 fn test_asset_service_typed_errors_and_invalidation() {
     let service = lc_shell::ShellAssetService::new();
     let ctx = Context::default();

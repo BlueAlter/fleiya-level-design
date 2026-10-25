@@ -86,3 +86,20 @@ restored after closing the last tab).
 - [x] Level page: read-only canvas preview shows the checkerboard and 16 px grid; it does not pan, zoom or select.
 - [x] Closing the last document returns to the workspace empty state.
 - [ ] Long project names and long tileset paths truncate in `meta_row` instead of overflowing.
+
+## Dock Interaction Polish (T-0203)
+Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
+`dock_drag_ghost2.png`, `dock_after_drop_right.png`,
+`dock_reorder_indicator.png`, `dock_central_nodrop.png` and
+`dock_max_height4.png`.
+- [x] Expanding the Console after a collapse restores its remembered ~180 px height instead of filling the editor.
+- [x] Drag the bottom-dock divider to the top: the expanded height stops at 55% of the central area and never covers the document area.
+- [x] Dragging a panel tab shows a floating uppercase tab preview at the cursor.
+- [x] Hovering a valid dock target highlights the slot with an accent hairline and shows a 2 px insertion line with end caps.
+- [x] Dropping on a tab strip inserts at the indicated line; dropping on the slot content appends.
+- [x] Same-slot reordering works (e.g. drag `PROJECT` before `CONSOLE` in the bottom dock).
+- [x] Cross-slot moves work (e.g. `PROJECT` to the right or bottom dock) and update the status bar.
+- [x] Dropping over the central document area shows a `NoDrop` cursor, no slot highlight, and cancels on release.
+- [ ] Press `Esc` during a drag: the ghost and indicator disappear and the panel stays in its original dock.
+- [ ] Drag a panel onto the collapsed bottom header: the dock expands and accepts the panel at the indicated index.
+- [ ] Resize the window to 960x600 and repeat expand/collapse: the bottom dock stays within 55% and the Console toolbar still fits.
