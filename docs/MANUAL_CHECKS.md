@@ -112,3 +112,16 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Light theme: icon ink uses the token colour and stays readable on panel/canvas surfaces.
 - [ ] At 960x600 the icon gallery wraps and does not overflow the page width.
 - [ ] Headless test mode (no installed fonts) does not panic and falls back to the proportional family.
+
+## Level Tab: Canvas Host, Pan/Zoom & Inspector (T-0101)
+- [ ] Opening a level from the Project panel opens a dedicated `LevelDocumentView` tab.
+- [ ] Middle-mouse drag pans the canvas smoothly across world coordinates.
+- [ ] Holding Space and dragging with primary mouse button pans the canvas.
+- [ ] Mouse wheel zooms in and out focused on the current cursor position.
+- [ ] Zoom buttons (+ / - / Fit) in the canvas overlay toolbar adjust zoom and center the level.
+- [ ] The 16 px grid and level boundaries render crisp hairline strokes.
+- [ ] Toggling grid snap and grid visibility via the overlay toolbar updates canvas drawing.
+- [ ] Visible layers inside the level bounds are rendered; moving viewport completely away culls offscreen layers.
+- [ ] The floating properties window is draggable by its header and clamps to canvas boundaries on resize.
+- [ ] Clicking the collapse chevron on the floating window collapses the body to just the header bar.
+- [ ] Clicking the pin button prevents dragging while pinned.

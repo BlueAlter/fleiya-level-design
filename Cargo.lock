@@ -1792,6 +1792,7 @@ name = "lc_feature_level"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "glam",
  "lc_canvas",
  "lc_core",
  "lc_ui_api",
