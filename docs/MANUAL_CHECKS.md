@@ -195,3 +195,20 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Drag a numeric inspector field, pause with the pointer held still, continue the drag: one undo reverts the whole drag.
 - [ ] Open two levels; select an entity in A, switch to B: B's properties show level B (not A's entity), and Shift-click in B never keeps A's ids.
 - [ ] Select an entity that lives on a non-active Entities layer and press Ctrl/Cmd+D: the copy stays on the same layer as its source.
+
+## World Tab (T-0108)
+- [ ] Opening a world from the project panel shows a world tab with level rectangles at their world positions.
+- [ ] The active depth is full colour; levels on other depths are dimmed and painted underneath overlapping active levels.
+- [ ] Clicking the active-depth level selects it (status/inspector reflect the level); clicking empty canvas clears the selection.
+- [ ] Clicking or dragging a dimmed level on another depth does nothing until the depth selector switches to that depth.
+- [ ] Double-clicking an active-depth level opens or focuses its level tab.
+- [ ] In Free layout, dragging a level snaps to the grid (magnet state) and one undo reverts the whole drag.
+- [ ] With grid snap off in Free layout, a dragged level keeps arbitrary world coordinates.
+- [ ] GridVania snaps dragged levels to the world grid (project grid fallback when the world has no default grid).
+- [ ] Linear H/V drags reorder the line and re-space all levels; one undo restores every position.
+- [ ] Switching the layout selector to Linear H/V auto-arranges levels; the toolbar "Tidy" button re-runs arrangement/snapping for the current layout.
+- [ ] "Add" creates a level at the view centre on the active depth and keeps the world tab focused.
+- [ ] "Duplicate" copies the selected level with a new id offset by one grid cell and selects the copy.
+- [ ] "Move" moves the selected level to the active depth and keeps the world tab focused.
+- [ ] Each world opens in its own tab with independent camera/depth state; closing and reopening fits the view again.
+- [ ] Middle-drag or Space+drag pans, the wheel zooms at the pointer, and "Fit" frames every level including an empty world.
