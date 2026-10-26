@@ -15,9 +15,26 @@ use crate::assets::ShellAssetService;
 use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
 use crate::doc_tab_viewer::DocTabViewer;
 use crate::dock_layout::{DockSlotLocation, ShellDockLayout};
+use crate::file_dialog::{
+    normalize_project_path, FileDialogHandle, FileDialogOutcome, FileDialogService,
+    NativeFileDialogService,
+};
 use lc_canvas::theme::{self, ThemeChoice};
 use lc_ui_api::session::SessionState;
 use std::sync::Arc;
+
+/// Which action a pending file dialog will perform when it completes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileDialogAction {
+    OpenProject,
+    SaveProjectAs,
+}
+
+/// A file dialog whose worker thread has not reported back yet.
+struct PendingFileDialog {
+    action: FileDialogAction,
+    handle: FileDialogHandle,
+}
 
 /// Main application shell orchestrating panels, document tabs, commands, and layout.
 pub struct ShellApp {
@@ -59,6 +76,10 @@ pub struct ShellApp {
     pub console_buffer: SharedRingBuffer,
     /// Last recorded bounding rect of the central document area.
     pub last_central_rect: Option<egui::Rect>,
+    /// Backend used to request native file dialogs.
+    file_dialogs: Arc<dyn FileDialogService>,
+    /// File dialogs waiting for a user decision.
+    pending_file_dialogs: Vec<PendingFileDialog>,
 }
 
 impl Default for ShellApp {
@@ -114,6 +135,8 @@ impl ShellApp {
             theme_choice: ThemeChoice::Dark,
             console_buffer,
             last_central_rect: None,
+            file_dialogs: Arc::new(NativeFileDialogService::new()),
+            pending_file_dialogs: Vec::new(),
         }
     }
 
@@ -171,6 +194,7 @@ impl ShellApp {
             .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.is_dirty = false;
         self.status_message = format!("Project saved to {}", path.display());
+        tracing::info!(path = %path.display(), "Saved project");
         Ok(())
     }
 
@@ -186,7 +210,114 @@ impl ShellApp {
         self.dock_state = DockState::new(Vec::new());
         self.is_dirty = false;
         self.status_message = format!("Opened project from {}", path.display());
+        tracing::info!(path = %path.display(), "Opened project");
         Ok(())
+    }
+
+    /// Replaces the backend used for native file dialogs.
+    ///
+    /// Tests and headless harnesses use this to inject a mock service.
+    pub fn set_file_dialog_service(&mut self, service: Arc<dyn FileDialogService>) {
+        self.file_dialogs = service;
+    }
+
+    /// Starts an asynchronous "Open project" dialog.
+    pub fn request_open_project_dialog(&mut self) {
+        if self.has_pending_dialog(FileDialogAction::OpenProject) {
+            self.status_message = "Open dialog is already active".to_string();
+            return;
+        }
+
+        tracing::info!("Requested open project dialog");
+        self.pending_file_dialogs.push(PendingFileDialog {
+            action: FileDialogAction::OpenProject,
+            handle: self.file_dialogs.open_project(),
+        });
+        self.status_message = "Select a project file...".to_string();
+    }
+
+    /// Starts an asynchronous "Save project as" dialog.
+    pub fn request_save_project_as_dialog(&mut self) {
+        if self.has_pending_dialog(FileDialogAction::SaveProjectAs) {
+            self.status_message = "Save As dialog is already active".to_string();
+            return;
+        }
+
+        tracing::info!("Requested save project dialog");
+        self.pending_file_dialogs.push(PendingFileDialog {
+            action: FileDialogAction::SaveProjectAs,
+            handle: self.file_dialogs.save_project_as(),
+        });
+        self.status_message = "Choose a destination for the project...".to_string();
+    }
+
+    /// Polls pending file dialogs and applies any completed results.
+    ///
+    /// Returns `true` when at least one dialog finished during this call.
+    pub fn poll_file_dialogs(&mut self) -> bool {
+        if self.pending_file_dialogs.is_empty() {
+            return false;
+        }
+
+        let pending = std::mem::take(&mut self.pending_file_dialogs);
+        let mut completed = Vec::new();
+        let mut still_pending = Vec::with_capacity(pending.len());
+        for dialog in pending {
+            match dialog.handle.try_take() {
+                Some(outcome) => completed.push((dialog.action, outcome)),
+                None => still_pending.push(dialog),
+            }
+        }
+        self.pending_file_dialogs = still_pending;
+
+        let any_completed = !completed.is_empty();
+        for (action, outcome) in completed {
+            self.apply_file_dialog_outcome(action, outcome);
+        }
+        any_completed
+    }
+
+    fn has_pending_dialog(&self, action: FileDialogAction) -> bool {
+        self.pending_file_dialogs
+            .iter()
+            .any(|dialog| dialog.action == action)
+    }
+
+    fn apply_file_dialog_outcome(&mut self, action: FileDialogAction, outcome: FileDialogOutcome) {
+        match outcome {
+            FileDialogOutcome::Selected(path) => match action {
+                FileDialogAction::OpenProject => {
+                    if let Err(error) = self.open_project_from_path(&path) {
+                        tracing::error!(
+                            %error,
+                            path = %path.display(),
+                            "Failed to open project from dialog"
+                        );
+                        self.status_message = format!("Failed to open project: {error}");
+                    }
+                }
+                FileDialogAction::SaveProjectAs => {
+                    let path = normalize_project_path(path);
+                    if let Err(error) = self.save_project_to_path(&path) {
+                        tracing::error!(
+                            %error,
+                            path = %path.display(),
+                            "Failed to save project from dialog"
+                        );
+                        self.status_message = format!("Failed to save project: {error}");
+                    }
+                }
+            },
+            FileDialogOutcome::Cancelled => {
+                tracing::info!("File dialog cancelled");
+                self.status_message = "File dialog cancelled".to_string();
+            }
+            FileDialogOutcome::Unavailable => {
+                tracing::warn!("File dialog unavailable in this environment");
+                self.status_message =
+                    "File dialog unavailable in this environment (headless mode)".to_string();
+            }
+        }
     }
 
     /// Opens or focuses a document tab. Guarantees the same `DocKind` never opens twice.
@@ -299,6 +430,13 @@ impl ShellApp {
 
     /// Renders the complete shell UI inside a top-level egui `Ui`.
     pub fn ui(&mut self, ui: &mut Ui) {
+        // Apply results from asynchronous file dialogs without blocking this frame.
+        self.poll_file_dialogs();
+        if !self.pending_file_dialogs.is_empty() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        }
+
         // Ensure registered panels are tracked in dock layout
         for panel in self.registry.panels() {
             self.dock_layout

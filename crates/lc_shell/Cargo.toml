@@ -26,6 +26,7 @@ serde = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 image = { workspace = true }
+rfd = "0.16.1"
 
 [dev-dependencies]
 ron = "0.12"

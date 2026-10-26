@@ -20,8 +20,7 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
             ui.spacing_mut().interact_size.y = theme::TOP_BAR_H;
             egui::MenuBar::new().ui(ui, |ui| {
                 // Wordmark: a small accent square plus Archivo display text.
-                let (mark, _) =
-                    ui.allocate_exact_size(egui::vec2(7.0, 7.0), egui::Sense::hover());
+                let (mark, _) = ui.allocate_exact_size(egui::vec2(7.0, 7.0), egui::Sense::hover());
                 ui.painter()
                     .rect_filled(mark, egui::CornerRadius::ZERO, t.accent);
                 ui.add_space(6.0);
@@ -44,21 +43,15 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                         ui.close();
                     }
                     if ui.button("Open...").clicked() {
-                        // If a project path was already used or default project exists, open it,
-                        // or report status. Full native file picker integration is tracked in T-0109.
-                        if let Some(ref path) = app.project_path.clone() {
-                            if let Err(e) = app.open_project_from_path(path) {
-                                app.status_message = format!("Failed to open project: {e}");
-                            }
-                        } else {
-                            app.status_message =
-                                "Use File > Open Project in project panel or specify project file path"
-                                    .to_string();
-                        }
+                        app.request_open_project_dialog();
                         ui.close();
                     }
                     if ui.button("Save (Ctrl+S)").clicked() {
                         app.events.push(EditorEvent::SaveProject);
+                        ui.close();
+                    }
+                    if ui.button("Save As...").clicked() {
+                        app.request_save_project_as_dialog();
                         ui.close();
                     }
                 });

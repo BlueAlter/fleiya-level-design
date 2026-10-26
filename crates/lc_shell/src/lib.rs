@@ -8,6 +8,7 @@ pub mod doc_tab_viewer;
 pub mod dock_layout;
 pub mod dock_panels;
 pub mod dock_style;
+pub mod file_dialog;
 pub mod menu;
 pub mod project_panel;
 pub mod shell_app;
@@ -22,6 +23,9 @@ pub use console::{
 };
 pub use doc_tab_viewer::{DocTabViewer, PlaceholderDocumentView};
 pub use dock_layout::{BottomDockState, DockSlotLocation, DockSlotState, ShellDockLayout};
+pub use file_dialog::{
+    FileDialogHandle, FileDialogOutcome, FileDialogService, NativeFileDialogService,
+};
 pub use lc_canvas::theme;
 pub use project_panel::ProjectPanel;
 pub use shell_app::ShellApp;

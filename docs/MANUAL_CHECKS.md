@@ -212,3 +212,11 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] "Move" moves the selected level to the active depth and keeps the world tab focused.
 - [ ] Each world opens in its own tab with independent camera/depth state; closing and reopening fits the view again.
 - [ ] Middle-drag or Space+drag pans, the wheel zooms at the pointer, and "Fit" frames every level including an empty world.
+
+## Native File Dialogs (T-0109)
+- [ ] `File > Open...` opens the OS file picker filtered to `.lcproj`; choosing a project loads it and refreshes the project panel.
+- [ ] Cancelling the open picker leaves the current project unchanged and shows `File dialog cancelled`.
+- [ ] `File > Save As...` opens the OS save picker prefilled with `project.lcproj`; choosing a path writes the workspace and shows the saved path.
+- [ ] Omitting the extension in `Save As` writes `<name>.lcproj` and remembers the normalized path.
+- [ ] Launching with `LC_DISABLE_FILE_DIALOGS=1` and choosing Open/Save As shows the headless fallback status instead of a dialog, and the editor stays responsive.
+- [ ] While a native dialog is open, the editor window keeps repainting and cancelling returns control immediately.
