@@ -12,6 +12,7 @@ pub mod menu;
 pub mod project_panel;
 pub mod shell_app;
 pub mod status_bar;
+pub mod tool_router;
 pub mod workspace;
 
 pub use assets::ShellAssetService;

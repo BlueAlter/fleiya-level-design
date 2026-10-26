@@ -174,3 +174,24 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Every field type renders a usable editor: Int, Float, Bool, String, Color, Enum, Point, EntityRef, and Array (add/remove items).
 - [ ] Deleting a field removes it and its values; undo restores them.
 - [ ] Deleting an entity definition is blocked while instances exist; "Force cascade" removes instances, clears dangling EntityRef values (instances, level fields, field defaults, arrays), and undo restores everything.
+
+## Entity Layer, Tools & Floating Inspector (T-0107)
+- [ ] With an Entities layer active, entity instances render as coloured rectangles at their level-local positions with pivot dots and name labels.
+- [ ] The right/left dock shows an "Entities" panel listing every entity definition with its `#uid` and placed-instance count.
+- [ ] Clicking "Place" in the Entities panel switches the tool to `Place #<uid>`; the status bar reads "Place Entity".
+- [ ] Clicking the canvas while placing adds one instance snapped to the layer grid, selects it, and the Inspector shows its fields.
+- [ ] Clicking an entity with the Select tool selects it; Shift-click toggles it in a multi-selection; clicking empty canvas clears the selection.
+- [ ] Dragging a selected entity moves the whole selection snapped to the grid; one drag is a single undo step.
+- [ ] Dragging the bottom-right corner of a single selected entity resizes it snapped to the grid; one drag is a single undo step.
+- [ ] Delete/Backspace removes the selected entities; the selection clears and any `EntityRef` values (instances, level fields, field defaults, arrays) become `None`.
+- [ ] Ctrl/Cmd+D duplicates the selection with new ids offset by one grid cell and selects the copies.
+- [ ] The Inspector shows POSITION/SIZE for a single selection and edits them through move/resize commands.
+- [ ] The Inspector lists all fields of a single selection; for multiple entities it shows only fields with the same name and type, marking differing values "(mixed)".
+- [ ] Typing in a text field or dragging a numeric field commits one merged undo step per focus session; moving focus away starts a new step.
+- [ ] EntityRef fields list all instances by `Def #id` and resolve the stored id after undo/redo.
+- [ ] Undo after placing, moving, resizing, duplicating, deleting, or editing a field restores the exact previous project state.
+- [ ] Switching between tile layers and entity layers keeps the matching tool active (tile painting vs entity editing).
+- [ ] Focus an inspector text field, move the pointer over the canvas without clicking, press Backspace: only the text changes; the entity is not deleted.
+- [ ] Drag a numeric inspector field, pause with the pointer held still, continue the drag: one undo reverts the whole drag.
+- [ ] Open two levels; select an entity in A, switch to B: B's properties show level B (not A's entity), and Shift-click in B never keeps A's ids.
+- [ ] Select an entity that lives on a non-active Entities layer and press Ctrl/Cmd+D: the copy stays on the same layer as its source.

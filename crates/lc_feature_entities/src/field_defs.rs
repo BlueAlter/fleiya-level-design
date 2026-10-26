@@ -5,8 +5,8 @@
 //! helpers define that migration in one place; commands and editors share them.
 
 use glam::IVec2;
-use lc_core::defs::EnumDef;
-use lc_core::fields::{FieldType, FieldValue};
+use lc_core::defs::{EntityDef, EnumDef};
+use lc_core::fields::{FieldType, FieldValue, FieldValues};
 
 /// Returns the default value for `field_type`.
 ///
@@ -32,6 +32,23 @@ pub fn default_field_value(field_type: &FieldType, enum_defs: &[EnumDef]) -> Fie
         FieldType::EntityRef => FieldValue::EntityRef(None),
         FieldType::Array(_) => FieldValue::Array(Vec::new()),
     }
+}
+
+/// Builds the initial field-value map for a new entity instance.
+///
+/// Uses the definition's stored default when present, coerced to the field
+/// type, otherwise the type's zero value.
+pub fn default_field_values(def: &EntityDef, enum_defs: &[EnumDef]) -> FieldValues {
+    let mut values = FieldValues::new();
+    for field in &def.fields {
+        let value = field
+            .default_value
+            .as_ref()
+            .map(|value| coerce_field_value(value, &field.field_type, enum_defs))
+            .unwrap_or_else(|| default_field_value(&field.field_type, enum_defs));
+        values.set(field.name.clone(), value);
+    }
+    values
 }
 
 /// Converts `value` to a value compatible with `target`.

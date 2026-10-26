@@ -49,17 +49,33 @@ impl<'a> FieldEditorContext<'a> {
 pub struct FieldEditorResponse {
     /// The value changed and should be committed.
     pub changed: bool,
+    /// A widget in the editor has keyboard focus right now.
+    pub has_focus: bool,
     /// A widget in the editor gained keyboard focus this frame.
     pub gained_focus: bool,
     /// A widget in the editor lost keyboard focus this frame.
     pub lost_focus: bool,
+    /// A widget in the editor is being dragged right now.
+    ///
+    /// `DragValue` edits with the pointer and never takes keyboard focus, so
+    /// this is the only signal that a numeric drag is still in progress.
+    pub dragging: bool,
 }
 
 impl FieldEditorResponse {
     fn observe(&mut self, response: &Response) {
         self.changed |= response.changed();
+        self.has_focus |= response.has_focus();
         self.gained_focus |= response.gained_focus();
         self.lost_focus |= response.lost_focus();
+        self.dragging |= response.dragged();
+    }
+
+    /// Whether the editor is in an active interaction that should keep a
+    /// stroke id alive across frames without changes (typing pauses, drag
+    /// pauses).
+    pub fn keeps_stroke(&self) -> bool {
+        self.has_focus || self.gained_focus || self.dragging
     }
 }
 
@@ -211,8 +227,10 @@ pub fn field_value_editor(
                     ui.horizontal(|ui| {
                         let response = field_value_editor(ui, item, inner, ctx);
                         out.changed |= response.changed;
+                        out.has_focus |= response.has_focus;
                         out.gained_focus |= response.gained_focus;
                         out.lost_focus |= response.lost_focus;
+                        out.dragging |= response.dragging;
                         if ui.small_button("-").on_hover_text("Remove item").clicked() {
                             removed = Some(index);
                         }

@@ -38,6 +38,26 @@ pub fn find_entity_def_instances(p: &Project, def_id: EntityDefId) -> Vec<Entity
     out
 }
 
+/// Finds the level containing a specific entity instance.
+pub fn find_entity_location(p: &Project, entity_id: EntityId) -> Option<EntityLocation> {
+    for world in &p.worlds {
+        for level in &world.levels {
+            for layer in &level.layers {
+                if let LayerData::Entities(entities) = &layer.data {
+                    if entities.iter().any(|e| e.id == entity_id) {
+                        return Some(EntityLocation {
+                            world_id: world.id,
+                            level_id: level.id,
+                            entity_id,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Counts instances of `def_id` across the project.
 pub fn count_entity_def_instances(p: &Project, def_id: EntityDefId) -> usize {
     p.worlds

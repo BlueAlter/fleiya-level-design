@@ -201,9 +201,11 @@ impl ShellApp {
                 let mut view = lc_feature_level::LevelDocumentView::new(level_id);
                 view.add_handler(Box::new(lc_feature_tileset::TilesLayerHandler::new()));
                 view.add_handler(Box::new(lc_feature_tileset::IntGridLayerHandler::new()));
-                view.set_tool(Box::new(lc_feature_tileset::TileCanvasTool::new(
-                    lc_core::layer::LayerKind::Tiles,
-                )));
+                view.add_handler(Box::new(lc_feature_entities::EntitiesLayerHandler::new()));
+                view.add_inspector_section(Box::new(
+                    lc_feature_entities::EntityInspectorSection::new(),
+                ));
+                view.set_tool(Box::new(crate::tool_router::LevelCanvasToolRouter::new()));
                 Box::new(view) as Box<dyn DocumentView>
             }
             _ => self.registry.create_document(kind).unwrap_or_else(|| {

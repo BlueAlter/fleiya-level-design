@@ -27,7 +27,7 @@ pub fn render_status_bar(app: &mut ShellApp, ui: &mut Ui) {
         rule(ui, 12.0);
 
         // 3. Active tool
-        hud(ui, &app.session.active_tool_name, t.accent_ink);
+        hud(ui, tool_label(&app.session.active_tool_name), t.accent_ink);
         rule(ui, 12.0);
 
         // 4. Dirty indicator
@@ -44,4 +44,16 @@ pub fn render_status_bar(app: &mut ShellApp, ui: &mut Ui) {
             hud_elided(ui, &app.status_message, t.muted, 520.0);
         });
     });
+}
+
+/// Human-readable label for an active tool name.
+///
+/// Placement uses `Place #<uid>` internally so the entity tool can resolve the
+/// definition; the status bar shows the user-facing action instead.
+fn tool_label(name: &str) -> &str {
+    if name.starts_with("Place #") {
+        "Place Entity"
+    } else {
+        name
+    }
 }
