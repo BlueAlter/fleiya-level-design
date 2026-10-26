@@ -162,3 +162,15 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Pressing `X` or `Y` key toggles horizontal / vertical flip of the placed tile.
 - [ ] Eyedropper tool clicks any placed tile on the canvas and picks it into the tile palette selection.
 - [ ] Viewport culling ensures only visible grid cells inside the canvas viewport are rendered.
+
+## Entity Definition Tab & Field Editors (T-0106)
+- [ ] Opening an entity definition in the Project panel opens an `EntityDefDocumentView` tab with name, colour, size, pivot, and tile controls.
+- [ ] Editing metadata dispatches an undoable `UpdateEntityDefCommand`; one continuous drag is a single undo step.
+- [ ] "Use Palette Tile" adopts the palette's primary tile; "Clear" removes it, both undoable.
+- [ ] Adding a field with a valid unique name dispatches `AddEntityFieldCommand` and seeds the default on every existing instance.
+- [ ] Duplicate or empty field names are rejected with an inline message and no command is emitted.
+- [ ] Renaming a field or changing its type updates the definition and migrates instance values; undo restores both schema order and values.
+- [ ] Changing a field type also rewrites its stored default to the new type (e.g. Int 10 -> String "10").
+- [ ] Every field type renders a usable editor: Int, Float, Bool, String, Color, Enum, Point, EntityRef, and Array (add/remove items).
+- [ ] Deleting a field removes it and its values; undo restores them.
+- [ ] Deleting an entity definition is blocked while instances exist; "Force cascade" removes instances, clears dangling EntityRef values (instances, level fields, field defaults, arrays), and undo restores everything.
