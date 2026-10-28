@@ -8,22 +8,11 @@ use lc_canvas::theme::Tokens;
 use lc_canvas::widgets::controls::icon_button;
 use lc_canvas::widgets::floating_window::{floating_window, FloatingWindowState};
 use lc_canvas::widgets::primitives::hud;
-use lc_core::layer::{LayerData, LayerKind};
 use lc_core::level::Level;
 use lc_ui_api::canvas::{CanvasCtx, CanvasTool, LayerHandler, LayerRenderCtx};
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::inspector::InspectorSection;
 use lc_ui_api::viewport::Viewport;
-
-/// Helper to classify the layer kind from its data payload.
-pub fn layer_kind_of(data: &LayerData) -> LayerKind {
-    match data {
-        LayerData::IntGrid(_) => LayerKind::IntGrid,
-        LayerData::Tiles(_) => LayerKind::Tiles,
-        LayerData::Entities(_) => LayerKind::Entities,
-        LayerData::Auto => LayerKind::Auto,
-    }
-}
 
 /// Transient state for level canvas view, managing viewport and floating properties.
 #[derive(Debug, Clone, PartialEq)]
@@ -186,7 +175,7 @@ pub fn render_level_canvas(
                 continue;
             }
 
-            let kind = layer_kind_of(&layer.data);
+            let kind = layer.kind();
             if let Some(handler) = layer_handlers.iter().find(|h| h.kind() == kind) {
                 let is_active = cx.active_layer() == Some(layer.def_id);
                 let mut layer_ctx = LayerRenderCtx {

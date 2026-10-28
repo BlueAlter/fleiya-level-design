@@ -1,13 +1,6 @@
 //! Per-interaction stroke ids used to merge multi-frame edits into one undo step.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static STROKE_COUNTER: AtomicU64 = AtomicU64::new(1);
-
-/// Allocates a process-unique stroke id.
-pub fn next_stroke_id() -> u64 {
-    STROKE_COUNTER.fetch_add(1, Ordering::Relaxed)
-}
+pub use lc_canvas::ids::next_stroke_id;
 
 /// Tracks which edit currently owns a stroke id.
 ///

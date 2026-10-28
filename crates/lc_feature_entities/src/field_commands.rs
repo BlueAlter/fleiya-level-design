@@ -292,7 +292,7 @@ impl Command for UpdateEntityFieldCommand {
     }
 
     fn label(&self) -> String {
-        format!("Update Field '{}'", self.field.name)
+        format!("Edit Field '{}'", self.field.name)
     }
 
     fn focus(&self) -> Option<DocKind> {

@@ -36,12 +36,16 @@
 - Entity defs, enums, tilesets, layer defs, worlds, levels are all tabs and can be split side by side (docking inside the editor area).
 - Tab title shows `*` when dirty. Tab closes automatically when its target is deleted (`DocumentView::is_valid`).
 - Per-tab `ViewState`: zoom, pan, active tool, selection, floating window position. Never stored in `Project`.
+  Current status: canvases keep zoom/pan in their document state, but active tool and selection still live in the global `SessionState`
+  (see `docs/QUESTIONS.md`); `lc_ui_api::ViewState` is defined but not adopted yet.
 
 ## Floating properties (inside the level canvas)
-- An egui `Area`/`Window` constrained to the canvas rect (verify the exact API, e.g. `Window::constrain_to`, in the egui version used).
-- Appears when something is selected: entity (fields editor), multiple entities (common fields), or level when nothing is selected.
-- Draggable, collapsible, pin button. Unpinned: closes on Esc or when selection clears. Position remembered per tab, clamped when the canvas resizes.
-- Content comes from registered `InspectorSection`s, so the entities crate owns entity fields and level crate owns level fields.
+- An egui `Area` (order `Middle`) positioned inside the canvas rect and clamped to it on resize/drag.
+- Content is selection-driven: entity fields when entities are selected, otherwise a built-in level summary. The window itself stays visible; it does not
+  auto-close on Esc or when the selection clears. Draggable, collapsible, pin button (pinned windows ignore header drags).
+- Position is remembered per level document in `LevelCanvasState.floating_window`, clamped when the canvas resizes.
+- Sections are `InspectorSection` implementations passed to the level view. They are registered in `Registry`, but level tabs currently receive the
+  entity section explicitly from `ShellApp::open_document`; the level summary is a canvas fallback (registry adoption is tracked by T-0107/T-0108 notes).
 - Edits go through Commands; typing in a text field merges into one undo step per focus session.
 
 ## Console (Godot-style output)

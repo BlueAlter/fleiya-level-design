@@ -5,7 +5,7 @@
 pub mod canvas;
 pub mod view;
 
-pub use canvas::{layer_kind_of, render_level_canvas, LevelCanvasState};
+pub use canvas::{render_level_canvas, LevelCanvasState};
 pub use view::LevelDocumentView;
 
 use lc_core::command::DocKind;

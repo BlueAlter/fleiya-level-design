@@ -62,8 +62,6 @@ pub struct ShellApp {
     pub assets: Arc<ShellAssetService>,
     /// Current status bar notification message.
     pub status_message: String,
-    /// Active canvas tool name shown in status bar.
-    pub active_tool_name: String,
     /// Active cursor grid position shown in status bar.
     pub cursor_grid_pos: Option<IVec2>,
     /// Current canvas zoom level (1.0 = 100%).
@@ -128,7 +126,6 @@ impl ShellApp {
             session: SessionState::default(),
             assets,
             status_message: "Ready".to_string(),
-            active_tool_name: "Select".to_string(),
             cursor_grid_pos: None,
             zoom_level: 1.0,
             is_dirty: false,
@@ -631,7 +628,6 @@ impl ShellApp {
                     self.session.active_layer = id;
                 }
                 EditorEvent::SetActiveTool(name) => {
-                    self.active_tool_name = name.clone();
                     self.session.active_tool_name = name;
                 }
                 EditorEvent::SetTileSelection(ts) => {

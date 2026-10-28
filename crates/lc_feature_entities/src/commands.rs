@@ -142,7 +142,7 @@ impl Command for UpdateEntityDefCommand {
     }
 
     fn label(&self) -> String {
-        format!("Update Entity '{}'", self.def.name)
+        format!("Edit Entity '{}'", self.def.name)
     }
 
     fn focus(&self) -> Option<DocKind> {
@@ -279,7 +279,7 @@ impl Command for RemoveEntityDefCommand {
     }
 
     fn label(&self) -> String {
-        format!("Delete Entity #{:?}", self.id)
+        format!("Remove Entity #{}", self.id.0)
     }
 
     fn focus(&self) -> Option<DocKind> {

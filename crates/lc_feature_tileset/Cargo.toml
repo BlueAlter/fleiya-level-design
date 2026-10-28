@@ -14,4 +14,3 @@ lc_ui_api = { workspace = true }
 lc_canvas = { workspace = true }
 egui = { workspace = true }
 glam = { workspace = true }
-tracing = { workspace = true }

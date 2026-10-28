@@ -104,7 +104,7 @@ fn test_add_update_remove_enum_def_commands() {
 
     // 3. Undo update
     let (lbl, _) = undo.undo(&mut p).expect("undo update");
-    assert!(lbl.contains("Update Enum"));
+    assert!(lbl.contains("Edit Enum"));
     assert_eq!(p.defs.enums[0].name, "Direction");
 
     // 4. Undo add

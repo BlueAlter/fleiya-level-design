@@ -2,6 +2,7 @@
 
 use egui::{Key, PointerButton};
 use glam::UVec2;
+use lc_canvas::ids::next_stroke_id;
 use lc_core::layer::{LayerData, LayerKind, TileRef};
 use lc_ui_api::canvas::{CanvasCtx, CanvasTool};
 use lc_ui_api::context::EditorCtx;
@@ -11,12 +12,6 @@ use lc_ui_api::session::TileSelection;
 use crate::paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
-
-static STROKE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
-fn next_stroke_id() -> u64 {
-    STROKE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-}
 
 /// Canvas tool for painting tiles or integer values.
 #[derive(Debug)]

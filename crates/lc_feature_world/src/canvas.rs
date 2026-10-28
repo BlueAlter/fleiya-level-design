@@ -127,6 +127,8 @@ fn handle_pan_and_zoom(ui: &mut Ui, response: &egui::Response, state: &mut World
     }
 }
 
+// Drag updates need the world/state/pointer inputs together; splitting them
+// into a struct would only move the parameter list without simplifying it.
 #[allow(clippy::too_many_arguments)]
 fn update_drag(
     world: &World,

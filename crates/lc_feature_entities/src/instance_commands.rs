@@ -202,8 +202,8 @@ impl Command for RemoveEntityInstancesCommand {
 
     fn label(&self) -> String {
         match self.removed.len() {
-            0 | 1 => "Delete Entity".to_string(),
-            n => format!("Delete {n} Entities"),
+            0 | 1 => "Remove Entity".to_string(),
+            n => format!("Remove {n} Entities"),
         }
     }
 

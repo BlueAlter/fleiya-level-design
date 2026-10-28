@@ -4,5 +4,6 @@
 
 pub mod grid;
 pub mod icons;
+pub mod ids;
 pub mod theme;
 pub mod widgets;

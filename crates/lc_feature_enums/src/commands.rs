@@ -238,7 +238,7 @@ impl Command for UpdateEnumDefCommand {
     }
 
     fn label(&self) -> String {
-        format!("Update Enum '{}'", self.def.name)
+        format!("Edit Enum '{}'", self.def.name)
     }
 
     fn focus(&self) -> Option<DocKind> {
@@ -348,7 +348,7 @@ impl Command for RemoveEnumDefCommand {
     }
 
     fn label(&self) -> String {
-        format!("Delete Enum #{:?}", self.id)
+        format!("Remove Enum #{}", self.id.0)
     }
 
     fn focus(&self) -> Option<DocKind> {
@@ -502,7 +502,7 @@ impl Command for UpdateEnumValueCommand {
     }
 
     fn label(&self) -> String {
-        format!("Update Enum Value '{}'", self.value.id)
+        format!("Edit Enum Value '{}'", self.value.id)
     }
 
     fn focus(&self) -> Option<DocKind> {
@@ -633,7 +633,7 @@ impl Command for RemoveEnumValueCommand {
     }
 
     fn label(&self) -> String {
-        format!("Delete Enum Value '{}'", self.val_id)
+        format!("Remove Enum Value '{}'", self.val_id)
     }
 
     fn focus(&self) -> Option<DocKind> {
@@ -706,7 +706,7 @@ impl Command for ReorderEnumValuesCommand {
     }
 
     fn label(&self) -> String {
-        format!("Reorder Enum #{:?} Values", self.enum_id)
+        format!("Reorder Enum #{} Values", self.enum_id.0)
     }
 
     fn focus(&self) -> Option<DocKind> {

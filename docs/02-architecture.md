@@ -57,12 +57,15 @@ pub trait AssetService: Send + Sync {
 - `EditorCtx` gives read-only access to `Project`, `UndoStack`, `SessionState` (`cx.session()`, `cx.active_document()`, etc.), and `AssetService` (`cx.assets().load_texture(...)`).
 - Mutations go strictly through commands (`cx.exec(cmd)`), and cross-cutting UI operations go through events (`cx.emit(EditorEvent)`).
 - `EditorEvent` variants: `OpenDocument(DocKind)`, `FocusDocument(DocKind)`, `CloseDocument(DocKind)`, `SelectionChanged(Selection)`, `SetActiveLevel`, `SetActiveLayer`, `SetActiveTool`, `SetTileSelection`, `Status(String)`, `SaveProject`.
-- Each feature crate exposes `pub fn register(reg: &mut Registry)`. `lc_shell` calls every `register`. Adding a feature touches ONE line in shell.
+- Each feature crate exposes `pub fn register(reg: &mut Registry)`. `lc_shell` calls every `register`; that covers document factories, panels, layer
+  handlers and inspector sections. Exception: level tabs are still assembled explicitly in `ShellApp::open_document` (level view + tile/entity
+  handlers + `LevelCanvasToolRouter`), so a new level-layer feature currently also touches shell (tracked in `docs/QUESTIONS.md`, T-0107 note).
 
 ## Command system & Timing (lc_core / lc_shell)
 ```rust
 pub trait Command { fn apply(&mut self, p:&mut Project)->Result<(),CoreError>; fn revert(&mut self, p:&mut Project);
-                    fn merge(&mut self, next:&dyn Command)->bool; fn label(&self)->String; fn focus(&self)->Option<DocKind>; }
+                    fn merge(&mut self, next:&dyn Command)->bool; fn label(&self)->String; fn focus(&self)->Option<DocKind>;
+                    fn as_any(&self)->&dyn std::any::Any; }
 ```
 - **Deferred Execution Timing**: Commands submitted via `cx.exec(cmd)` are queued during frame rendering and applied at the end of the frame by `ShellApp::process_commands_and_events()`. Views and tools in frame N observe the pre-mutation project; frame N+1 observes the mutated project.
 - **Stroke Merging**: Multi-frame interactions (e.g. continuous paint strokes or dragging a level) emit consecutive mergeable commands across successive frames. `UndoStack::execute` merges each frame's command into the top command via `top.merge(&*cmd)`, resulting in exactly ONE undo step for the entire interaction.
