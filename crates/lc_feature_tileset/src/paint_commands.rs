@@ -12,6 +12,13 @@ use lc_core::project::Project;
 pub enum FillValue {
     /// Tile placement or erasure.
     Tile(Option<TileRef>),
+    /// Repeating rectangular tile pattern, anchored at the rectangle's top-left corner.
+    TilePattern {
+        /// Row-major tile block.
+        tiles: Vec<TileRef>,
+        /// Pattern width in tiles.
+        width: u32,
+    },
     /// Integer grid cell value.
     Int(i32),
 }
@@ -616,6 +623,29 @@ impl RectCommand {
         }
     }
 
+    /// Constructs a rectangle command that repeats a multi-tile pattern across the region.
+    pub fn tiles_pattern(
+        level_id: LevelId,
+        layer_def_id: LayerDefId,
+        from: UVec2,
+        to: UVec2,
+        tiles: Vec<TileRef>,
+        width: u32,
+    ) -> Self {
+        Self {
+            level_id,
+            layer_def_id,
+            from,
+            to,
+            value: FillValue::TilePattern {
+                tiles,
+                width: width.max(1),
+            },
+            previous_cells: Vec::new(),
+            stroke_id: 0,
+        }
+    }
+
     /// Constructs a rectangle command for an IntGrid layer.
     pub fn int_grid(
         level_id: LevelId,
@@ -683,6 +713,28 @@ impl Command for RectCommand {
                             }
                             grid.set(x, y, *target_tile)?;
                         }
+                    }
+                }
+            }
+            (FillValue::TilePattern { tiles, width }, LayerData::Tiles(ref mut grid)) => {
+                let pattern_width = (*width).max(1);
+                let pattern_height = (tiles.len() as u32).div_ceil(pattern_width).max(1);
+                for y in min_y..=max_y {
+                    for x in min_x..=max_x {
+                        if !grid.in_bounds(x, y) {
+                            continue;
+                        }
+                        let dx = (x - min_x) % pattern_width;
+                        let dy = (y - min_y) % pattern_height;
+                        let index = dy * pattern_width + dx;
+                        let Some(tile) = tiles.get(index as usize).copied() else {
+                            continue;
+                        };
+                        if record_previous {
+                            let prev = grid.get(x, y).copied().flatten();
+                            self.previous_cells.push((x, y, FillValue::Tile(prev)));
+                        }
+                        grid.set(x, y, Some(tile))?;
                     }
                 }
             }
@@ -1043,5 +1095,98 @@ mod tests {
                 assert_eq!(grid.get(5, 5).copied(), Some(1));
             }
         }
+    }
+
+    /// Deterministic textual snapshot of every project field.
+    ///
+    /// `serde_json` is restricted to `lc_io` by the architecture lint, so
+    /// byte comparisons use the full `Debug` representation instead.
+    fn snapshot(project: &Project) -> String {
+        format!("{project:?}")
+    }
+
+    #[test]
+    fn test_multi_tile_paint_revert_is_byte_identical() {
+        let (mut p, level_id, layer_def_id) = create_test_project_with_tile_layer(10, 10);
+        let before = snapshot(&p);
+        let mut undo = UndoStack::new();
+
+        let tileset = TilesetDefId::new(1);
+        let cells = vec![
+            (1, 1, Some(TileRef::new(tileset, 10))),
+            (2, 1, Some(TileRef::new(tileset, 11))),
+            (1, 2, Some(TileRef::new(tileset, 12))),
+            (2, 2, Some(TileRef::new(tileset, 13))),
+        ];
+        let cmd = PaintTilesCommand::with_stroke(level_id, layer_def_id, cells, 77);
+        undo.execute(Box::new(cmd), &mut p).unwrap();
+        assert_ne!(
+            snapshot(&p),
+            before,
+            "multi-tile stamp must mutate the project"
+        );
+
+        undo.undo(&mut p).unwrap();
+        assert_eq!(
+            snapshot(&p),
+            before,
+            "multi-tile paint revert must be byte-identical"
+        );
+    }
+
+    #[test]
+    fn test_rect_multi_tile_pattern_tiles_and_reverts_byte_identically() {
+        let (mut p, level_id, layer_def_id) = create_test_project_with_tile_layer(10, 10);
+        let before = snapshot(&p);
+        let mut undo = UndoStack::new();
+
+        let tileset = TilesetDefId::new(1);
+        let pattern: Vec<TileRef> = [10u32, 11, 12, 13]
+            .into_iter()
+            .map(|tile_id| TileRef::new(tileset, tile_id))
+            .collect();
+        let cmd = RectCommand::tiles_pattern(
+            level_id,
+            layer_def_id,
+            UVec2::new(1, 1),
+            UVec2::new(4, 4),
+            pattern,
+            2,
+        );
+        undo.execute(Box::new(cmd), &mut p).unwrap();
+
+        {
+            let level = p.level(level_id).unwrap();
+            let layer = level.layer(layer_def_id).unwrap();
+            let LayerData::Tiles(grid) = &layer.data else {
+                panic!("Expected Tiles layer");
+            };
+            // The 2x2 pattern repeats across the 4x4 rectangle.
+            for (x, y, expected) in [
+                (1, 1, 10),
+                (2, 1, 11),
+                (3, 1, 10),
+                (4, 1, 11),
+                (1, 2, 12),
+                (2, 2, 13),
+                (3, 2, 12),
+                (4, 2, 13),
+                (3, 3, 10),
+                (4, 4, 13),
+            ] {
+                assert_eq!(
+                    grid.get(x, y).copied().flatten().map(|t| t.tile_id),
+                    Some(expected),
+                    "unexpected pattern tile at ({x}, {y})"
+                );
+            }
+        }
+
+        undo.undo(&mut p).unwrap();
+        assert_eq!(
+            snapshot(&p),
+            before,
+            "rect pattern revert must be byte-identical"
+        );
     }
 }

@@ -7,7 +7,9 @@ use lc_core::layer::{LayerData, LayerKind};
 use lc_ui_api::canvas::{CanvasTool, LayerHandler, LayerRenderCtx};
 use lc_ui_api::viewport::Viewport;
 
-use crate::tools::{EraseTool, EyedropperTool, FillTool, PaintTool, RectTool, TileCanvasTool};
+use crate::tools::{
+    EraseTool, EyedropperTool, FillTool, PaintTool, RectTool, SelectTool, TileCanvasTool,
+};
 
 /// Handler for `LayerKind::Tiles`, rendering placed tiles and providing tile editing tools.
 #[derive(Debug, Default)]
@@ -104,6 +106,7 @@ impl LayerHandler for TilesLayerHandler {
             Box::new(RectTool::new(LayerKind::Tiles)),
             Box::new(FillTool::new(LayerKind::Tiles)),
             Box::new(EyedropperTool::new(LayerKind::Tiles)),
+            Box::new(SelectTool::new(LayerKind::Tiles)),
         ]
     }
 }
@@ -221,6 +224,7 @@ impl LayerHandler for IntGridLayerHandler {
             Box::new(RectTool::new(LayerKind::IntGrid)),
             Box::new(FillTool::new(LayerKind::IntGrid)),
             Box::new(EyedropperTool::new(LayerKind::IntGrid)),
+            Box::new(SelectTool::new(LayerKind::IntGrid)),
         ]
     }
 }

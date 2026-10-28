@@ -2,20 +2,27 @@
 
 #![forbid(unsafe_code)]
 
+mod brush;
+pub mod clipboard;
 pub mod commands;
+mod fill_tools;
 pub mod handler;
 pub mod paint_commands;
 pub mod palette;
+mod select;
 pub mod tools;
 pub mod view;
 
+pub use clipboard::TileClipboard;
 pub use commands::{AddTilesetDefCommand, RemoveTilesetDefCommand, UpdateTilesetDefCommand};
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
 pub use paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
 pub use palette::TilePalettePanel;
-pub use tools::{EraseTool, EyedropperTool, FillTool, PaintTool, RectTool, TileCanvasTool};
+pub use tools::{
+    EraseTool, EyedropperTool, FillTool, PaintTool, RectTool, SelectTool, TileCanvasTool,
+};
 pub use view::TilesetDocumentView;
 
 use lc_core::command::DocKind;

@@ -3,15 +3,16 @@
 use egui::{Key, PointerButton};
 use glam::UVec2;
 use lc_canvas::ids::next_stroke_id;
-use lc_core::layer::{LayerData, LayerKind, TileRef};
+use lc_core::layer::LayerKind;
 use lc_ui_api::canvas::{CanvasCtx, CanvasTool};
 use lc_ui_api::context::EditorCtx;
-use lc_ui_api::events::EditorEvent;
-use lc_ui_api::session::TileSelection;
 
-use crate::paint_commands::{
-    FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
-};
+use crate::brush::{pattern_tiles, stamp_cells};
+use crate::clipboard::CanvasClipboard;
+pub use crate::fill_tools::{EyedropperTool, FillTool};
+pub use crate::select::SelectTool;
+
+use crate::paint_commands::{FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand};
 
 /// Canvas tool for painting tiles or integer values.
 #[derive(Debug)]
@@ -94,18 +95,12 @@ impl CanvasTool for PaintTool {
             match layer_kind {
                 LayerKind::Tiles => {
                     if let Some(ts) = cx.tile_selection() {
-                        let mut cells = Vec::new();
-                        for (i, &tile_id) in ts.tiles.iter().enumerate() {
-                            let dx = (i as u32) % ts.width;
-                            let dy = (i as u32) / ts.width;
-                            let cell_x = grid_pos.x as u32 + dx;
-                            let cell_y = grid_pos.y as u32 + dy;
-
-                            let mut tile_ref = TileRef::new(ts.tileset_id, tile_id);
-                            tile_ref.flip_x = self.flip_x;
-                            tile_ref.flip_y = self.flip_y;
-                            cells.push((cell_x, cell_y, Some(tile_ref)));
-                        }
+                        let cells = stamp_cells(
+                            ts,
+                            UVec2::new(grid_pos.x as u32, grid_pos.y as u32),
+                            self.flip_x,
+                            self.flip_y,
+                        );
 
                         let cmd = PaintTilesCommand::with_stroke(
                             cv.active_level_id,
@@ -281,16 +276,21 @@ impl CanvasTool for RectTool {
                 if pos.x >= 0 && pos.y >= 0 {
                     let current = UVec2::new(pos.x as u32, pos.y as u32);
                     let fill_val = match layer_kind {
-                        LayerKind::Tiles => {
-                            let tile = cx.tile_selection().and_then(|ts| {
-                                ts.primary_tile().map(|mut t| {
+                        LayerKind::Tiles => match cx.tile_selection() {
+                            Some(ts) if ts.tiles.len() > 1 => FillValue::TilePattern {
+                                tiles: pattern_tiles(ts, self.flip_x, self.flip_y),
+                                width: ts.width.max(1),
+                            },
+                            Some(ts) => {
+                                let tile = ts.primary_tile().map(|mut t| {
                                     t.flip_x = self.flip_x;
                                     t.flip_y = self.flip_y;
                                     t
-                                })
-                            });
-                            FillValue::Tile(tile)
-                        }
+                                });
+                                FillValue::Tile(tile)
+                            }
+                            None => FillValue::Tile(None),
+                        },
                         LayerKind::IntGrid => FillValue::Int(1),
                         _ => return,
                     };
@@ -315,163 +315,6 @@ impl CanvasTool for RectTool {
     }
 }
 
-/// Canvas tool for flood filling contiguous areas.
-#[derive(Debug)]
-pub struct FillTool {
-    kind: LayerKind,
-    pub flip_x: bool,
-    pub flip_y: bool,
-}
-
-impl FillTool {
-    /// Constructs a new `FillTool` for the given layer kind.
-    pub fn new(kind: LayerKind) -> Self {
-        Self {
-            kind,
-            flip_x: false,
-            flip_y: false,
-        }
-    }
-}
-
-impl CanvasTool for FillTool {
-    fn name(&self) -> &str {
-        "Fill"
-    }
-
-    fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = cv.active_layer_id.or_else(|| {
-            cx.project()
-                .level(cv.active_level_id)
-                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
-        });
-        let active_layer_id = match active_layer_id {
-            Some(id) => id,
-            None => return,
-        };
-
-        let layer_kind = cx
-            .project()
-            .defs
-            .layers
-            .iter()
-            .find(|l| l.id == active_layer_id)
-            .map(|l| l.kind)
-            .unwrap_or(self.kind);
-
-        if cv.response.clicked_by(PointerButton::Primary) {
-            if let Some(pos) = cv.grid_pos {
-                if pos.x >= 0 && pos.y >= 0 {
-                    let start = UVec2::new(pos.x as u32, pos.y as u32);
-                    match layer_kind {
-                        LayerKind::Tiles => {
-                            let target_tile = cx.tile_selection().and_then(|ts| {
-                                ts.primary_tile().map(|mut t| {
-                                    t.flip_x = self.flip_x;
-                                    t.flip_y = self.flip_y;
-                                    t
-                                })
-                            });
-                            let cmd = FillCommand::tiles(
-                                cv.active_level_id,
-                                active_layer_id,
-                                start,
-                                target_tile,
-                            );
-                            cx.exec(cmd);
-                        }
-                        LayerKind::IntGrid => {
-                            let cmd = FillCommand::int_grid(
-                                cv.active_level_id,
-                                active_layer_id,
-                                start,
-                                1,
-                            );
-                            cx.exec(cmd);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Canvas tool for picking placed tiles or integer values from the canvas.
-#[derive(Debug)]
-pub struct EyedropperTool {
-    kind: LayerKind,
-}
-
-impl EyedropperTool {
-    /// Constructs a new `EyedropperTool` for the given layer kind.
-    pub fn new(kind: LayerKind) -> Self {
-        Self { kind }
-    }
-
-    /// Default target layer kind.
-    pub fn kind(&self) -> LayerKind {
-        self.kind
-    }
-}
-
-impl CanvasTool for EyedropperTool {
-    fn name(&self) -> &str {
-        "Eyedropper"
-    }
-
-    fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
-        let active_layer_id = cv.active_layer_id.or_else(|| {
-            cx.project()
-                .level(cv.active_level_id)
-                .and_then(|l| l.layers.first().map(|layer| layer.def_id))
-        });
-        let active_layer_id = match active_layer_id {
-            Some(id) => id,
-            None => return,
-        };
-
-        if cv.response.clicked_by(PointerButton::Primary) {
-            if let Some(pos) = cv.grid_pos {
-                if pos.x >= 0 && pos.y >= 0 {
-                    let (x, y) = (pos.x as u32, pos.y as u32);
-                    let mut tile_to_pick = None;
-                    let mut int_to_pick = None;
-
-                    if let Some(level) = cx.project().level(cv.active_level_id) {
-                        if let Some(layer) = level.layer(active_layer_id) {
-                            match &layer.data {
-                                LayerData::Tiles(grid) => {
-                                    if let Some(Some(tile_ref)) = grid.get(x, y) {
-                                        tile_to_pick = Some(*tile_ref);
-                                    }
-                                }
-                                LayerData::IntGrid(grid) => {
-                                    if let Some(&val) = grid.get(x, y) {
-                                        int_to_pick = Some(val);
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-
-                    if let Some(tile_ref) = tile_to_pick {
-                        let sel = TileSelection::single(tile_ref.tileset_id, tile_ref.tile_id);
-                        cx.emit(EditorEvent::SetTileSelection(Some(sel)));
-                        cx.status(format!(
-                            "Picked tile #{} from tileset {:?}",
-                            tile_ref.tile_id, tile_ref.tileset_id
-                        ));
-                    } else if let Some(val) = int_to_pick {
-                        cx.status(format!("Picked IntGrid value {val}"));
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Unified composite canvas tool that dynamically delegates to sub-tools based on `cx.active_tool_name()`.
 #[derive(Debug)]
 pub struct TileCanvasTool {
@@ -480,6 +323,8 @@ pub struct TileCanvasTool {
     rect: RectTool,
     fill: FillTool,
     eyedropper: EyedropperTool,
+    select: crate::select::SelectTool,
+    clipboard: CanvasClipboard,
 }
 
 impl TileCanvasTool {
@@ -491,6 +336,8 @@ impl TileCanvasTool {
             rect: RectTool::new(kind),
             fill: FillTool::new(kind),
             eyedropper: EyedropperTool::new(kind),
+            select: crate::select::SelectTool::new(kind),
+            clipboard: CanvasClipboard::new(),
         }
     }
 }
@@ -507,11 +354,15 @@ impl CanvasTool for TileCanvasTool {
     }
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
+        if self.clipboard.handle_shortcuts(cv, cx) {
+            return;
+        }
         match cx.active_tool_name() {
             "Erase" => self.erase.on_input(cv, cx),
             "Rectangle" | "Rect" => self.rect.on_input(cv, cx),
             "Fill" | "FloodFill" => self.fill.on_input(cv, cx),
             "Eyedropper" | "Picker" => self.eyedropper.on_input(cv, cx),
+            "Select" => self.select.on_input(cv, cx),
             _ => self.paint.on_input(cv, cx),
         }
     }

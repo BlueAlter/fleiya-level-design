@@ -220,3 +220,12 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Omitting the extension in `Save As` writes `<name>.lcproj` and remembers the normalized path.
 - [ ] Launching with `LC_DISABLE_FILE_DIALOGS=1` and choosing Open/Save As shows the headless fallback status instead of a dialog, and the editor stays responsive.
 - [ ] While a native dialog is open, the editor window keeps repainting and cancelling returns control immediately.
+
+## Multi-tile Selection, Stamping & Canvas Copy/Paste (T-0205)
+- [ ] Dragging a rectangle in the Tile Palette highlights every cell in the block and the status line reports `SELECTED: <w>x<h> BLOCK`.
+- [ ] With a multi-tile palette block selected, the Paint tool stamps the whole block at the cursor, preserving its row-major layout and `X`/`Y` flip flags.
+- [ ] Dragging with the Rectangle tool repeats the selected block across the dragged rectangle (pattern anchored at the rectangle's top-left) instead of filling it with the first tile only.
+- [ ] Choosing the new "Select" tool and dragging on a Tiles or IntGrid canvas draws a rectangular region selection (`Selection::Tiles`), and clicking selects a single cell.
+- [ ] With a canvas region selected, `Ctrl+C` reports `Copied <w>x<h> tile/IntGrid region` and `Ctrl+V` at the cursor stamps the same layout into the active layer of the matching kind.
+- [ ] `Ctrl+Z` after a multi-tile stamp or a paste removes the whole operation in one step.
+- [ ] `Ctrl+V` with an empty clipboard, no active layer, or a layer of the wrong kind reports a clear status message and does not mutate the project.

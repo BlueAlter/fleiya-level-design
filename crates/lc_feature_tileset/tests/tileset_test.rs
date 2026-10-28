@@ -593,6 +593,274 @@ fn test_intgrid_layer_handler_render() {
 }
 
 #[test]
+fn test_canvas_copy_paste_shortcuts_emit_commands() {
+    use egui::{Event, Key, Modifiers, Sense};
+    use lc_feature_tileset::tools::TileCanvasTool;
+    use lc_ui_api::selection::Selection;
+
+    let (mut project, tileset_id) = create_test_project_with_tileset();
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(10);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    let mut grid = Grid::new(10, 10, None);
+    grid.set(1, 1, Some(TileRef::new(tileset_id, 7))).unwrap();
+    grid.set(2, 1, Some(TileRef::new(tileset_id, 8))).unwrap();
+    level
+        .layers
+        .push(LayerInstance::new(layer_def_id, LayerData::Tiles(grid)));
+    project.defs.layers.push(LayerDef {
+        id: layer_def_id,
+        name: "TilesLayer".to_string(),
+        kind: LayerKind::Tiles,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: None,
+        int_grid_values: Vec::new(),
+    });
+    project.worlds[0].levels.push(level);
+
+    let session = SessionState {
+        active_level: Some(level_id),
+        active_layer: Some(layer_def_id),
+        selection: Selection::Tiles {
+            layer_id: layer_def_id,
+            cells: vec![IVec2::new(1, 1), IVec2::new(2, 1)],
+        },
+        ..Default::default()
+    };
+
+    let undo_stack = UndoStack::new();
+    let assets = NoopAssetService;
+    let mut tool = TileCanvasTool::new(LayerKind::Tiles);
+    let ctx = egui::Context::default();
+
+    let modifiers = Modifiers {
+        ctrl: true,
+        command: true,
+        ..Default::default()
+    };
+
+    // Frame 1: Ctrl+C captures the selected region.
+    let mut copy_events = Vec::new();
+    let mut copy_commands = Vec::new();
+    let mut copy_raw = egui::RawInput::default();
+    copy_raw.events.push(Event::Key {
+        key: Key::C,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    });
+    {
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut copy_events,
+            &mut copy_commands,
+            &assets,
+        );
+        let mut output = ctx.run_ui(copy_raw, |ui| {
+            let response = ui.allocate_response(egui::vec2(100.0, 100.0), Sense::click());
+            let viewport = Viewport::default();
+            let mut cv = CanvasCtx {
+                viewport: &viewport,
+                pointer_pos: Some(egui::pos2(10.0, 10.0)),
+                world_pos: Some(IVec2::new(64, 64)),
+                grid_pos: Some(IVec2::new(4, 4)),
+                modifiers,
+                response: &response,
+                active_layer_id: Some(layer_def_id),
+                active_level_id: level_id,
+            };
+            tool.on_input(&mut cv, &mut cx);
+        });
+        output.textures_delta.clear();
+    }
+    assert!(copy_commands.is_empty(), "copy must not mutate the project");
+    assert!(
+        copy_events
+            .iter()
+            .any(|e| matches!(e, EditorEvent::Status(msg) if msg.starts_with("Copied"))),
+        "copy should report a status message: {copy_events:?}"
+    );
+
+    // Frame 2: Ctrl+V stamps the buffer at the cursor.
+    let mut paste_events = Vec::new();
+    let mut paste_commands = Vec::new();
+    let mut paste_raw = egui::RawInput::default();
+    paste_raw.events.push(Event::Key {
+        key: Key::V,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers,
+    });
+    {
+        let mut cx = EditorCtx::new(
+            &project,
+            &undo_stack,
+            &session,
+            &mut paste_events,
+            &mut paste_commands,
+            &assets,
+        );
+        let mut output = ctx.run_ui(paste_raw, |ui| {
+            let response = ui.allocate_response(egui::vec2(100.0, 100.0), Sense::click());
+            let viewport = Viewport::default();
+            let mut cv = CanvasCtx {
+                viewport: &viewport,
+                pointer_pos: Some(egui::pos2(10.0, 10.0)),
+                world_pos: Some(IVec2::new(64, 64)),
+                grid_pos: Some(IVec2::new(4, 4)),
+                modifiers,
+                response: &response,
+                active_layer_id: Some(layer_def_id),
+                active_level_id: level_id,
+            };
+            tool.on_input(&mut cv, &mut cx);
+        });
+        output.textures_delta.clear();
+    }
+    assert_eq!(paste_commands.len(), 1, "paste should queue one command");
+
+    let mut pasted = project.clone();
+    let mut command = paste_commands.into_iter().next().unwrap();
+    command.apply(&mut pasted).unwrap();
+    let level = pasted.level(level_id).unwrap();
+    let layer = level.layer(layer_def_id).unwrap();
+    let LayerData::Tiles(grid) = &layer.data else {
+        panic!("Expected Tiles layer");
+    };
+    assert_eq!(
+        grid.get(4, 4).copied().flatten().map(|t| t.tile_id),
+        Some(7)
+    );
+    assert_eq!(
+        grid.get(5, 4).copied().flatten().map(|t| t.tile_id),
+        Some(8)
+    );
+    assert!(
+        paste_events
+            .iter()
+            .any(|e| matches!(e, EditorEvent::Status(msg) if msg.starts_with("Pasted"))),
+        "paste should report a status message: {paste_events:?}"
+    );
+}
+
+#[test]
+fn test_select_tool_emits_region_selection_on_click() {
+    use egui::{Event, PointerButton, Sense};
+    use lc_feature_tileset::tools::SelectTool;
+    use lc_ui_api::selection::Selection;
+
+    let (mut project, tileset_id) = create_test_project_with_tileset();
+    let level_id = LevelId::new(1);
+    let layer_def_id = LayerDefId::new(10);
+
+    let mut level = Level::new(level_id, "Level_0", UVec2::new(160, 160));
+    level.layers.push(LayerInstance::new(
+        layer_def_id,
+        LayerData::Tiles(Grid::new(10, 10, None)),
+    ));
+    project.defs.layers.push(LayerDef {
+        id: layer_def_id,
+        name: "TilesLayer".to_string(),
+        kind: LayerKind::Tiles,
+        grid_size: UVec2::new(16, 16),
+        tileset_id: Some(tileset_id),
+        int_grid_values: Vec::new(),
+    });
+    project.worlds[0].levels.push(level);
+
+    let session = SessionState {
+        active_level: Some(level_id),
+        active_layer: Some(layer_def_id),
+        ..Default::default()
+    };
+
+    let undo_stack = UndoStack::new();
+    let assets = NoopAssetService;
+    let mut tool = SelectTool::new(LayerKind::Tiles);
+    let ctx = egui::Context::default();
+
+    let mut events = Vec::new();
+    let mut pending_commands = Vec::new();
+    let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 200.0));
+    let pointer = egui::pos2(10.0, 10.0);
+    let mut run =
+        |time: f64, raw_events: Vec<Event>, grid: IVec2, events: &mut Vec<EditorEvent>| {
+            let mut cx = EditorCtx::new(
+                &project,
+                &undo_stack,
+                &session,
+                events,
+                &mut pending_commands,
+                &assets,
+            );
+            let raw = egui::RawInput {
+                screen_rect: Some(screen_rect),
+                time: Some(time),
+                events: raw_events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(raw, |ui| {
+                let response =
+                    ui.allocate_response(egui::vec2(100.0, 100.0), Sense::click_and_drag());
+                let viewport = Viewport::default();
+                let mut cv = CanvasCtx {
+                    viewport: &viewport,
+                    pointer_pos: Some(pointer),
+                    world_pos: Some(IVec2::new(32, 48)),
+                    grid_pos: Some(grid),
+                    modifiers: egui::Modifiers::default(),
+                    response: &response,
+                    active_layer_id: Some(layer_def_id),
+                    active_level_id: level_id,
+                };
+                tool.on_input(&mut cv, &mut cx);
+            });
+            output.textures_delta.clear();
+        };
+
+    let press = |pressed| Event::PointerButton {
+        pos: pointer,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::default(),
+    };
+
+    run(0.0, Vec::new(), IVec2::new(2, 3), &mut events);
+    run(
+        0.1,
+        vec![Event::PointerMoved(pointer)],
+        IVec2::new(2, 3),
+        &mut events,
+    );
+    run(
+        0.2,
+        vec![Event::PointerMoved(pointer), press(true)],
+        IVec2::new(2, 3),
+        &mut events,
+    );
+    run(0.3, vec![press(false)], IVec2::new(2, 3), &mut events);
+
+    let selected_cells = events.iter().find_map(|event| match event {
+        EditorEvent::SelectionChanged(Selection::Tiles { layer_id, cells }) => {
+            Some((*layer_id, cells.clone()))
+        }
+        _ => None,
+    });
+    let (selected_layer, cells) = selected_cells.expect("Select tool must emit a tile selection");
+    assert_eq!(selected_layer, layer_def_id);
+    assert_eq!(cells, vec![IVec2::new(2, 3)]);
+    assert!(
+        pending_commands.is_empty(),
+        "selection must not mutate the project"
+    );
+}
+
+#[test]
 fn test_eyedropper_tool_emits_tile_selection() {
     let (mut project, tileset_id) = create_test_project_with_tileset();
     let level_id = LevelId::new(1);

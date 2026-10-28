@@ -141,6 +141,7 @@ impl PanelView for TilePalettePanel {
                         ("Rectangle", "Rectangle Fill (R)"),
                         ("Fill", "Flood Fill (F)"),
                         ("Eyedropper", "Pick Tile from Canvas (I)"),
+                        ("Select", "Select a canvas region for copy/paste"),
                     ];
 
                     for (tool_name, tooltip) in tools {
