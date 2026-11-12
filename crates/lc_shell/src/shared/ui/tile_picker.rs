@@ -781,11 +781,12 @@ impl TilePicker {
         let page_rect = Rect::from_min_size(Pos2::ZERO, vec2(img_w as f32, img_h as f32));
         let screen_page_rect = self.view.page_to_screen_rect(page_rect);
 
-        // Drop shadow behind the page so it reads as a raised card on the workspace.
+        // Drop shadow behind the page — fixed in screen pixels so it never
+        // grows or shrinks when the user zooms in or out.
         painter.add(
             egui::epaint::Shadow {
                 offset: [4, 6],
-                blur: 16,
+                blur: 14,
                 spread: 0,
                 color: Color32::from_black_alpha(130),
             }
@@ -815,12 +816,13 @@ impl TilePicker {
             Color32::WHITE,
         );
 
-        // Thick black page outline. Drawn outside the page so it frames the
-        // tileset without covering its edge tiles.
+        // Page outline — always 2 screen pixels regardless of zoom level.
+        // Using StrokeKind::Outside so it frames the tileset without
+        // covering edge tiles at any zoom.
         painter.rect_stroke(
             screen_page_rect,
             CornerRadius::ZERO,
-            Stroke::new(3.0, Color32::BLACK),
+            Stroke::new(2.0, Color32::BLACK),
             StrokeKind::Outside,
         );
 
