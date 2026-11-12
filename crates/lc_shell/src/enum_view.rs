@@ -30,6 +30,7 @@ use crate::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
 use crate::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
+use crate::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 pub use crate::ui::reorder::{drop_index, reorder_item};
 use crate::ui::reorder::Slot;
 use crate::ui::tile_bounds::{TileGrid, TileRect};
@@ -178,6 +179,8 @@ pub struct EnumViewState {
     pub tag_inline_new_text: String,
     pub tag_editing_id: Option<crate::shell_app::TagId>,
     pub tag_editing_text: String,
+    /// Set when a tag input was just opened so it grabs keyboard focus exactly once.
+    pub tag_focus_pending: bool,
     pub tag_recall_open: bool,
     pub tag_recall_search: String,
     pub tag_recall_selected_idx: usize,
@@ -226,6 +229,7 @@ impl Default for EnumViewState {
             tag_inline_new_text: String::new(),
             tag_editing_id: None,
             tag_editing_text: String::new(),
+            tag_focus_pending: false,
             tag_recall_open: false,
             tag_recall_search: String::new(),
             tag_recall_selected_idx: 0,
@@ -272,6 +276,23 @@ pub fn draw_enum_menu(
 }
 
 /// Renders the complete Enum Mode view filling the window body below the toolbar.
+/// Keeps each per-enum draft shadow (`enum_drafts[id].def`) identical to the editable
+/// working copy (`enum_draft`).
+///
+/// Value edits (reorder, rename, colour, add and remove) are applied to `enum_draft` only.
+/// Without this sync the shadow goes stale, so after Save the dirty check
+/// (`draft.def != enum_saved_defs[id]`) never returns to "clean" and Save / Revert stay
+/// enabled.
+pub fn sync_enum_draft_shadows(app: &mut ShellApp) {
+    for def in &app.enum_draft {
+        if let Some(draft) = app.enum_drafts.get_mut(&def.id) {
+            if draft.def != *def {
+                draft.def = def.clone();
+            }
+        }
+    }
+}
+
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let state_id = Id::new("enum_mode_view_transient_state");
@@ -447,6 +468,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
             let mut card_rects = Vec::with_capacity(filtered_indices.len());
             let mut delete_btn_rects = Vec::with_capacity(filtered_indices.len());
             let drag_theme = DragTheme::from_accent(t.accent);
+            let tag_input_active = state.tag_editing_id.is_some() || state.tag_inline_new_active;
             let mut pending_list_action: Option<EnumListAction> = None;
             let selected_changed = state.previous_selected_enum != app.selected_enum_def;
 
@@ -560,7 +582,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             if handle_resp.hovered() {
                                 ui.ctx().set_cursor_icon(CursorIcon::Grab);
                             }
-                            if handle_resp.drag_started() {
+                            if handle_resp.drag_started() && !tag_input_active {
                                 state.enum_drag.begin(ui.ctx(), order_idx, row_rect);
                                 ui.memory_mut(|m| {
                                     if let Some(fid) = m.focused() {
@@ -970,6 +992,8 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     .show(ui, |ui| {
                         let current_enum_id = app.enum_draft[enum_idx].id;
                         let is_val_dragging = state.value_drag.is_active();
+                        let tag_input_active =
+                            state.tag_editing_id.is_some() || state.tag_inline_new_active;
 
                 // 1. Sub-tabs: ENUM DEF / DOCUMENT
                 ui.horizontal(|ui| {
@@ -1228,6 +1252,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                     if no_tag_resp.clicked() {
                                         state.tag_inline_new_active = true;
                                         state.tag_inline_new_text.clear();
+                                        state.tag_focus_pending = true;
                                     }
                                     no_tag_resp.on_hover_text("Click to add tag");
                                 }
@@ -1242,25 +1267,28 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                         .unwrap_or_else(|| format!("Tag_{}", tag_id.0));
 
                                     if state.tag_editing_id == Some(tag_id) {
-                                        let text_edit_id = Id::new(("tag_edit_input", tag_id));
-                                        let resp = ui.add_sized(
-                                            [84.0, CONTROL_HEIGHT],
-                                            TextEdit::singleline(&mut state.tag_editing_text)
-                                                .id(text_edit_id)
-                                                .vertical_align(Align::Center)
-                                                .margin(Margin::symmetric(8, 0)),
+                                        // Modal inline input: committed by Enter, a click outside or
+                                        // focus loss; cancelled by Escape. The rest of the UI is frozen.
+                                        let (slot, _) = ui.allocate_exact_size(
+                                            vec2(84.0, CONTROL_HEIGHT),
+                                            Sense::hover(),
                                         );
-                                        resp.request_focus();
-                                        if ui.input(|i| i.key_pressed(Key::Enter))
-                                            || resp.lost_focus()
-                                        {
-                                            rename_tag_action = Some((
-                                                tag_id,
-                                                state.tag_editing_text.clone(),
-                                            ));
-                                            state.tag_editing_id = None;
-                                        } else if ui.input(|i| i.key_pressed(Key::Escape)) {
-                                            state.tag_editing_id = None;
+                                        let focus_now = std::mem::take(&mut state.tag_focus_pending);
+                                        match tag_text_input(
+                                            ui.ctx(),
+                                            Id::new(("tag_edit_input", tag_id)),
+                                            slot,
+                                            &mut state.tag_editing_text,
+                                            "",
+                                            focus_now,
+                                        ) {
+                                            TagInputEvent::Commit => {
+                                                rename_tag_action =
+                                                    Some((tag_id, state.tag_editing_text.clone()));
+                                                state.tag_editing_id = None;
+                                            }
+                                            TagInputEvent::Cancel => state.tag_editing_id = None,
+                                            TagInputEvent::Editing => {}
                                         }
                                     } else {
                                         let name_galley = ui.painter().layout_no_wrap(
@@ -1329,6 +1357,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                         } else if chip_resp.double_clicked() {
                                             state.tag_editing_id = Some(tag_id);
                                             state.tag_editing_text = tag_name;
+                                            state.tag_focus_pending = true;
                                         } else {
                                             chip_resp.on_hover_text("Double-click to rename tag");
                                         }
@@ -1336,22 +1365,26 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 }
 
                                 if state.tag_inline_new_active {
-                                    let text_edit_id = Id::new("tag_inline_new_input");
-                                    let resp = ui.add_sized(
-                                        [90.0, CONTROL_HEIGHT],
-                                        TextEdit::singleline(&mut state.tag_inline_new_text)
-                                            .id(text_edit_id)
-                                            .hint_text("Tag name...")
-                                            .vertical_align(Align::Center)
-                                            .margin(Margin::symmetric(8, 0)),
+                                    let (slot, _) = ui.allocate_exact_size(
+                                        vec2(90.0, CONTROL_HEIGHT),
+                                        Sense::hover(),
                                     );
-                                    resp.request_focus();
-                                    if ui.input(|i| i.key_pressed(Key::Enter)) || resp.lost_focus()
-                                    {
-                                        create_tag_action = Some(state.tag_inline_new_text.clone());
-                                        state.tag_inline_new_active = false;
-                                    } else if ui.input(|i| i.key_pressed(Key::Escape)) {
-                                        state.tag_inline_new_active = false;
+                                    let focus_now = std::mem::take(&mut state.tag_focus_pending);
+                                    match tag_text_input(
+                                        ui.ctx(),
+                                        Id::new("tag_inline_new_input"),
+                                        slot,
+                                        &mut state.tag_inline_new_text,
+                                        "Tag name...",
+                                        focus_now,
+                                    ) {
+                                        TagInputEvent::Commit => {
+                                            create_tag_action =
+                                                Some(state.tag_inline_new_text.clone());
+                                            state.tag_inline_new_active = false;
+                                        }
+                                        TagInputEvent::Cancel => state.tag_inline_new_active = false,
+                                        TagInputEvent::Editing => {}
                                     }
                                 }
 
@@ -1367,6 +1400,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 if plus_btn.clicked() {
                                     state.tag_inline_new_active = true;
                                     state.tag_inline_new_text.clear();
+                                    state.tag_focus_pending = true;
                                 }
 
                                 // 1:1 Square "⌄" button (CONTROL_HEIGHT x CONTROL_HEIGHT)
@@ -1648,7 +1682,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             if handle_resp.hovered() {
                                 ui.ctx().set_cursor_icon(CursorIcon::Grab);
                             }
-                            if handle_resp.drag_started() {
+                            if handle_resp.drag_started() && !tag_input_active {
                                 state.value_drag.begin(ui.ctx(), idx, r.row);
                                 ui.memory_mut(|m| {
                                     if let Some(fid) = m.focused() {
@@ -2489,6 +2523,15 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     // If any drag is active, enforce Grabbing cursor at the end
     if state.value_drag.is_active() || state.enum_drag.is_active() {
         ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+    }
+
+    // Value edits only touch `enum_draft`: re-align the per-enum shadows so the dirty
+    // check (and therefore Save / Revert) returns to "clean" right after a save.
+    sync_enum_draft_shadows(app);
+
+    // While an inline tag input is open the rest of the UI is frozen.
+    if state.tag_editing_id.is_some() || state.tag_inline_new_active {
+        input_blocker(ui.ctx());
     }
 
     state.previous_selected_enum = app.selected_enum_def;

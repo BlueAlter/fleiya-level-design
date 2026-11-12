@@ -17,15 +17,31 @@
 //! The component owns no row painting: callers draw rows and the floating ghost card
 //! themselves, using [`DragListState::dragging_index`] and [`DragListState::grab_offset`].
 
-use egui::{Color32, Context, CursorIcon, Key, Modifiers, Painter, Rect, Shape, Stroke, Ui, Vec2};
+use egui::emath::GuiRounding;
+use egui::{
+    Color32, Context, CursorIcon, Key, Modifiers, Painter, Rect, Shape, Stroke, StrokeKind, Ui,
+    Vec2,
+};
 
 use super::reorder::{Slot, auto_scroll_delta, preview_layout, relative_to_top, snapshot_target};
+
+/// Outline style of the ghost drop slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlaceholderStyle {
+    /// Continuous outline snapped to whole pixels. Crisp on every display scale.
+    #[default]
+    Solid,
+    /// Dashed outline, dashed independently per edge so no dash wraps a corner.
+    Dashed,
+}
 
 /// Visual and behavioural constants for a drag-to-reorder list.
 #[derive(Debug, Clone, Copy)]
 pub struct DragTheme {
     /// Accent colour of the placeholder outline.
     pub accent: Color32,
+    /// Outline style of the placeholder slot.
+    pub placeholder_style: PlaceholderStyle,
     /// Translucent fill of the placeholder slot.
     pub placeholder_fill: Color32,
     /// Stroke width of the dashed placeholder outline.
@@ -45,6 +61,7 @@ impl DragTheme {
     pub fn from_accent(accent: Color32) -> Self {
         Self {
             accent,
+            placeholder_style: PlaceholderStyle::Solid,
             placeholder_fill: Color32::from_rgba_unmultiplied(
                 accent.r(),
                 accent.g(),
@@ -231,21 +248,34 @@ impl DragListState {
     }
 }
 
-/// Paints the ghost drop slot: a translucent fill with a dashed accent outline.
+/// Paints the ghost drop slot: a translucent fill with an accent outline.
+///
+/// The rect is snapped to whole physical pixels so the outline is never anti-aliased
+/// across two pixel rows (which makes thin lines look wavy or slanted).
 pub fn paint_placeholder(painter: &Painter, rect: Rect, theme: &DragTheme) {
+    let rect = rect.round_to_pixels(painter.pixels_per_point());
     painter.rect_filled(rect, 0.0, theme.placeholder_fill);
-    let r = rect.shrink(theme.stroke_width * 0.5);
-    let outline = [
-        r.left_top(),
-        r.right_top(),
-        r.right_bottom(),
-        r.left_bottom(),
-        r.left_top(),
-    ];
-    painter.extend(Shape::dashed_line(
-        &outline,
-        Stroke::new(theme.stroke_width, theme.accent),
-        theme.dash_len,
-        theme.gap_len,
-    ));
+    let stroke = Stroke::new(theme.stroke_width, theme.accent.linear_multiply(0.75));
+    match theme.placeholder_style {
+        PlaceholderStyle::Solid => {
+            painter.rect_stroke(rect, 0.0, stroke, StrokeKind::Inside);
+        }
+        PlaceholderStyle::Dashed => {
+            let r = rect.shrink(theme.stroke_width * 0.5);
+            let edges = [
+                [r.left_top(), r.right_top()],
+                [r.right_top(), r.right_bottom()],
+                [r.right_bottom(), r.left_bottom()],
+                [r.left_bottom(), r.left_top()],
+            ];
+            for edge in edges {
+                painter.extend(Shape::dashed_line(
+                    &edge,
+                    stroke,
+                    theme.dash_len,
+                    theme.gap_len,
+                ));
+            }
+        }
+    }
 }

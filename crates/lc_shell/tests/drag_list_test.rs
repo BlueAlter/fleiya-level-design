@@ -3,7 +3,9 @@
 use egui::{
     Color32, Context, Event, Key, Modifiers, PointerButton, RawInput, Rect, Sense, pos2, vec2,
 };
-use lc_shell::ui::drag_list::{DragListState, DragOutcome, DragTheme, paint_placeholder};
+use lc_shell::ui::drag_list::{
+    DragListState, DragOutcome, DragTheme, PlaceholderStyle, paint_placeholder,
+};
 use lc_shell::ui::reorder::{Slot, reorder_item};
 
 const ROWS: usize = 4;
@@ -309,4 +311,91 @@ fn second_begin_is_ignored_while_dragging() {
     state.begin(&ctx, 0, idle[0]);
     state.begin(&ctx, 3, idle[3]);
     assert_eq!(state.dragging_index(), Some(0));
+}
+
+// ---------------------------------------------------------------------------
+// Ghost slot outline
+// ---------------------------------------------------------------------------
+
+fn flatten(shape: &egui::epaint::Shape, out: &mut Vec<egui::epaint::Shape>) {
+    match shape {
+        egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| flatten(s, out)),
+        other => out.push(other.clone()),
+    }
+}
+
+fn painted_shapes(theme: &DragTheme, rect: Rect) -> Vec<egui::epaint::Shape> {
+    let ctx = Context::default();
+    let mut out = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(screen()),
+            ..Default::default()
+        },
+        |ui| {
+            paint_placeholder(ui.painter(), rect, theme);
+        },
+    );
+    out.textures_delta.clear();
+    let mut shapes = Vec::new();
+    for clipped in &out.shapes {
+        flatten(&clipped.shape, &mut shapes);
+    }
+    shapes
+}
+
+#[test]
+fn solid_placeholder_is_one_pixel_snapped_outline() {
+    use egui::epaint::Shape;
+    let theme = theme();
+    assert_eq!(theme.placeholder_style, PlaceholderStyle::Solid);
+    // fractional position and size, as produced by scrolling and layout
+    let rect = Rect::from_min_size(pos2(10.3, 20.7), vec2(231.4, 36.0));
+    let shapes = painted_shapes(&theme, rect);
+
+    let rects: Vec<_> = shapes
+        .iter()
+        .filter_map(|s| match s {
+            Shape::Rect(r) => Some(r.rect),
+            _ => None,
+        })
+        .collect();
+    // fill + outline, no dashes
+    assert_eq!(
+        rects.len(),
+        2,
+        "expected fill rect and outline rect: {shapes:?}"
+    );
+    assert!(
+        !shapes
+            .iter()
+            .any(|s| matches!(s, Shape::LineSegment { .. } | Shape::Path(_)))
+    );
+    for r in rects {
+        for v in [r.min.x, r.min.y, r.max.x, r.max.y] {
+            assert_eq!(v, v.round(), "edge not snapped to a whole pixel: {r:?}");
+        }
+    }
+}
+
+#[test]
+fn dashed_placeholder_dashes_each_edge_independently() {
+    use egui::epaint::Shape;
+    let mut theme = theme();
+    theme.placeholder_style = PlaceholderStyle::Dashed;
+    let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(231.0, 36.0));
+    let shapes = painted_shapes(&theme, rect);
+
+    let mut dashes = 0;
+    for s in &shapes {
+        let points: Vec<egui::Pos2> = match s {
+            Shape::LineSegment { points, .. } => points.to_vec(),
+            Shape::Path(p) => p.points.clone(),
+            _ => continue,
+        };
+        dashes += 1;
+        let same_x = points.windows(2).all(|w| (w[0].x - w[1].x).abs() < 1e-3);
+        let same_y = points.windows(2).all(|w| (w[0].y - w[1].y).abs() < 1e-3);
+        assert!(same_x || same_y, "a dash bends around a corner: {points:?}");
+    }
+    assert!(dashes > 10, "expected many dashes, got {dashes}");
 }

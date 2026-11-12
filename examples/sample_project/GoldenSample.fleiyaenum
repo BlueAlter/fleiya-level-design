@@ -10,46 +10,22 @@
         {
           "id": "Forest",
           "color": 3050327,
-          "tileRect": {
-            "tilesetUid": 1,
-            "x": 48,
-            "y": 16,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Desert",
           "color": 15583663,
-          "tileRect": {
-            "tilesetUid": 1,
-            "x": 32,
-            "y": 48,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Tundra",
           "color": 11591910,
-          "tileRect": {
-            "tilesetUid": 1,
-            "x": 32,
-            "y": 32,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Volcanic",
           "color": 11674146,
-          "tileRect": {
-            "tilesetUid": 1,
-            "x": 48,
-            "y": 0,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         }
       ],
       "tags": [],
@@ -66,8 +42,8 @@
           "color": 10265519,
           "tileRect": {
             "tilesetUid": 2,
-            "x": 0,
-            "y": 96,
+            "x": 352,
+            "y": 272,
             "w": 16,
             "h": 16
           }
@@ -75,46 +51,22 @@
         {
           "id": "Uncommon",
           "color": 4052664,
-          "tileRect": {
-            "tilesetUid": 2,
-            "x": 64,
-            "y": 96,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Rare",
           "color": 2982399,
-          "tileRect": {
-            "tilesetUid": 2,
-            "x": 96,
-            "y": 96,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Epic",
           "color": 11032055,
-          "tileRect": {
-            "tilesetUid": 2,
-            "x": 128,
-            "y": 96,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         },
         {
           "id": "Legendary",
           "color": 16761165,
-          "tileRect": {
-            "tilesetUid": 2,
-            "x": 192,
-            "y": 96,
-            "w": 16,
-            "h": 16
-          }
+          "tileRect": null
         }
       ],
       "tags": [],
@@ -171,23 +123,23 @@
           }
         },
         {
-          "id": "Spear",
-          "color": 11765248,
-          "tileRect": {
-            "tilesetUid": 2,
-            "x": 176,
-            "y": 464,
-            "w": 16,
-            "h": 16
-          }
-        },
-        {
           "id": "Axe",
           "color": 13458524,
           "tileRect": {
             "tilesetUid": 2,
             "x": 112,
             "y": 448,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Spear",
+          "color": 14329120,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 176,
+            "y": 464,
             "w": 16,
             "h": 16
           }
