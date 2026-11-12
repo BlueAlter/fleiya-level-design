@@ -2,7 +2,7 @@ use egui::Context;
 use lc_core::command::{Command, DocKind, UndoStack};
 use lc_core::id::LevelId;
 use lc_core::project::Project;
-use lc_shell::console::{
+use lc_shell::features::editor::console::{
     BoundedRingBuffer, ConsoleFilter, ConsolePanel, ConsoleSubscriberLayer, LogEntry, LogLevel,
     SharedRingBuffer,
 };

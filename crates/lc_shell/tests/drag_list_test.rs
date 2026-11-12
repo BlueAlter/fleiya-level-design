@@ -1,12 +1,12 @@
 //! Headless tests for the reusable drag-to-reorder component.
 
 use egui::{
-    Color32, Context, Event, Key, Modifiers, PointerButton, RawInput, Rect, Sense, pos2, vec2,
+    pos2, vec2, Color32, Context, Event, Key, Modifiers, PointerButton, RawInput, Rect, Sense,
 };
-use lc_shell::ui::drag_list::{
-    DragListState, DragOutcome, DragTheme, PlaceholderStyle, paint_placeholder,
+use lc_shell::shared::ui::drag_list::{
+    paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle,
 };
-use lc_shell::ui::reorder::{Slot, reorder_item};
+use lc_shell::shared::ui::reorder::{reorder_item, Slot};
 
 const ROWS: usize = 4;
 const ROW_H: f32 = 40.0;
@@ -365,11 +365,9 @@ fn solid_placeholder_is_one_pixel_snapped_outline() {
         2,
         "expected fill rect and outline rect: {shapes:?}"
     );
-    assert!(
-        !shapes
-            .iter()
-            .any(|s| matches!(s, Shape::LineSegment { .. } | Shape::Path(_)))
-    );
+    assert!(!shapes
+        .iter()
+        .any(|s| matches!(s, Shape::LineSegment { .. } | Shape::Path(_))));
     for r in rects {
         for v in [r.min.x, r.min.y, r.max.x, r.max.y] {
             assert_eq!(v, v.round(), "edge not snapped to a whole pixel: {r:?}");

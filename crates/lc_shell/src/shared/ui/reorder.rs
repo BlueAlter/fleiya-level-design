@@ -51,7 +51,11 @@ pub fn reorder_item<T>(items: &mut Vec<T>, from: usize, to: usize) -> bool {
 
 /// Position the dragged item ends up at once dropped on insertion index `to`.
 pub fn final_index(from: usize, to: usize) -> usize {
-    if to > from { to - 1 } else { to }
+    if to > from {
+        to - 1
+    } else {
+        to
+    }
 }
 
 /// Returns `true` when dropping at `to` would not change the order.

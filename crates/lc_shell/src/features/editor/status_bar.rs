@@ -4,7 +4,7 @@ use egui::{Align, Layout, Ui};
 use lc_canvas::theme::{self, Tokens};
 use lc_canvas::widgets::{hud, hud_elided, rule, status_dot};
 
-use crate::shell_app::ShellApp;
+use crate::features::editor::shell_app::ShellApp;
 
 /// Renders the full-width status bar at the bottom of the editor.
 pub fn render_status_bar(app: &mut ShellApp, ui: &mut Ui) {

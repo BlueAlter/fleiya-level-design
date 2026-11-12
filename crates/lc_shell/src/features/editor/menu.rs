@@ -2,12 +2,12 @@
 
 use egui::{Key, RichText, Ui};
 use egui_dock::DockState;
-use lc_canvas::theme::{self, ThemeChoice};
+use lc_canvas::theme::{self};
 use lc_canvas::widgets::{hud, hud_elided, status_dot};
 use lc_core::project::Project;
 use lc_ui_api::events::EditorEvent;
 
-use crate::shell_app::ShellApp;
+use crate::features::editor::shell_app::ShellApp;
 
 /// Handles top-level menu bar rendering.
 pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
@@ -132,7 +132,7 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                     egui::vec2(control_w, 26.0),
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(control_rect), |ui| {
-                    crate::app_mode::render_mode_segmented_control(
+                    crate::features::editor::app_mode::render_mode_segmented_control(
                         ui,
                         &mut app.active_mode,
                         app.enum_unsaved,
@@ -153,7 +153,7 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                     }
 
                     ui.add_space(10.0);
-                    theme_menu(ui, app);
+                    crate::features::settings::theme::theme_menu(ui, app);
                 });
             });
         });
@@ -170,38 +170,16 @@ fn menu_button(ui: &mut Ui, text: &str, add: impl FnOnce(&mut Ui)) {
     ui.menu_button(label, add);
 }
 
-/// The appearance picker.
-fn theme_menu(ui: &mut Ui, app: &mut ShellApp) {
-    let t = theme::Tokens::get(ui.ctx());
-    let label = RichText::new("THEME")
-        .font(egui::FontId::new(
-            theme::HUD_SIZE,
-            theme::mono_for(ui.ctx()),
-        ))
-        .color(t.muted);
-    ui.menu_button(label, |ui| {
-        for choice in ThemeChoice::ALL {
-            if ui
-                .selectable_label(app.theme_choice == choice, choice.label())
-                .clicked()
-            {
-                app.set_theme(ui.ctx(), choice);
-                ui.close();
-            }
-        }
-    });
-}
-
 /// Handles application-wide keyboard shortcuts.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
     // Mode shortcuts (Ctrl+1 = Editor, Ctrl+2 = Enums) via consume_shortcut
     let ctrl_1 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num1);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_1)) {
-        app.active_mode = crate::app_mode::AppMode::Editor;
+        app.active_mode = crate::features::editor::app_mode::AppMode::Editor;
     }
     let ctrl_2 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num2);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_2)) {
-        app.active_mode = crate::app_mode::AppMode::Enums;
+        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
     }
 
     ctx.input(|i| {

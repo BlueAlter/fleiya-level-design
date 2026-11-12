@@ -3,7 +3,7 @@ use lc_core::command::{Command, DocKind};
 use lc_core::error::CoreError;
 use lc_core::id::LevelId;
 use lc_core::project::Project;
-use lc_shell::dock_layout::DockSlotLocation;
+use lc_shell::features::editor::dock_layout::DockSlotLocation;
 use lc_shell::ShellApp;
 use lc_ui_api::assets::{AssetError, AssetService};
 use lc_ui_api::context::EditorCtx;

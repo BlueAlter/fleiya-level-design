@@ -14,7 +14,7 @@ use lc_ui_api::session::SessionState;
 use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 
-use crate::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
+use crate::shared::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
 
 /// Renders document tabs inside the central `egui_dock::DockArea`.
 pub struct DocTabViewer<'a> {
@@ -445,7 +445,7 @@ fn missing_document(ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::ShellAssetService;
+    use crate::shared::assets::ShellAssetService;
     use glam::{UVec2, Vec2};
     use lc_core::defs::{EntityDef, EnumDef, LayerDef, TilesetDef};
     use lc_core::id::{EntityDefId, EnumDefId, LayerDefId, LevelId, TilesetDefId, WorldId};

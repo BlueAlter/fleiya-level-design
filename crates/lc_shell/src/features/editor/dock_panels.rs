@@ -7,9 +7,9 @@ use lc_canvas::widgets::{chevron, dock_tab, dock_tab_sized};
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::view::PanelId;
 
-use crate::dock_layout::{BottomDockState, DockSlotLocation};
-use crate::shell_app::ShellApp;
-use crate::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
+use crate::features::editor::dock_layout::{BottomDockState, DockSlotLocation};
+use crate::features::editor::shell_app::ShellApp;
+use crate::shared::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
 
 /// Geometry of one custom dock slot for drag/drop hit-testing.
 #[derive(Debug, Clone)]

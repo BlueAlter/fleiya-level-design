@@ -15,7 +15,7 @@ use lc_core::project::Project;
 use lc_core::world::World;
 use lc_ui_api::{EditorCtx, EditorEvent, PanelId, PanelView};
 
-use crate::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
+use crate::shared::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
 
 /// Internal action queue to defer event and command emissions during UI rendering,
 /// avoiding borrow conflicts with `cx.project()`.

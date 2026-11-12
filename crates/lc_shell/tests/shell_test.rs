@@ -2,7 +2,7 @@ use egui::Context;
 use lc_core::command::{Command, DocKind};
 use lc_core::error::CoreError;
 use lc_core::project::Project;
-use lc_shell::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
+use lc_shell::features::editor::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
 use lc_shell::ShellApp;
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;

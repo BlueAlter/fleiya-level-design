@@ -1,8 +1,8 @@
 use egui::{vec2, Context, Key, Modifiers, PointerButton, Pos2, RawInput, Rect};
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
-use lc_shell::ui::tile_bounds::{TileGrid, TileRect};
-use lc_shell::ui::tile_picker::{TilePicker, TilePickerEvent, TilesetData};
+use lc_shell::shared::ui::tile_bounds::{TileGrid, TileRect};
+use lc_shell::shared::ui::tile_picker::{TilePicker, TilePickerEvent, TilesetData};
 
 #[test]
 fn test_tile_picker_default_and_lifecycle() {

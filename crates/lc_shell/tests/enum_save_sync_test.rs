@@ -7,7 +7,7 @@
 use lc_core::defs::{EnumDef, EnumValueDef};
 use lc_core::id::EnumDefId;
 use lc_core::project::Project;
-use lc_shell::enum_view::sync_enum_draft_shadows;
+use lc_shell::features::enums::view::sync_enum_draft_shadows;
 use lc_shell::ShellApp;
 
 fn value(id: &str) -> EnumValueDef {
@@ -52,9 +52,15 @@ fn reorder_then_save_returns_to_clean() {
     }
 
     // the stale shadow is what used to keep the enum dirty after saving
-    assert!(app.enum_is_dirty(), "precondition: stale shadow keeps it dirty");
+    assert!(
+        app.enum_is_dirty(),
+        "precondition: stale shadow keeps it dirty"
+    );
     sync_enum_draft_shadows(&mut app);
-    assert!(!app.enum_is_dirty(), "after Save the enum must be clean again");
+    assert!(
+        !app.enum_is_dirty(),
+        "after Save the enum must be clean again"
+    );
 }
 
 #[test]
@@ -76,5 +82,8 @@ fn sync_keeps_unsaved_edits_dirty() {
     app.enum_draft_revision += 1;
 
     sync_enum_draft_shadows(&mut app);
-    assert!(app.enum_is_dirty(), "syncing must never hide real unsaved edits");
+    assert!(
+        app.enum_is_dirty(),
+        "syncing must never hide real unsaved edits"
+    );
 }

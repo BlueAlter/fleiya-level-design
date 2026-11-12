@@ -23,7 +23,7 @@ use egui::{
     Vec2,
 };
 
-use super::reorder::{Slot, auto_scroll_delta, preview_layout, relative_to_top, snapshot_target};
+use super::reorder::{auto_scroll_delta, preview_layout, relative_to_top, snapshot_target, Slot};
 
 /// Outline style of the ghost drop slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

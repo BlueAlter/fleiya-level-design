@@ -2,9 +2,9 @@ use egui::{Context, Pos2, Rect, Vec2};
 use lc_core::defs::{EnumDef, EnumValueDef};
 use lc_core::id::EnumDefId;
 use lc_core::project::Project;
-use lc_shell::app_mode::AppMode;
-use lc_shell::enum_file::convert_project_enums_to_file;
-use lc_shell::enum_view::{drop_index, reorder_item, row_layout, EnumViewState};
+use lc_shell::features::editor::app_mode::AppMode;
+use lc_shell::features::enums::file::convert_project_enums_to_file;
+use lc_shell::features::enums::view::{drop_index, reorder_item, row_layout, EnumViewState};
 use lc_shell::ShellApp;
 
 #[test]
@@ -379,7 +379,7 @@ fn test_enum_card_sizes_and_uniformity() {
     for rect in &state.card_rects {
         assert_eq!(
             rect.height(),
-            lc_shell::enum_view::ENUM_CARD_HEIGHT,
+            lc_shell::features::enums::view::ENUM_CARD_HEIGHT,
             "Card height must exactly equal ENUM_CARD_HEIGHT"
         );
     }
@@ -387,14 +387,14 @@ fn test_enum_card_sizes_and_uniformity() {
     // Gap between Card 1 and Card 2 must match ENUM_CARD_GAP (5.0)
     assert_eq!(
         state.card_rects[1].top() - state.card_rects[0].bottom(),
-        lc_shell::enum_view::ENUM_CARD_GAP,
+        lc_shell::features::enums::view::ENUM_CARD_GAP,
         "Gap between Card 1 and Card 2 must equal ENUM_CARD_GAP"
     );
 
     // Gap between Card 2 and Card 3 must match ENUM_CARD_GAP (5.0)
     assert_eq!(
         state.card_rects[2].top() - state.card_rects[1].bottom(),
-        lc_shell::enum_view::ENUM_CARD_GAP,
+        lc_shell::features::enums::view::ENUM_CARD_GAP,
         "Gap between Card 2 and Card 3 must equal ENUM_CARD_GAP"
     );
 
@@ -432,7 +432,7 @@ fn test_enum_card_sizes_and_uniformity() {
         let right_distance = card.max.x - del.max.x;
         assert_eq!(
             right_distance,
-            lc_shell::enum_view::ENUM_CARD_PADDING_X + 1.0,
+            lc_shell::features::enums::view::ENUM_CARD_PADDING_X + 1.0,
             "Delete button right padding must match left padding for symmetry"
         );
     }
@@ -440,21 +440,21 @@ fn test_enum_card_sizes_and_uniformity() {
 
 #[test]
 fn test_enum_card_metrics_constants() {
-    assert_eq!(lc_shell::enum_view::ENUM_CARD_HEIGHT, 36.0);
-    assert_eq!(lc_shell::enum_view::ENUM_CARD_GAP, 5.0);
-    assert_eq!(lc_shell::enum_view::ENUM_CARD_PADDING_X, 10.0);
-    assert_eq!(lc_shell::enum_view::ENUM_CARD_PADDING_Y, 6.0);
-    assert_eq!(lc_shell::enum_view::DRAG_HANDLE_WIDTH, 16.0);
-    assert_eq!(lc_shell::enum_view::DRAG_HANDLE_GAP, 12.0);
-    assert_eq!(lc_shell::enum_view::TRASH_ICON_WIDTH, 20.0);
-    assert_eq!(lc_shell::enum_view::TRASH_ICON_GAP, 8.0);
+    assert_eq!(lc_shell::features::enums::view::ENUM_CARD_HEIGHT, 36.0);
+    assert_eq!(lc_shell::features::enums::view::ENUM_CARD_GAP, 5.0);
+    assert_eq!(lc_shell::features::enums::view::ENUM_CARD_PADDING_X, 10.0);
+    assert_eq!(lc_shell::features::enums::view::ENUM_CARD_PADDING_Y, 6.0);
+    assert_eq!(lc_shell::features::enums::view::DRAG_HANDLE_WIDTH, 16.0);
+    assert_eq!(lc_shell::features::enums::view::DRAG_HANDLE_GAP, 12.0);
+    assert_eq!(lc_shell::features::enums::view::TRASH_ICON_WIDTH, 20.0);
+    assert_eq!(lc_shell::features::enums::view::TRASH_ICON_GAP, 8.0);
 }
 
 #[test]
 fn test_enum_card_layout_geometry() {
-    let padding_x = lc_shell::enum_view::ENUM_CARD_PADDING_X;
-    let padding_y = lc_shell::enum_view::ENUM_CARD_PADDING_Y;
-    let card_height = lc_shell::enum_view::ENUM_CARD_HEIGHT;
+    let padding_x = lc_shell::features::enums::view::ENUM_CARD_PADDING_X;
+    let padding_y = lc_shell::features::enums::view::ENUM_CARD_PADDING_Y;
+    let card_height = lc_shell::features::enums::view::ENUM_CARD_HEIGHT;
     let stroke_width = 1.0;
 
     let content_h = card_height - 2.0 * padding_y - 2.0 * stroke_width;
@@ -468,16 +468,16 @@ fn test_enum_card_layout_geometry() {
     // outer_left + stroke_width (1.0) + padding_x (10.0) + handle_w (16.0) + handle_gap (12.0) = 39.0
     let text_start_offset = stroke_width
         + padding_x
-        + lc_shell::enum_view::DRAG_HANDLE_WIDTH
-        + lc_shell::enum_view::DRAG_HANDLE_GAP;
+        + lc_shell::features::enums::view::DRAG_HANDLE_WIDTH
+        + lc_shell::features::enums::view::DRAG_HANDLE_GAP;
     assert_eq!(text_start_offset, 39.0);
 }
 
 #[test]
 fn test_uniform_control_height_constant() {
-    assert_eq!(lc_shell::enum_view::CONTROL_HEIGHT, 32.0);
-    assert_eq!(lc_shell::enum_view::KEBAB_ICON_WIDTH, 20.0);
-    assert_eq!(lc_shell::enum_view::KEBAB_ICON_GAP, 8.0);
+    assert_eq!(lc_shell::features::enums::view::CONTROL_HEIGHT, 32.0);
+    assert_eq!(lc_shell::features::enums::view::KEBAB_ICON_WIDTH, 20.0);
+    assert_eq!(lc_shell::features::enums::view::KEBAB_ICON_GAP, 8.0);
 }
 
 #[test]

@@ -7,7 +7,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 use lc_core::project::Project;
-use lc_shell::file_dialog::{FileDialogHandle, FileDialogOutcome, FileDialogService};
+use lc_shell::shared::file_dialog::{FileDialogHandle, FileDialogOutcome, FileDialogService};
 use lc_shell::ShellApp;
 
 /// Dialog backend that returns pre-queued outcomes without touching a desktop.

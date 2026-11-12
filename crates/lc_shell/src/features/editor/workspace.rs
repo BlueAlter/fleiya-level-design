@@ -7,7 +7,7 @@ use lc_canvas::widgets::{button, hline, hud, hud_elided, ButtonKind};
 use lc_core::command::DocKind;
 use lc_ui_api::viewport::Viewport;
 
-use crate::shell_app::ShellApp;
+use crate::features::editor::shell_app::ShellApp;
 
 /// Draws the workspace surface that replaces an empty central dock area.
 ///

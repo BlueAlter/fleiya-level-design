@@ -6,7 +6,7 @@ use lc_core::id::{LevelId, WorldId};
 use lc_core::level::Level;
 use lc_core::project::Project;
 use lc_core::world::World;
-use lc_shell::project_panel::ProjectPanel;
+use lc_shell::features::project::ProjectPanel;
 use lc_shell::ShellApp;
 use lc_ui_api::{EditorCtx, EditorEvent, PanelView};
 

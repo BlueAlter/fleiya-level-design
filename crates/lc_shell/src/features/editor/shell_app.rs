@@ -12,11 +12,11 @@ use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::assets::ShellAssetService;
-use crate::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
-use crate::doc_tab_viewer::DocTabViewer;
-use crate::dock_layout::{DockSlotLocation, ShellDockLayout};
-use crate::file_dialog::{
+use crate::features::editor::console::{BoundedRingBuffer, ConsolePanel, SharedRingBuffer};
+use crate::features::editor::dock_layout::{DockSlotLocation, ShellDockLayout};
+use crate::features::world::doc_tab_viewer::DocTabViewer;
+use crate::shared::assets::ShellAssetService;
+use crate::shared::file_dialog::{
     normalize_project_path, FileDialogHandle, FileDialogOutcome, FileDialogService,
     NativeFileDialogService,
 };
@@ -41,7 +41,7 @@ struct PendingFileDialog {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumDraft {
     pub def: EnumDef,
-    pub tile_rects: HashMap<String, crate::ui::tile_bounds::TileRect>,
+    pub tile_rects: HashMap<String, crate::shared::ui::tile_bounds::TileRect>,
     pub revision: u64,
     pub saved_revision: u64,
 }
@@ -104,7 +104,7 @@ pub struct ShellApp {
     /// File dialogs waiting for a user decision.
     pending_file_dialogs: Vec<PendingFileDialog>,
     /// Top-level active editor mode (Editor or Enums).
-    pub active_mode: crate::app_mode::AppMode,
+    pub active_mode: crate::features::editor::app_mode::AppMode,
     /// Active draft copies of enum definitions keyed per EnumDefId.
     pub enum_drafts: HashMap<lc_core::id::EnumDefId, EnumDraft>,
     /// Last saved copies of enum definitions keyed per EnumDefId.
@@ -140,7 +140,7 @@ pub struct ShellApp {
     /// Currently focused enum definition in the Enum window.
     pub selected_enum_def: Option<lc_core::id::EnumDefId>,
     /// Pending delete action for Enum definitions window.
-    pub pending_enum_delete: Option<crate::def_windows::PendingDeleteModal>,
+    pub pending_enum_delete: Option<crate::features::enums::window::PendingDeleteModal>,
     /// Project-level tag registry shared across enums and tilesets.
     pub tag_registry: Vec<TagDef>,
     /// Counter for allocating unique TagIds.
@@ -157,10 +157,10 @@ pub struct ShellApp {
     pub enum_tags_saved: HashMap<lc_core::id::EnumDefId, Vec<TagId>>,
     /// Mapping of (EnumDefId, EnumValueId) to TileRect multi-tile selections (draft).
     pub enum_value_tile_rects:
-        HashMap<(lc_core::id::EnumDefId, String), crate::ui::tile_bounds::TileRect>,
+        HashMap<(lc_core::id::EnumDefId, String), crate::shared::ui::tile_bounds::TileRect>,
     /// Saved copy of enum value tile rects for revert/save parity.
     pub enum_saved_tile_rects:
-        HashMap<(lc_core::id::EnumDefId, String), crate::ui::tile_bounds::TileRect>,
+        HashMap<(lc_core::id::EnumDefId, String), crate::shared::ui::tile_bounds::TileRect>,
 }
 
 /// Strongly typed identifier for a project tag.
@@ -198,7 +198,7 @@ impl ShellApp {
     pub fn new_with_console(project: Project, console_buffer: SharedRingBuffer) -> Self {
         let mut registry = Registry::new();
         registry.register_panel(Box::new(ConsolePanel::new(console_buffer.clone())));
-        registry.register_panel(Box::new(crate::project_panel::ProjectPanel::new()));
+        registry.register_panel(Box::new(crate::features::project::ProjectPanel::new()));
 
         lc_feature_level::register(&mut registry);
         lc_feature_tileset::register(&mut registry);
@@ -207,8 +207,12 @@ impl ShellApp {
         lc_feature_entities::register(&mut registry);
         lc_feature_world::register(&mut registry);
 
-        registry.register_panel(Box::new(crate::tileset_panel::CombinedTilesetPanel::new()));
-        registry.register_panel(Box::new(crate::inspector_panel::InspectorPanel::new()));
+        registry.register_panel(Box::new(
+            crate::features::tileset::panel::CombinedTilesetPanel::new(),
+        ));
+        registry.register_panel(Box::new(
+            crate::features::editor::inspector_panel::InspectorPanel::new(),
+        ));
 
         let assets = Arc::new(ShellAssetService::new());
 
@@ -243,7 +247,7 @@ impl ShellApp {
             last_central_rect: None,
             file_dialogs: Arc::new(NativeFileDialogService::new()),
             pending_file_dialogs: Vec::new(),
-            active_mode: crate::app_mode::AppMode::Editor,
+            active_mode: crate::features::editor::app_mode::AppMode::Editor,
             enum_drafts,
             enum_saved_defs,
             enum_saved,
@@ -281,7 +285,7 @@ impl ShellApp {
         val_id: &str,
         tile: Option<&lc_core::layer::TileRef>,
         cols: u32,
-    ) -> Option<crate::ui::tile_bounds::TileRect> {
+    ) -> Option<crate::shared::ui::tile_bounds::TileRect> {
         if let Some(rect) = self
             .enum_value_tile_rects
             .get(&(enum_id, val_id.to_string()))
@@ -292,7 +296,7 @@ impl ShellApp {
         tile.map(|tr| {
             let col = tr.tile_id.checked_rem(cols).unwrap_or(0);
             let row = tr.tile_id.checked_div(cols).unwrap_or(0);
-            crate::ui::tile_bounds::TileRect::single(col, row)
+            crate::shared::ui::tile_bounds::TileRect::single(col, row)
         })
     }
 
@@ -377,7 +381,7 @@ impl ShellApp {
         let ts = self.project.defs.tileset(id)?;
         let full_path = self.assets.resolve_path(&ts.path);
         if full_path.exists() {
-            if let Some(dims) = crate::enum_file::read_png_dimensions(&full_path) {
+            if let Some(dims) = crate::features::enums::file::read_png_dimensions(&full_path) {
                 return Some(dims);
             }
         }
@@ -388,7 +392,7 @@ impl ShellApp {
         ];
         for p in &candidate_paths {
             if p.exists() {
-                if let Some(dims) = crate::enum_file::read_png_dimensions(p) {
+                if let Some(dims) = crate::features::enums::file::read_png_dimensions(p) {
                     return Some(dims);
                 }
             }
@@ -590,8 +594,16 @@ impl ShellApp {
         self.enum_tileset_map.clear();
         self.enum_drafts.clear();
         self.enum_saved_defs.clear();
-        let has_ts1 = self.project.defs.tileset(lc_core::id::TilesetDefId(1)).is_some();
-        let has_ts2 = self.project.defs.tileset(lc_core::id::TilesetDefId(2)).is_some();
+        let has_ts1 = self
+            .project
+            .defs
+            .tileset(lc_core::id::TilesetDefId(1))
+            .is_some();
+        let has_ts2 = self
+            .project
+            .defs
+            .tileset(lc_core::id::TilesetDefId(2))
+            .is_some();
         for enum_def in &mut self.project.defs.enums {
             if enum_def.tileset_id.is_none() {
                 enum_def.tileset_id = enum_def
@@ -610,8 +622,7 @@ impl ShellApp {
             }
             self.enum_drafts
                 .insert(enum_def.id, EnumDraft::new(enum_def.clone()));
-            self.enum_saved_defs
-                .insert(enum_def.id, enum_def.clone());
+            self.enum_saved_defs.insert(enum_def.id, enum_def.clone());
         }
         self.enum_saved = self.project.defs.enums.clone();
         self.enum_draft = self.project.defs.enums.clone();
@@ -760,7 +771,9 @@ impl ShellApp {
                 view.add_inspector_section(Box::new(
                     lc_feature_entities::EntityInspectorSection::new(),
                 ));
-                view.set_tool(Box::new(crate::tool_router::LevelCanvasToolRouter::new()));
+                view.set_tool(Box::new(
+                    crate::features::editor::tool_router::LevelCanvasToolRouter::new(),
+                ));
                 self.open_documents.insert(kind, Box::new(view));
                 self.dock_state.push_to_first_leaf(kind);
                 self.status_message = format!("Opened Level {:?}", level_id.0);
@@ -771,7 +784,9 @@ impl ShellApp {
                     return;
                 }
                 let doc = self.registry.create_document(kind).unwrap_or_else(|| {
-                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                    Box::new(
+                        crate::features::world::doc_tab_viewer::PlaceholderDocumentView { kind },
+                    )
                 });
                 self.open_documents.insert(kind, doc);
                 self.dock_state.push_to_first_leaf(kind);
@@ -798,7 +813,9 @@ impl ShellApp {
                     return;
                 }
                 let doc = self.registry.create_document(kind).unwrap_or_else(|| {
-                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                    Box::new(
+                        crate::features::world::doc_tab_viewer::PlaceholderDocumentView { kind },
+                    )
                 });
                 self.open_documents.insert(kind, doc);
                 self.dock_state.push_to_first_leaf(kind);
@@ -810,7 +827,9 @@ impl ShellApp {
                     return;
                 }
                 let doc = self.registry.create_document(kind).unwrap_or_else(|| {
-                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                    Box::new(
+                        crate::features::world::doc_tab_viewer::PlaceholderDocumentView { kind },
+                    )
                 });
                 self.open_documents.insert(kind, doc);
                 self.dock_state.push_to_first_leaf(kind);
@@ -913,7 +932,7 @@ impl ShellApp {
                 .ensure_panel(panel.id(), DockSlotLocation::Left);
         }
 
-        crate::menu::handle_global_shortcuts(self, ui.ctx());
+        crate::features::editor::menu::handle_global_shortcuts(self, ui.ctx());
 
         let tokens = theme::Tokens::get(ui.ctx());
 
@@ -925,10 +944,10 @@ impl ShellApp {
                     .inner_margin(egui::Margin::ZERO),
             )
             .show(ui, |ui| {
-                crate::menu::render_menu_bar(self, ui);
+                crate::features::editor::menu::render_menu_bar(self, ui);
             });
         match self.active_mode {
-            crate::app_mode::AppMode::Editor => {
+            crate::features::editor::app_mode::AppMode::Editor => {
                 // 2. Bottom status bar
                 Panel::bottom("status_bar")
                     .exact_size(theme::STATUS_H)
@@ -938,9 +957,10 @@ impl ShellApp {
                             .inner_margin(egui::Margin::ZERO),
                     )
                     .show(ui, |ui| {
-                        crate::status_bar::render_status_bar(self, ui);
+                        crate::features::editor::status_bar::render_status_bar(self, ui);
                     });
-                let mut dock_geometry = crate::dock_panels::DockGeometry::default();
+                let mut dock_geometry =
+                    crate::features::editor::dock_panels::DockGeometry::default();
                 const DOCK_UNIFORM_WIDTH: f32 = 260.0;
                 const DOCK_MIN_WIDTH: f32 = 240.0;
 
@@ -957,11 +977,12 @@ impl ShellApp {
                         )
                         .show(ui, |ui| {
                             ui.set_min_width(DOCK_MIN_WIDTH);
-                            dock_geometry.left = Some(crate::dock_panels::render_dock_slot(
-                                self,
-                                ui,
-                                DockSlotLocation::Left,
-                            ));
+                            dock_geometry.left =
+                                Some(crate::features::editor::dock_panels::render_dock_slot(
+                                    self,
+                                    ui,
+                                    DockSlotLocation::Left,
+                                ));
                         });
                 }
                 // 4. Right dock panel
@@ -977,15 +998,17 @@ impl ShellApp {
                         )
                         .show(ui, |ui| {
                             ui.set_min_width(DOCK_MIN_WIDTH);
-                            dock_geometry.right = Some(crate::dock_panels::render_dock_slot(
-                                self,
-                                ui,
-                                DockSlotLocation::Right,
-                            ));
+                            dock_geometry.right =
+                                Some(crate::features::editor::dock_panels::render_dock_slot(
+                                    self,
+                                    ui,
+                                    DockSlotLocation::Right,
+                                ));
                         });
                 }
                 // 5. Bottom dock (collapsible)
-                dock_geometry.bottom = crate::dock_panels::render_bottom_dock(self, ui);
+                dock_geometry.bottom =
+                    crate::features::editor::dock_panels::render_bottom_dock(self, ui);
                 // 6. Central document area (egui_dock)
                 CentralPanel::default()
                     .frame(
@@ -998,15 +1021,19 @@ impl ShellApp {
                     });
 
                 // 7. Drag preview, drop indicator and drop completion.
-                crate::dock_panels::handle_drag_and_drop(self, ui, &dock_geometry);
+                crate::features::editor::dock_panels::handle_drag_and_drop(
+                    self,
+                    ui,
+                    &dock_geometry,
+                );
 
                 // 7b. Floating definition windows
-                crate::def_windows::render_layer_window(self, ui.ctx());
-                crate::def_windows::render_entities_window(self, ui.ctx());
-                crate::def_windows::render_tileset_window(self, ui.ctx());
+                crate::features::layers::window::render_layer_window(self, ui.ctx());
+                crate::features::entities::window::render_entities_window(self, ui.ctx());
+                crate::features::tileset::window::render_tileset_window(self, ui.ctx());
             }
-            crate::app_mode::AppMode::Enums => {
-                crate::enum_view::render_enum_view(self, ui);
+            crate::features::editor::app_mode::AppMode::Enums => {
+                crate::features::enums::view::render_enum_view(self, ui);
             }
         }
 
@@ -1020,7 +1047,7 @@ impl ShellApp {
         if self.open_documents.is_empty() && self.dock_state.iter_all_tabs().next().is_none() {
             self.session.active_document = None;
             self.session.active_level = None;
-            crate::workspace::render_workspace_empty(self, ui);
+            crate::features::editor::workspace::render_workspace_empty(self, ui);
             return;
         }
 
@@ -1049,7 +1076,7 @@ impl ShellApp {
             is_dirty,
         };
 
-        let dock_style = crate::dock_style::style(&theme::Tokens::get(ui.ctx()));
+        let dock_style = crate::features::editor::dock_style::style(&theme::Tokens::get(ui.ctx()));
         DockArea::new(&mut self.dock_state)
             .id(Id::new("central_document_dock_area"))
             .style(dock_style)

@@ -14,7 +14,7 @@ use lc_feature_enums::{
     AddEnumValueCommand, RemoveEnumDefCommand, ReorderEnumDefsCommand, ReorderEnumValuesCommand,
     UpdateEnumValueCommand,
 };
-use lc_shell::tileset_dialog::TilesetDialogState;
+use lc_shell::features::tileset::dialog::TilesetDialogState;
 use lc_shell::ShellApp;
 
 #[test]
@@ -110,7 +110,7 @@ fn test_enum_window_renders_when_opened() {
         ..Default::default()
     };
     let mut output = ctx.run_ui(raw_input, |_ui| {
-        lc_shell::def_windows::render_enum_window(&mut app, &ctx);
+        lc_shell::features::enums::window::render_enum_window(&mut app, &ctx);
     });
     output.textures_delta.clear();
 
@@ -271,7 +271,7 @@ fn test_tileset_dialog_grid_toggle() {
 
 #[test]
 fn test_enum_delete_modal_flow() {
-    use lc_shell::def_windows::PendingDeleteModal;
+    use lc_shell::features::enums::window::PendingDeleteModal;
 
     let mut app = ShellApp::new(Project::new("Fleiya Level Design Project"));
     let enum_id = EnumDefId(10);
@@ -316,7 +316,7 @@ fn test_enum_delete_modal_flow() {
 
     let mut output = ctx.run_ui(raw_input, |_ui| {
         // Render confirmation modal with Enter pressed
-        lc_shell::def_windows::render_enum_window(&mut app, &ctx);
+        lc_shell::features::enums::window::render_enum_window(&mut app, &ctx);
     });
     output.textures_delta.clear();
     app.process_commands_and_events();
@@ -328,7 +328,7 @@ fn test_enum_delete_modal_flow() {
 
 #[test]
 fn test_enum_value_delete_modal_flow() {
-    use lc_shell::def_windows::PendingDeleteModal;
+    use lc_shell::features::enums::window::PendingDeleteModal;
 
     let mut app = ShellApp::new(Project::new("Fleiya Level Design Project"));
     let enum_id = EnumDefId(20);
@@ -376,7 +376,7 @@ fn test_enum_value_delete_modal_flow() {
     };
 
     let mut output = ctx.run_ui(raw_input, |_ui| {
-        lc_shell::def_windows::render_enum_window(&mut app, &ctx);
+        lc_shell::features::enums::window::render_enum_window(&mut app, &ctx);
     });
     output.textures_delta.clear();
     app.process_commands_and_events();

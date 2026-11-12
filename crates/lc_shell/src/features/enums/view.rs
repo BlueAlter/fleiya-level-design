@@ -19,22 +19,22 @@ use lc_core::layer::TileRef;
 use lc_feature_enums::{find_enum_def_references, EnumReferenceLocation};
 use lc_ui_api::AssetService;
 
-use crate::enum_file::{
+use crate::features::editor::shell_app::ShellApp;
+use crate::features::enums::file::{
     compute_lost_keys, convert_file_enum_to_def, convert_project_enums_to_file,
     convert_single_enum_to_file, generate_unique_identifier, read_enum_file,
     validate_enum_file_data, write_enum_file_atomic, ConflictResolutionChoice, EnumConflict,
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
-use crate::shell_app::ShellApp;
-use crate::ui::context_menu::{
+use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
-use crate::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
-use crate::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
-pub use crate::ui::reorder::{drop_index, reorder_item};
-use crate::ui::reorder::Slot;
-use crate::ui::tile_bounds::{TileGrid, TileRect};
-use crate::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
+use crate::shared::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
+use crate::shared::ui::reorder::Slot;
+pub use crate::shared::ui::reorder::{drop_index, reorder_item};
+use crate::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
+use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
+use crate::shared::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
 
 /// Single uniform control height variable matching enum value rows.
 pub const CONTROL_HEIGHT: f32 = 32.0;
@@ -61,10 +61,10 @@ pub struct CardContextMenuState {
 /// Action to perform on project tags.
 #[derive(Clone, Debug)]
 pub enum TagAction {
-    Remove(crate::shell_app::TagId),
-    Rename(crate::shell_app::TagId, String),
+    Remove(crate::features::editor::shell_app::TagId),
+    Rename(crate::features::editor::shell_app::TagId, String),
     CreateAndAssign(String),
-    Assign(crate::shell_app::TagId),
+    Assign(crate::features::editor::shell_app::TagId),
 }
 
 /// Pure layout geometry for an enum value row.
@@ -177,7 +177,7 @@ pub struct EnumViewState {
     pub card_context_menu: Option<CardContextMenuState>,
     pub tag_inline_new_active: bool,
     pub tag_inline_new_text: String,
-    pub tag_editing_id: Option<crate::shell_app::TagId>,
+    pub tag_editing_id: Option<crate::features::editor::shell_app::TagId>,
     pub tag_editing_text: String,
     /// Set when a tag input was just opened so it grabs keyboard focus exactly once.
     pub tag_focus_pending: bool,
@@ -390,8 +390,10 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                         ],
                     };
                     state.ensure_value_uids(next_id, 2);
-                    app.enum_drafts
-                        .insert(next_id, crate::shell_app::EnumDraft::new(def.clone()));
+                    app.enum_drafts.insert(
+                        next_id,
+                        crate::features::editor::shell_app::EnumDraft::new(def.clone()),
+                    );
                     app.enum_draft.push(def);
                     app.selected_enum_def = Some(next_id);
                     app.enum_draft_revision += 1;
@@ -889,14 +891,20 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     );
                     if save_btn.clicked() {
                         if let Some(open_id) = app.selected_enum_def {
-                            if let Some(open_def) = app.enum_draft.iter().find(|e| e.id == open_id).cloned() {
-                                if let Some(pos) = app.project.defs.enums.iter().position(|e| e.id == open_id) {
+                            if let Some(open_def) =
+                                app.enum_draft.iter().find(|e| e.id == open_id).cloned()
+                            {
+                                if let Some(pos) =
+                                    app.project.defs.enums.iter().position(|e| e.id == open_id)
+                                {
                                     app.project.defs.enums[pos] = open_def.clone();
                                 } else {
                                     app.project.defs.enums.push(open_def.clone());
                                 }
                                 app.enum_saved_defs.insert(open_id, open_def.clone());
-                                if let Some(pos) = app.enum_saved.iter().position(|e| e.id == open_id) {
+                                if let Some(pos) =
+                                    app.enum_saved.iter().position(|e| e.id == open_id)
+                                {
                                     app.enum_saved[pos] = open_def.clone();
                                 } else {
                                     app.enum_saved.push(open_def.clone());
@@ -906,7 +914,8 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 }
                                 for ((eid, vid), rect) in &app.enum_value_tile_rects {
                                     if *eid == open_id {
-                                        app.enum_saved_tile_rects.insert((*eid, vid.clone()), *rect);
+                                        app.enum_saved_tile_rects
+                                            .insert((*eid, vid.clone()), *rect);
                                     }
                                 }
                             }
@@ -1204,17 +1213,17 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             ui.spacing_mut().interact_size.y = CONTROL_HEIGHT;
                             ui.label(RichText::new("Tags:").strong().color(t.ink_strong));
 
-                            let assigned_tag_ids: Vec<crate::shell_app::TagId> = app
+                            let assigned_tag_ids: Vec<crate::features::editor::shell_app::TagId> = app
                                 .enum_tags_map
                                 .get(&current_enum_id)
                                 .cloned()
                                 .unwrap_or_default();
 
-                            let mut remove_tag: Option<crate::shell_app::TagId> = None;
-                            let mut rename_tag_action: Option<(crate::shell_app::TagId, String)> =
+                            let mut remove_tag: Option<crate::features::editor::shell_app::TagId> = None;
+                            let mut rename_tag_action: Option<(crate::features::editor::shell_app::TagId, String)> =
                                 None;
                             let mut create_tag_action: Option<String> = None;
-                            let mut assign_tag_choice: Option<crate::shell_app::TagId> = None;
+                            let mut assign_tag_choice: Option<crate::features::editor::shell_app::TagId> = None;
                             let mut recall_clicked = false;
                             let mut recall_btn_rect = Rect::ZERO;
                             let mut recall_btn_resp: Option<egui::Response> = None;
@@ -1470,7 +1479,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                         .show(|ui| {
                                         ui.set_width(200.0);
                                         let q = state.tag_recall_search.trim().to_lowercase();
-                                        let filtered_unused: Vec<&crate::shell_app::TagDef> = unused_tags
+                                        let filtered_unused: Vec<&crate::features::editor::shell_app::TagDef> = unused_tags
                                             .iter()
                                             .filter(|tag| q.is_empty() || tag.name.to_lowercase().contains(&q))
                                             .collect();
@@ -2096,7 +2105,9 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
 
                 tracing::info!(
                     "[DIAGNOSE] TilePicker Selected: enum_id={:?}, value_id={}, picked_rect={:?}",
-                    target_enum_id, target_val_id, picked_rect
+                    target_enum_id,
+                    target_val_id,
+                    picked_rect
                 );
 
                 let target_ts_id = app
@@ -2127,7 +2138,8 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                         }
                     }
                     if let Some(draft) = app.enum_drafts.get_mut(&target_enum_id) {
-                        if let Some(v) = draft.def.values.iter_mut().find(|v| v.id == target_val_id) {
+                        if let Some(v) = draft.def.values.iter_mut().find(|v| v.id == target_val_id)
+                        {
                             v.tile = Some(TileRef::new(ts_id, top_left_id));
                         }
                         draft.tile_rects.insert(target_val_id.clone(), picked_rect);
@@ -2178,10 +2190,19 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 .clicked()
                             {
                                 if let Some(open_id) = app.selected_enum_def {
-                                    if let Some(saved) = app.enum_saved_defs.get(&open_id).cloned().or_else(|| {
-                                        app.project.defs.enums.iter().find(|e| e.id == open_id).cloned()
-                                    }) {
-                                        if let Some(slot) = app.enum_draft.iter_mut().find(|e| e.id == open_id) {
+                                    if let Some(saved) =
+                                        app.enum_saved_defs.get(&open_id).cloned().or_else(|| {
+                                            app.project
+                                                .defs
+                                                .enums
+                                                .iter()
+                                                .find(|e| e.id == open_id)
+                                                .cloned()
+                                        })
+                                    {
+                                        if let Some(slot) =
+                                            app.enum_draft.iter_mut().find(|e| e.id == open_id)
+                                        {
                                             *slot = saved.clone();
                                         }
                                         if let Some(draft) = app.enum_drafts.get_mut(&open_id) {
@@ -2189,10 +2210,12 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                             draft.revision = draft.saved_revision;
                                         }
                                     }
-                                    app.enum_value_tile_rects.retain(|(eid, _), _| *eid != open_id);
+                                    app.enum_value_tile_rects
+                                        .retain(|(eid, _), _| *eid != open_id);
                                     for ((eid, vid), rect) in &app.enum_saved_tile_rects {
                                         if *eid == open_id {
-                                            app.enum_value_tile_rects.insert((*eid, vid.clone()), *rect);
+                                            app.enum_value_tile_rects
+                                                .insert((*eid, vid.clone()), *rect);
                                         }
                                     }
                                     state.toast = Some((

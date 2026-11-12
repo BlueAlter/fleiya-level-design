@@ -15,7 +15,7 @@ use lc_core::level::Level;
 use lc_core::project::Project;
 use lc_core::world::World;
 use lc_feature_tileset::AddTilesetDefCommand;
-use lc_shell::tileset_panel::CombinedTilesetPanel;
+use lc_shell::features::tileset::panel::CombinedTilesetPanel;
 use lc_shell::ShellApp;
 use lc_ui_api::view::PanelView;
 use lc_ui_api::EditorCtx;

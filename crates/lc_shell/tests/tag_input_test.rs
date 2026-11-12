@@ -1,9 +1,9 @@
 //! Headless tests for the modal tag text input and its click blocker.
 
 use egui::{
-    Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense, pos2, vec2,
+    pos2, vec2, Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Sense,
 };
-use lc_shell::ui::tag_input::{TagInputEvent, input_blocker, tag_text_input};
+use lc_shell::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 
 fn screen() -> Rect {
     Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 400.0))
