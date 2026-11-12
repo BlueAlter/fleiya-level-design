@@ -19,6 +19,8 @@ fn test_core_model_serde_round_trip() {
     let enum_def = EnumDef {
         id: enum_id,
         name: "ItemType".to_string(),
+        tileset_id: Some(tileset_id),
+        tags: Vec::new(),
         values: vec![
             EnumValueDef {
                 id: "Potion".to_string(),

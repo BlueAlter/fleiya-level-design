@@ -119,6 +119,21 @@ define_icons! {
     SplitHorizontal => SQUARE_SPLIT_HORIZONTAL, "Split horizontally.";
     SplitVertical => SQUARE_SPLIT_VERTICAL, "Split vertically.";
     Tree => TREE_STRUCTURE, "Hierarchy.";
+    Window => APP_WINDOW, "A window or dialog.";
+    Swatches => SWATCHES, "Color or tile swatches.";
+    Sliders => SLIDERS_HORIZONTAL, "Sliders or settings adjustments.";
+    Code => CODE, "Code or script.";
+    MapPin => MAP_PIN, "Map pin marker.";
+    Compass => COMPASS, "Compass navigation.";
+    Sparkle => SPARKLE, "Sparkle or auto-rule.";
+    ListPlus => LIST_PLUS, "Add item to list.";
+    DotsThree => DOTS_THREE, "More actions.";
+    DotsThreeVertical => DOTS_THREE_VERTICAL, "Three vertical dots (more actions).";
+    Export => EXPORT, "Export file or item.";
+    Import => ARROW_SQUARE_IN, "Import file or item.";
+    PlusCircle => PLUS_CIRCLE, "Add with circle.";
+    MinusCircle => MINUS_CIRCLE, "Remove with circle.";
+    CheckCircle => CHECK_CIRCLE, "Confirmed with circle.";
 }
 
 impl Icon {

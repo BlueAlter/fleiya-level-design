@@ -2,6 +2,7 @@
 
 use egui::{Id, Ui, WidgetText};
 use egui_dock::TabViewer;
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_canvas::widgets::{canvas_preview, empty_state, hud, meta_row, page, page_header};
 use lc_core::command::{Command, DocKind, UndoStack};
@@ -12,6 +13,8 @@ use lc_ui_api::events::EditorEvent;
 use lc_ui_api::session::SessionState;
 use lc_ui_api::view::DocumentView;
 use std::collections::HashMap;
+
+use crate::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
 
 /// Renders document tabs inside the central `egui_dock::DockArea`.
 pub struct DocTabViewer<'a> {
@@ -33,10 +36,35 @@ impl<'a> TabViewer for DocTabViewer<'a> {
     }
 
     fn title(&mut self, tab: &mut Self::Tab) -> WidgetText {
-        let title_str = if let Some(doc) = self.open_documents.get(tab) {
-            doc.title(self.project)
-        } else {
-            format!("{tab:?}")
+        let title_str = match tab {
+            DocKind::TilesetDef(id) => {
+                if let Some(ts) = self.project.defs.tileset(*id) {
+                    format!("T {} (Tileset)", ts.name)
+                } else {
+                    "T Tilesets".to_string()
+                }
+            }
+            DocKind::EnumDef(id) => {
+                if let Some(en) = self.project.defs.enum_def(*id) {
+                    format!("= {} (Enum)", en.name)
+                } else {
+                    "= Enums".to_string()
+                }
+            }
+            DocKind::World(id) => {
+                if let Some(w) = self.project.world(*id) {
+                    format!("Map: {}", w.name)
+                } else {
+                    "Map".to_string()
+                }
+            }
+            _ => {
+                if let Some(doc) = self.open_documents.get(tab) {
+                    doc.title(self.project)
+                } else {
+                    format!("{tab:?}")
+                }
+            }
         };
 
         let suffix = if self.is_dirty { " *" } else { "" };
@@ -46,29 +74,47 @@ impl<'a> TabViewer for DocTabViewer<'a> {
     }
 
     fn context_menu(&mut self, ui: &mut Ui, tab: &mut Self::Tab, _path: egui_dock::NodePath) {
-        if ui.button("Close").clicked() {
-            self.events.push(EditorEvent::CloseDocument(*tab));
-            ui.close();
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+        enum TabMenuAction {
+            Close,
+            CloseOthers,
+            CloseAll,
         }
-        if ui.button("Close Others").clicked() {
-            let current = *tab;
-            let others: Vec<DocKind> = self
-                .open_documents
-                .keys()
-                .copied()
-                .filter(|kind| *kind != current)
-                .collect();
-            for kind in others {
-                self.events.push(EditorEvent::CloseDocument(kind));
+
+        let items = [
+            MenuItem::action(TabMenuAction::Close, "Close", Icon::Close),
+            MenuItem::action(
+                TabMenuAction::CloseOthers,
+                "Close Others",
+                Icon::MinusCircle,
+            ),
+            MenuItem::destructive(TabMenuAction::CloseAll, "Close All", Icon::Delete),
+        ];
+
+        if let Some(action) = show_context_menu(ui, MenuAnchor::inside_ui(), &items) {
+            match action {
+                TabMenuAction::Close => {
+                    self.events.push(EditorEvent::CloseDocument(*tab));
+                }
+                TabMenuAction::CloseOthers => {
+                    let current = *tab;
+                    let others: Vec<DocKind> = self
+                        .open_documents
+                        .keys()
+                        .copied()
+                        .filter(|kind| *kind != current)
+                        .collect();
+                    for kind in others {
+                        self.events.push(EditorEvent::CloseDocument(kind));
+                    }
+                }
+                TabMenuAction::CloseAll => {
+                    let all: Vec<DocKind> = self.open_documents.keys().copied().collect();
+                    for kind in all {
+                        self.events.push(EditorEvent::CloseDocument(kind));
+                    }
+                }
             }
-            ui.close();
-        }
-        if ui.button("Close All").clicked() {
-            let all: Vec<DocKind> = self.open_documents.keys().copied().collect();
-            for kind in all {
-                self.events.push(EditorEvent::CloseDocument(kind));
-            }
-            ui.close();
         }
     }
 
@@ -426,6 +472,8 @@ mod tests {
         project.defs.enums.push(EnumDef {
             id: EnumDefId(1),
             name: "Biome".to_string(),
+            tileset_id: None,
+            tags: Vec::new(),
             values: Vec::new(),
         });
         project.defs.entities.push(EntityDef {

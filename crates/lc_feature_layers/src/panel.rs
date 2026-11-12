@@ -1,8 +1,12 @@
-//! Dockable panel for managing layers in the active level tab.
+//! Dockable panel for managing layers in card view, matching the World and Asset card panel styling.
 
-use egui::{Color32, CornerRadius, Frame, Margin, RichText, ScrollArea, Stroke, Ui};
+use egui::{
+    Color32, CornerRadius, FontId, Frame, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui,
+};
 use glam::UVec2;
-use lc_canvas::theme::Tokens;
+use lc_canvas::icons::Icon;
+use lc_canvas::theme::{self, Tokens};
+use lc_canvas::widgets::{button, hline, ButtonKind};
 use lc_core::command::{Command, DocKind};
 use lc_core::defs::{IntGridValueDef, LayerDef};
 use lc_core::id::LayerDefId;
@@ -33,9 +37,11 @@ impl ActionQueue {
     }
 }
 
-/// Dockable panel view for inspecting, ordering, toggling visibility, and selecting layers of the active level.
+/// Dockable panel view for inspecting, ordering, and selecting layers in a modern card panel layout.
 #[derive(Default)]
-pub struct LayersPanel;
+pub struct LayersPanel {
+    search_query: String,
+}
 
 impl LayersPanel {
     /// Identifier constant for the Layers dockable panel.
@@ -43,7 +49,7 @@ impl LayersPanel {
 
     /// Creates a new `LayersPanel`.
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
@@ -58,314 +64,328 @@ impl PanelView for LayersPanel {
 
     fn ui(&mut self, ui: &mut Ui, cx: &mut EditorCtx) {
         let t = Tokens::get(ui.ctx());
-
-        // 1. Check active level tab
-        let Some(level_id) = cx.active_level() else {
-            ui.vertical_centered(|ui| {
-                ui.add_space(24.0);
-                ui.label(RichText::new("No active level.").color(t.muted));
-                ui.label(
-                    RichText::new("Open a level tab to inspect and manage its layers.")
-                        .font(egui::FontId::new(12.0, egui::FontFamily::Proportional))
-                        .color(t.faint),
-                );
-            });
-            return;
-        };
-
-        let Some(level) = cx.project().level(level_id) else {
-            ui.vertical_centered(|ui| {
-                ui.add_space(24.0);
-                ui.label(RichText::new("Active level not found.").color(t.muted));
-            });
-            return;
-        };
-
-        let mut actions = ActionQueue::default();
-        let layers = level.layers.clone();
-        let total_layers = layers.len();
+        let project = cx.project();
+        let level_opt = cx.active_level().and_then(|lid| project.level(lid));
         let active_layer_id = cx.active_layer();
-        let active_layer_index =
-            active_layer_id.and_then(|id| layers.iter().position(|l| l.def_id == id));
+        let mut actions = ActionQueue::default();
 
-        // 2. Top Toolbar
-        Frame::new()
-            .fill(t.sunken)
-            .inner_margin(Margin::symmetric(8, 4))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.menu_button("+ Add Layer", |ui| {
-                        if ui.button("Tiles Layer").clicked() {
-                            let next_id = LayerDefId(
-                                cx.project()
-                                    .defs
-                                    .layers
-                                    .iter()
-                                    .map(|l| l.id.0)
-                                    .max()
-                                    .unwrap_or(0)
-                                    + 1,
-                            );
-                            let default_tileset =
-                                cx.project().defs.tilesets.first().map(|ts| ts.id);
-                            let def = LayerDef {
-                                id: next_id,
-                                name: format!("Layer_{}", next_id.0),
-                                kind: LayerKind::Tiles,
-                                grid_size: UVec2::new(16, 16),
-                                tileset_id: default_tileset,
-                                int_grid_values: Vec::new(),
-                            };
-                            actions.exec(AddLayerDefCommand::new(def));
-                            actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
-                            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
-                            ui.close();
-                        }
+        // Layer defs from project
+        let all_layer_defs = project.defs.layers.clone();
+        let total_count = all_layer_defs.len();
 
-                        if ui.button("IntGrid Layer").clicked() {
-                            let next_id = LayerDefId(
-                                cx.project()
-                                    .defs
-                                    .layers
-                                    .iter()
-                                    .map(|l| l.id.0)
-                                    .max()
-                                    .unwrap_or(0)
-                                    + 1,
-                            );
-                            let def = LayerDef {
-                                id: next_id,
-                                name: format!("Layer_{}", next_id.0),
-                                kind: LayerKind::IntGrid,
-                                grid_size: UVec2::new(16, 16),
-                                tileset_id: None,
-                                int_grid_values: vec![IntGridValueDef {
-                                    value: 1,
-                                    name: "Solid".to_string(),
-                                    color: [220, 50, 50, 255],
-                                }],
-                            };
-                            actions.exec(AddLayerDefCommand::new(def));
-                            actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
-                            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
-                            ui.close();
-                        }
+        // 1. Top Header: Icon + Title + Count + "+ Add Layer" Menu
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(Icon::Layer.glyph()).color(t.accent_ink));
+            ui.label(
+                RichText::new("LAYERS")
+                    .font(FontId::new(theme::HUD_SIZE, theme::mono_bold_for(ui.ctx())))
+                    .color(t.ink_strong),
+            );
+            ui.label(
+                RichText::new(format!("{total_count}"))
+                    .font(FontId::new(theme::HUD_SIZE, theme::mono_for(ui.ctx())))
+                    .color(t.muted),
+            );
 
-                        if ui.button("Entities Layer").clicked() {
-                            let next_id = LayerDefId(
-                                cx.project()
-                                    .defs
-                                    .layers
-                                    .iter()
-                                    .map(|l| l.id.0)
-                                    .max()
-                                    .unwrap_or(0)
-                                    + 1,
-                            );
-                            let def = LayerDef {
-                                id: next_id,
-                                name: format!("Layer_{}", next_id.0),
-                                kind: LayerKind::Entities,
-                                grid_size: UVec2::new(16, 16),
-                                tileset_id: None,
-                                int_grid_values: Vec::new(),
-                            };
-                            actions.exec(AddLayerDefCommand::new(def));
-                            actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
-                            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
-                            ui.close();
-                        }
-                    });
-
-                    ui.separator();
-
-                    // Move Up (higher render order)
-                    let can_move_up = active_layer_index.is_some_and(|idx| idx + 1 < total_layers);
-                    let up_btn = ui.add_enabled(can_move_up, egui::Button::new("▲").small());
-                    if up_btn
-                        .on_hover_text("Move Layer Up (render over lower layers)")
-                        .clicked()
-                    {
-                        if let Some(idx) = active_layer_index {
-                            let mut new_order: Vec<LayerDefId> =
-                                layers.iter().map(|l| l.def_id).collect();
-                            new_order.swap(idx, idx + 1);
-                            actions.exec(ReorderLayerDefsCommand::new(new_order));
-                        }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.menu_button("+ LAYER", |ui| {
+                    if ui.button("Tiles Layer").clicked() {
+                        let next_id = LayerDefId(
+                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                        );
+                        let default_tileset = project.defs.tilesets.first().map(|ts| ts.id);
+                        let def = LayerDef {
+                            id: next_id,
+                            name: format!("Layer_{}", next_id.0),
+                            kind: LayerKind::Tiles,
+                            grid_size: UVec2::new(16, 16),
+                            tileset_id: default_tileset,
+                            int_grid_values: Vec::new(),
+                        };
+                        actions.exec(AddLayerDefCommand::new(def));
+                        actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
+                        actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
+                        ui.close();
                     }
 
-                    // Move Down (lower render order)
-                    let can_move_down = active_layer_index.is_some_and(|idx| idx > 0);
-                    let down_btn = ui.add_enabled(can_move_down, egui::Button::new("▼").small());
-                    if down_btn
-                        .on_hover_text("Move Layer Down (render under higher layers)")
-                        .clicked()
-                    {
-                        if let Some(idx) = active_layer_index {
-                            let mut new_order: Vec<LayerDefId> =
-                                layers.iter().map(|l| l.def_id).collect();
-                            new_order.swap(idx, idx - 1);
-                            actions.exec(ReorderLayerDefsCommand::new(new_order));
-                        }
+                    if ui.button("IntGrid Layer").clicked() {
+                        let next_id = LayerDefId(
+                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                        );
+                        let def = LayerDef {
+                            id: next_id,
+                            name: format!("Layer_{}", next_id.0),
+                            kind: LayerKind::IntGrid,
+                            grid_size: UVec2::new(16, 16),
+                            tileset_id: None,
+                            int_grid_values: vec![IntGridValueDef {
+                                value: 1,
+                                name: "Solid".to_string(),
+                                color: [220, 50, 50, 255],
+                            }],
+                        };
+                        actions.exec(AddLayerDefCommand::new(def));
+                        actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
+                        actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
+                        ui.close();
                     }
 
-                    ui.separator();
-
-                    // Delete
-                    let can_delete = active_layer_id.is_some();
-                    let del_btn = ui.add_enabled(can_delete, egui::Button::new("🗑").small());
-                    if del_btn.on_hover_text("Delete selected layer").clicked() {
-                        if let Some(id) = active_layer_id {
-                            actions.exec(RemoveLayerDefCommand::new(id));
-                            actions.emit(EditorEvent::SetActiveLayer(None));
-                        }
-                    }
-
-                    // Edit def
-                    let edit_btn =
-                        ui.add_enabled(can_delete, egui::Button::new("Edit Def").small());
-                    if edit_btn
-                        .on_hover_text("Open Layer Definition document")
-                        .clicked()
-                    {
-                        if let Some(id) = active_layer_id {
-                            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(id)));
-                        }
+                    if ui.button("Entities Layer").clicked() {
+                        let next_id = LayerDefId(
+                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                        );
+                        let def = LayerDef {
+                            id: next_id,
+                            name: format!("Layer_{}", next_id.0),
+                            kind: LayerKind::Entities,
+                            grid_size: UVec2::new(16, 16),
+                            tileset_id: None,
+                            int_grid_values: Vec::new(),
+                        };
+                        actions.exec(AddLayerDefCommand::new(def));
+                        actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
+                        actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
+                        ui.close();
                     }
                 });
             });
+        });
+
+        hline(ui);
+
+        // 2. Search input
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(Icon::Search.glyph()).color(t.faint));
+            ui.add(
+                TextEdit::singleline(&mut self.search_query)
+                    .hint_text("Search layers...")
+                    .desired_width(f32::INFINITY),
+            );
+        });
 
         ui.add_space(4.0);
 
-        // 3. Layers List
-        if layers.is_empty() {
-            ui.vertical_centered(|ui| {
-                ui.add_space(20.0);
-                ui.label(RichText::new("No layers in this level.").color(t.muted));
-                ui.label(
-                    RichText::new("Click '+ Add Layer' above to add one.")
-                        .font(egui::FontId::new(12.0, egui::FontFamily::Proportional))
-                        .color(t.faint),
-                );
-            });
-        } else {
-            ScrollArea::vertical().show(ui, |ui| {
-                // Top-to-bottom visual order (highest render index at the top)
-                for (idx, layer) in layers.iter().enumerate().rev() {
-                    let is_selected = active_layer_id == Some(layer.def_id);
-                    let def_opt = cx.project().defs.layer(layer.def_id);
-                    let layer_name = def_opt.map(|d| d.name.as_str()).unwrap_or("Unnamed Layer");
-                    let kind = def_opt.map(|d| d.kind).unwrap_or_else(|| layer.kind());
+        // Section header
+        let query = self.search_query.trim().to_lowercase();
+        let filtered_layers: Vec<LayerDef> = all_layer_defs
+            .into_iter()
+            .filter(|def| {
+                if query.is_empty() {
+                    true
+                } else {
+                    def.name.to_lowercase().contains(&query)
+                }
+            })
+            .collect();
 
-                    let bg_color = if is_selected {
-                        t.selection_fill
-                    } else {
-                        Color32::TRANSPARENT
-                    };
+        ui.label(
+            RichText::new(format!("LAYERS IN PROJECT ({})", filtered_layers.len()))
+                .font(FontId::new(10.0, theme::mono_for(ui.ctx())))
+                .color(t.faint),
+        );
+        ui.add_space(4.0);
 
-                    let stroke = if is_selected {
-                        Stroke::new(1.0, t.accent)
-                    } else {
-                        Stroke::NONE
-                    };
+        // 3. Card list
+        ScrollArea::vertical()
+            .max_height(ui.available_height() - 36.0)
+            .show(ui, |ui| {
+                if filtered_layers.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(20.0);
+                        ui.label(RichText::new("No layers match the search.").color(t.muted));
+                    });
+                } else {
+                    for (idx, def) in filtered_layers.iter().enumerate() {
+                        let is_selected = active_layer_id == Some(def.id);
 
-                    Frame::new()
-                        .fill(bg_color)
-                        .stroke(stroke)
-                        .inner_margin(Margin::symmetric(6, 4))
-                        .corner_radius(CornerRadius::ZERO)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                // 1. Visibility toggle
-                                let vis_text = if layer.visible { "👁" } else { "—" };
-                                let vis_tip = if layer.visible {
-                                    "Hide layer"
-                                } else {
-                                    "Show layer"
-                                };
-                                let vis_btn = ui.small_button(vis_text).on_hover_text(vis_tip);
-                                if vis_btn.clicked() {
-                                    actions.exec(ToggleLayerVisibilityCommand::new(
-                                        level_id,
-                                        layer.def_id,
-                                    ));
-                                }
+                        let card_frame = Frame::new()
+                            .fill(if is_selected { t.sunken } else { t.panel })
+                            .stroke(if is_selected {
+                                Stroke::new(1.0, t.accent)
+                            } else {
+                                t.hairline()
+                            })
+                            .corner_radius(CornerRadius::same(4))
+                            .inner_margin(Margin::symmetric(8, 6));
 
-                                // 2. Order badge
-                                ui.label(
-                                    RichText::new(format!("#{idx}")).color(t.muted).size(11.0),
-                                );
-
-                                // 3. Kind badge
-                                let (badge_text, badge_color) = match kind {
-                                    LayerKind::Tiles => ("Tiles", t.accent),
-                                    LayerKind::IntGrid => {
-                                        ("IntGrid", Color32::from_rgb(100, 180, 240))
-                                    }
-                                    LayerKind::Entities => {
-                                        ("Entities", Color32::from_rgb(240, 160, 80))
-                                    }
-                                    LayerKind::Auto => ("Auto", Color32::from_rgb(180, 120, 240)),
-                                };
-                                ui.label(
-                                    RichText::new(format!("[{badge_text}]"))
-                                        .color(badge_color)
-                                        .size(11.0),
-                                );
-
-                                // 4. Layer name / row selection
-                                let name_label = RichText::new(layer_name)
-                                    .color(if is_selected { t.ink_strong } else { t.ink })
-                                    .size(13.0);
-
-                                let row_resp = ui.selectable_label(is_selected, name_label);
-
-                                if row_resp.clicked() {
-                                    actions.emit(EditorEvent::SetActiveLayer(Some(layer.def_id)));
-                                }
-                                if row_resp.double_clicked() {
-                                    actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(
-                                        layer.def_id,
-                                    )));
-                                }
-
-                                row_resp.context_menu(|ui| {
-                                    if ui.button("Select Layer").clicked() {
-                                        actions
-                                            .emit(EditorEvent::SetActiveLayer(Some(layer.def_id)));
-                                        ui.close();
-                                    }
-                                    if ui.button("Toggle Visibility").clicked() {
-                                        actions.exec(ToggleLayerVisibilityCommand::new(
-                                            level_id,
-                                            layer.def_id,
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button("Edit Definition").clicked() {
-                                        actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(
-                                            layer.def_id,
-                                        )));
-                                        ui.close();
-                                    }
-                                    ui.separator();
-                                    if ui.button("Delete Layer").clicked() {
-                                        actions.exec(RemoveLayerDefCommand::new(layer.def_id));
-                                        if is_selected {
-                                            actions.emit(EditorEvent::SetActiveLayer(None));
+                        let card_resp = card_frame
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    // Visibility toggle if level active
+                                    if let Some(lvl) = level_opt {
+                                        let is_visible = lvl
+                                            .layers
+                                            .iter()
+                                            .find(|l| l.def_id == def.id)
+                                            .map(|l| l.visible)
+                                            .unwrap_or(true);
+                                        let vis_btn = ui
+                                            .small_button(if is_visible { "👁" } else { "—" })
+                                            .on_hover_text(if is_visible {
+                                                "Hide layer"
+                                            } else {
+                                                "Show layer"
+                                            });
+                                        if vis_btn.clicked() {
+                                            actions.exec(ToggleLayerVisibilityCommand::new(
+                                                lvl.id, def.id,
+                                            ));
                                         }
-                                        ui.close();
                                     }
+
+                                    // Layer kind icon
+                                    let (icon_glyph, badge_text, badge_color) = match def.kind {
+                                        LayerKind::Tiles => (
+                                            Icon::Tiles.glyph(),
+                                            format!(
+                                                "Tiles {}x{}",
+                                                def.grid_size.x, def.grid_size.y
+                                            ),
+                                            t.accent,
+                                        ),
+                                        LayerKind::IntGrid => (
+                                            Icon::IntGrid.glyph(),
+                                            "IntGrid".to_string(),
+                                            Color32::from_rgb(100, 180, 240),
+                                        ),
+                                        LayerKind::Entities => (
+                                            Icon::Entity.glyph(),
+                                            "Entities".to_string(),
+                                            Color32::from_rgb(240, 160, 80),
+                                        ),
+                                        LayerKind::Auto => (
+                                            Icon::AutoLayer.glyph(),
+                                            "Auto".to_string(),
+                                            Color32::from_rgb(180, 120, 240),
+                                        ),
+                                    };
+
+                                    ui.label(RichText::new(icon_glyph).color(t.accent_ink));
+
+                                    // Layer name
+                                    ui.label(
+                                        RichText::new(&def.name).strong().color(if is_selected {
+                                            t.ink_strong
+                                        } else {
+                                            t.ink
+                                        }),
+                                    );
+
+                                    // Right pill badge and more action
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(RichText::new("⋮").color(t.muted));
+
+                                            Frame::new()
+                                                .fill(theme::tint(badge_color, 0.12))
+                                                .stroke(Stroke::new(1.0, badge_color))
+                                                .corner_radius(CornerRadius::same(3))
+                                                .inner_margin(Margin::symmetric(6, 2))
+                                                .show(ui, |ui| {
+                                                    ui.label(
+                                                        RichText::new(badge_text)
+                                                            .size(10.5)
+                                                            .color(badge_color),
+                                                    );
+                                                });
+                                        },
+                                    );
                                 });
-                            });
+                            })
+                            .response
+                            .interact(egui::Sense::click());
+
+                        if card_resp.clicked() {
+                            actions.emit(EditorEvent::SetActiveLayer(Some(def.id)));
+                        }
+                        if card_resp.double_clicked() {
+                            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(def.id)));
+                        }
+
+                        // Context menu
+                        card_resp.context_menu(|ui| {
+                            if ui.button("Select Layer").clicked() {
+                                actions.emit(EditorEvent::SetActiveLayer(Some(def.id)));
+                                ui.close();
+                            }
+                            if ui.button("Edit Definition").clicked() {
+                                actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(def.id)));
+                                ui.close();
+                            }
+                            if let Some(lvl) = level_opt {
+                                if ui.button("Toggle Visibility").clicked() {
+                                    actions.exec(ToggleLayerVisibilityCommand::new(lvl.id, def.id));
+                                    ui.close();
+                                }
+                                if idx > 0 && ui.button("Move Layer Up").clicked() {
+                                    let mut new_order: Vec<LayerDefId> =
+                                        lvl.layers.iter().map(|l| l.def_id).collect();
+                                    if let Some(pos) = new_order.iter().position(|&id| id == def.id)
+                                    {
+                                        if pos + 1 < new_order.len() {
+                                            new_order.swap(pos, pos + 1);
+                                            actions.exec(ReorderLayerDefsCommand::new(new_order));
+                                        }
+                                    }
+                                    ui.close();
+                                }
+                                if ui.button("Move Layer Down").clicked() {
+                                    let mut new_order: Vec<LayerDefId> =
+                                        lvl.layers.iter().map(|l| l.def_id).collect();
+                                    if let Some(pos) = new_order.iter().position(|&id| id == def.id)
+                                    {
+                                        if pos > 0 {
+                                            new_order.swap(pos, pos - 1);
+                                            actions.exec(ReorderLayerDefsCommand::new(new_order));
+                                        }
+                                    }
+                                    ui.close();
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("Delete Layer").clicked() {
+                                actions.exec(RemoveLayerDefCommand::new(def.id));
+                                if is_selected {
+                                    actions.emit(EditorEvent::SetActiveLayer(None));
+                                }
+                                ui.close();
+                            }
                         });
 
-                    ui.add_space(2.0);
+                        ui.add_space(4.0);
+                    }
                 }
             });
+
+        // 4. Bottom action button
+        ui.add_space(4.0);
+        if button(ui, "+ Add Layer Def", ButtonKind::Primary, true).clicked() {
+            let next_id = LayerDefId(
+                project
+                    .defs
+                    .layers
+                    .iter()
+                    .map(|l| l.id.0)
+                    .max()
+                    .unwrap_or(0)
+                    + 1,
+            );
+            let default_tileset = project.defs.tilesets.first().map(|ts| ts.id);
+            let def = LayerDef {
+                id: next_id,
+                name: format!("Layer_{}", next_id.0),
+                kind: LayerKind::Tiles,
+                grid_size: UVec2::new(16, 16),
+                tileset_id: default_tileset,
+                int_grid_values: Vec::new(),
+            };
+            actions.exec(AddLayerDefCommand::new(def));
+            actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
+            actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
         }
 
-        // 4. Apply deferred actions
+        // 5. Apply deferred actions
         for event in actions.events {
             cx.emit(event);
         }

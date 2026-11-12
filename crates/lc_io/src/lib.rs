@@ -8,11 +8,14 @@
 //! `lc_io`: Multi-file JSON serialization, migrations, and project I/O.
 //! The ONLY crate using `std::fs`.
 
+pub mod enum_file;
 pub mod error;
 pub mod format;
 pub mod io;
 pub mod log;
 pub mod migrate;
+
+pub use enum_file::*;
 
 pub use error::IoError;
 pub use format::{LevelFile, LevelManifestEntry, ProjectFile, WorldFile, WorldManifestEntry};

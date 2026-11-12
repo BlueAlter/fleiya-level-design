@@ -2,20 +2,29 @@
 
 #![forbid(unsafe_code)]
 
+pub mod app_mode;
 pub mod assets;
 pub mod console;
+pub mod def_windows;
 pub mod doc_tab_viewer;
 pub mod dock_layout;
 pub mod dock_panels;
 pub mod dock_style;
+pub mod enum_file;
+pub mod enum_view;
 pub mod file_dialog;
+pub mod inspector_panel;
 pub mod menu;
 pub mod project_panel;
 pub mod shell_app;
 pub mod status_bar;
+pub mod tileset_dialog;
+pub mod tileset_panel;
 pub mod tool_router;
+pub mod ui;
 pub mod workspace;
 
+pub use app_mode::AppMode;
 pub use assets::ShellAssetService;
 pub use console::{
     parse_doc_kind, BoundedRingBuffer, CollapsedLogEntry, ConsoleFilter, ConsolePanel,
@@ -26,9 +35,19 @@ pub use dock_layout::{BottomDockState, DockSlotLocation, DockSlotState, ShellDoc
 pub use file_dialog::{
     FileDialogHandle, FileDialogOutcome, FileDialogService, NativeFileDialogService,
 };
+pub use inspector_panel::InspectorPanel;
 pub use lc_canvas::theme;
+pub use lc_core::command::DocKind;
 pub use project_panel::ProjectPanel;
-pub use shell_app::ShellApp;
+pub use shell_app::{ShellApp, TagDef, TagId};
+pub use tileset_dialog::{render_tile_icon, show_tileset_dialog, TilesetDialogState};
+pub use tileset_panel::CombinedTilesetPanel;
+pub use ui::context_menu::{
+    is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
+    ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
+};
+pub use ui::tile_bounds::{TileGrid, TileRect};
+pub use ui::tile_picker::{PickerTarget, PickerView, TilePicker, TilePickerEvent, TilesetData};
 
 use lc_io::RotatingLogWriter;
 use std::sync::Arc;

@@ -4,6 +4,7 @@ use egui::{CentralPanel, Id, Panel, Ui};
 use egui_dock::{DockArea, DockState};
 use glam::IVec2;
 use lc_core::command::{Command, DocKind, UndoStack};
+use lc_core::defs::EnumDef;
 use lc_core::project::Project;
 use lc_ui_api::events::EditorEvent;
 use lc_ui_api::registry::Registry;
@@ -34,6 +35,30 @@ enum FileDialogAction {
 struct PendingFileDialog {
     action: FileDialogAction,
     handle: FileDialogHandle,
+}
+
+/// Active draft copy of enum definition being edited, keyed per enum id.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnumDraft {
+    pub def: EnumDef,
+    pub tile_rects: HashMap<String, crate::ui::tile_bounds::TileRect>,
+    pub revision: u64,
+    pub saved_revision: u64,
+}
+
+impl EnumDraft {
+    pub fn new(def: EnumDef) -> Self {
+        Self {
+            def,
+            tile_rects: HashMap::new(),
+            revision: 0,
+            saved_revision: 0,
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.revision != self.saved_revision
+    }
 }
 
 /// Main application shell orchestrating panels, document tabs, commands, and layout.
@@ -78,11 +103,82 @@ pub struct ShellApp {
     file_dialogs: Arc<dyn FileDialogService>,
     /// File dialogs waiting for a user decision.
     pending_file_dialogs: Vec<PendingFileDialog>,
+    /// Top-level active editor mode (Editor or Enums).
+    pub active_mode: crate::app_mode::AppMode,
+    /// Active draft copies of enum definitions keyed per EnumDefId.
+    pub enum_drafts: HashMap<lc_core::id::EnumDefId, EnumDraft>,
+    /// Last saved copies of enum definitions keyed per EnumDefId.
+    pub enum_saved_defs: HashMap<lc_core::id::EnumDefId, EnumDef>,
+    /// Last saved copy of enum definitions.
+    pub enum_saved: Vec<EnumDef>,
+    /// Active draft copy of enum definitions being edited.
+    pub enum_draft: Vec<EnumDef>,
+    /// Revision counter for saved enums.
+    pub enum_saved_revision: u64,
+    /// Revision counter for draft enums.
+    pub enum_draft_revision: u64,
+    /// Mapping of enum id to chosen icon tileset id.
+    pub enum_tileset_map: HashMap<lc_core::id::EnumDefId, lc_core::id::TilesetDefId>,
+    /// Whether there are unsaved enum modifications (legacy flag).
+    pub enum_unsaved: bool,
+    /// Whether to show the prompt on closing with unsaved enum changes.
+    pub show_unsaved_close_dialog: bool,
+    /// Whether the floating layer definitions window is open.
+    pub show_layer_window: bool,
+    /// Whether the floating entity definitions window is open.
+    pub show_entities_window: bool,
+    /// Whether the floating tileset definitions window is open.
+    pub show_tileset_window: bool,
+    /// Whether the floating enum definitions window is open.
+    pub show_enum_window: bool,
+    /// Currently focused layer definition in the Layer window.
+    pub selected_layer_def: Option<lc_core::id::LayerDefId>,
+    /// Currently focused entity definition in the Entities window.
+    pub selected_entity_def: Option<lc_core::id::EntityDefId>,
+    /// Currently focused tileset definition in the Tileset window.
+    pub selected_tileset_def: Option<lc_core::id::TilesetDefId>,
+    /// Currently focused enum definition in the Enum window.
+    pub selected_enum_def: Option<lc_core::id::EnumDefId>,
+    /// Pending delete action for Enum definitions window.
+    pub pending_enum_delete: Option<crate::def_windows::PendingDeleteModal>,
+    /// Project-level tag registry shared across enums and tilesets.
+    pub tag_registry: Vec<TagDef>,
+    /// Counter for allocating unique TagIds.
+    pub next_tag_id: u32,
+    /// Tags assigned to each enum definition (draft).
+    pub enum_tags_map: HashMap<lc_core::id::EnumDefId, Vec<TagId>>,
+    /// Tags assigned to each tileset definition.
+    pub tileset_tags_map: HashMap<lc_core::id::TilesetDefId, Vec<TagId>>,
+    /// Saved tag registry for revert/save parity.
+    pub tag_registry_saved: Vec<TagDef>,
+    /// Saved next tag ID.
+    pub next_tag_id_saved: u32,
+    /// Saved enum tags mapping for revert/save parity.
+    pub enum_tags_saved: HashMap<lc_core::id::EnumDefId, Vec<TagId>>,
+    /// Mapping of (EnumDefId, EnumValueId) to TileRect multi-tile selections (draft).
+    pub enum_value_tile_rects:
+        HashMap<(lc_core::id::EnumDefId, String), crate::ui::tile_bounds::TileRect>,
+    /// Saved copy of enum value tile rects for revert/save parity.
+    pub enum_saved_tile_rects:
+        HashMap<(lc_core::id::EnumDefId, String), crate::ui::tile_bounds::TileRect>,
+}
+
+/// Strongly typed identifier for a project tag.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
+pub struct TagId(pub u32);
+
+/// Project-level definition of a tag.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TagDef {
+    pub id: TagId,
+    pub name: String,
 }
 
 impl Default for ShellApp {
     fn default() -> Self {
-        Self::new(Project::new("Level Craft Project"))
+        Self::new(Project::new("Fleiya Level Design Project"))
     }
 }
 
@@ -95,7 +191,7 @@ impl ShellApp {
 
     /// Creates a shell instance with default project and specified console buffer.
     pub fn from_console(console_buffer: SharedRingBuffer) -> Self {
-        Self::new_with_console(Project::new("Level Craft Project"), console_buffer)
+        Self::new_with_console(Project::new("Fleiya Level Design Project"), console_buffer)
     }
 
     /// Creates a new shell instance using an existing console ring buffer.
@@ -111,7 +207,20 @@ impl ShellApp {
         lc_feature_entities::register(&mut registry);
         lc_feature_world::register(&mut registry);
 
+        registry.register_panel(Box::new(crate::tileset_panel::CombinedTilesetPanel::new()));
+        registry.register_panel(Box::new(crate::inspector_panel::InspectorPanel::new()));
+
         let assets = Arc::new(ShellAssetService::new());
+
+        let enum_saved = project.defs.enums.clone();
+        let enum_draft = project.defs.enums.clone();
+
+        let mut enum_drafts = HashMap::new();
+        let mut enum_saved_defs = HashMap::new();
+        for def in &project.defs.enums {
+            enum_drafts.insert(def.id, EnumDraft::new(def.clone()));
+            enum_saved_defs.insert(def.id, def.clone());
+        }
 
         Self {
             project,
@@ -134,12 +243,287 @@ impl ShellApp {
             last_central_rect: None,
             file_dialogs: Arc::new(NativeFileDialogService::new()),
             pending_file_dialogs: Vec::new(),
+            active_mode: crate::app_mode::AppMode::Editor,
+            enum_drafts,
+            enum_saved_defs,
+            enum_saved,
+            enum_draft,
+            enum_saved_revision: 0,
+            enum_draft_revision: 0,
+            enum_tileset_map: HashMap::new(),
+            enum_unsaved: false,
+            show_unsaved_close_dialog: false,
+            show_layer_window: false,
+            show_entities_window: false,
+            show_tileset_window: false,
+            show_enum_window: false,
+            selected_layer_def: None,
+            selected_entity_def: None,
+            selected_tileset_def: None,
+            selected_enum_def: None,
+            pending_enum_delete: None,
+            tag_registry: Vec::new(),
+            next_tag_id: 1,
+            enum_tags_map: HashMap::new(),
+            tileset_tags_map: HashMap::new(),
+            tag_registry_saved: Vec::new(),
+            next_tag_id_saved: 1,
+            enum_tags_saved: HashMap::new(),
+            enum_value_tile_rects: HashMap::new(),
+            enum_saved_tile_rects: HashMap::new(),
         }
+    }
+
+    /// Retrieves the `TileRect` for an enum value, with backward compatibility for old data (single tile read as 1x1).
+    pub fn get_enum_value_tile_rect(
+        &self,
+        enum_id: lc_core::id::EnumDefId,
+        val_id: &str,
+        tile: Option<&lc_core::layer::TileRef>,
+        cols: u32,
+    ) -> Option<crate::ui::tile_bounds::TileRect> {
+        if let Some(rect) = self
+            .enum_value_tile_rects
+            .get(&(enum_id, val_id.to_string()))
+            .copied()
+        {
+            return Some(rect);
+        }
+        tile.map(|tr| {
+            let col = tr.tile_id.checked_rem(cols).unwrap_or(0);
+            let row = tr.tile_id.checked_div(cols).unwrap_or(0);
+            crate::ui::tile_bounds::TileRect::single(col, row)
+        })
     }
 
     /// Access to the console ring buffer.
     pub fn console_buffer(&self) -> &SharedRingBuffer {
         &self.console_buffer
+    }
+
+    /// Ensures an EnumDraft exists for the given ID and returns a mutable reference.
+    pub fn ensure_enum_draft(&mut self, enum_id: lc_core::id::EnumDefId) -> &mut EnumDraft {
+        if !self.enum_drafts.contains_key(&enum_id) {
+            let def = self
+                .enum_draft
+                .iter()
+                .find(|e| e.id == enum_id)
+                .cloned()
+                .or_else(|| {
+                    self.project
+                        .defs
+                        .enums
+                        .iter()
+                        .find(|e| e.id == enum_id)
+                        .cloned()
+                })
+                .unwrap_or_else(|| EnumDef::new(enum_id, format!("Enum_{}", enum_id.0)));
+            let mut draft = EnumDraft::new(def);
+            for ((eid, vid), rect) in &self.enum_value_tile_rects {
+                if *eid == enum_id {
+                    draft.tile_rects.insert(vid.clone(), *rect);
+                }
+            }
+            self.enum_drafts.insert(enum_id, draft);
+        }
+        self.enum_drafts.get_mut(&enum_id).unwrap()
+    }
+
+    /// Gets an immutable reference to the EnumDraft for the given EnumDefId.
+    pub fn get_enum_draft(&self, enum_id: lc_core::id::EnumDefId) -> Option<&EnumDraft> {
+        self.enum_drafts.get(&enum_id)
+    }
+
+    /// Checks if the draft for a specific enum is dirty (modified since last save).
+    pub fn is_enum_draft_dirty(&self, enum_id: lc_core::id::EnumDefId) -> bool {
+        if let Some(draft) = self.enum_drafts.get(&enum_id) {
+            if draft.is_dirty() {
+                return true;
+            }
+            if let Some(saved) = self.enum_saved_defs.get(&enum_id) {
+                if draft.def != *saved {
+                    return true;
+                }
+            }
+        }
+        if let Some(draft_def) = self.enum_draft.iter().find(|e| e.id == enum_id) {
+            if let Some(saved_def) = self.enum_saved.iter().find(|e| e.id == enum_id) {
+                if draft_def != saved_def {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether there are unsaved enum modifications between draft and saved.
+    pub fn enum_is_dirty(&self) -> bool {
+        if let Some(sel_id) = self.selected_enum_def {
+            self.is_enum_draft_dirty(sel_id)
+        } else {
+            self.enum_drafts.values().any(|d| d.is_dirty())
+                || self.enum_draft_revision != self.enum_saved_revision
+        }
+    }
+
+    /// Number of unsaved enum modifications.
+    pub fn unsaved_changes_count(&self) -> u64 {
+        self.enum_draft_revision
+            .saturating_sub(self.enum_saved_revision)
+    }
+
+    /// Resolves the width and height of a tileset's image asset.
+    pub fn resolve_tileset_image_size(&self, id: lc_core::id::TilesetDefId) -> Option<(u32, u32)> {
+        let ts = self.project.defs.tileset(id)?;
+        let full_path = self.assets.resolve_path(&ts.path);
+        if full_path.exists() {
+            if let Some(dims) = crate::enum_file::read_png_dimensions(&full_path) {
+                return Some(dims);
+            }
+        }
+        let candidate_paths = [
+            std::path::PathBuf::from(&ts.path),
+            std::path::PathBuf::from("examples/sample_project").join(&ts.path),
+            std::path::PathBuf::from("examples").join(&ts.path),
+        ];
+        for p in &candidate_paths {
+            if p.exists() {
+                if let Some(dims) = crate::enum_file::read_png_dimensions(p) {
+                    return Some(dims);
+                }
+            }
+        }
+        Some((256, 256))
+    }
+
+    /// Gets existing tag ID with case-insensitive match, or creates a new tag in the registry.
+    pub fn get_or_create_tag(&mut self, name: &str) -> TagId {
+        let trimmed = name.trim();
+        if let Some(existing) = self
+            .tag_registry
+            .iter()
+            .find(|t| t.name.trim().eq_ignore_ascii_case(trimmed))
+        {
+            return existing.id;
+        }
+        let id = TagId(self.next_tag_id);
+        self.next_tag_id += 1;
+        self.tag_registry.push(TagDef {
+            id,
+            name: trimmed.to_string(),
+        });
+        id
+    }
+
+    /// Assigns a tag to an enum.
+    pub fn assign_tag_to_enum(&mut self, enum_id: lc_core::id::EnumDefId, tag_id: TagId) {
+        let tags = self.enum_tags_map.entry(enum_id).or_default();
+        if !tags.contains(&tag_id) {
+            tags.push(tag_id);
+            self.enum_draft_revision += 1;
+        }
+    }
+
+    /// Removes a tag from an enum and cleans up unused tags.
+    pub fn remove_tag_from_enum(&mut self, enum_id: lc_core::id::EnumDefId, tag_id: TagId) {
+        if let Some(tags) = self.enum_tags_map.get_mut(&enum_id) {
+            tags.retain(|&id| id != tag_id);
+            self.cleanup_unused_tags();
+            self.enum_draft_revision += 1;
+        }
+    }
+
+    /// Removes any tags from the registry that are not used by any enum or tileset.
+    pub fn cleanup_unused_tags(&mut self) {
+        let mut used = std::collections::HashSet::new();
+        for tags in self.enum_tags_map.values() {
+            for &t in tags {
+                used.insert(t);
+            }
+        }
+        for tags in self.tileset_tags_map.values() {
+            for &t in tags {
+                used.insert(t);
+            }
+        }
+        self.tag_registry.retain(|t| used.contains(&t.id));
+    }
+
+    /// Renames a tag across all enums and tilesets.
+    /// Rejects if new_name is empty or duplicates an existing tag name (case-insensitive).
+    pub fn rename_tag(&mut self, tag_id: TagId, new_name: &str) -> Result<(), String> {
+        let trimmed = new_name.trim();
+        if trimmed.is_empty() {
+            return Err("Tag name cannot be empty".to_string());
+        }
+        if self
+            .tag_registry
+            .iter()
+            .any(|t| t.id != tag_id && t.name.trim().eq_ignore_ascii_case(trimmed))
+        {
+            return Err("A tag with this name already exists".to_string());
+        }
+        if let Some(tag) = self.tag_registry.iter_mut().find(|t| t.id == tag_id) {
+            tag.name = trimmed.to_string();
+            self.enum_draft_revision += 1;
+            Ok(())
+        } else {
+            Err("Tag not found".to_string())
+        }
+    }
+
+    /// Returns tags from the registry that are not currently assigned to the given enum.
+    pub fn unused_tags_for_enum(&self, enum_id: lc_core::id::EnumDefId) -> Vec<TagDef> {
+        let assigned = self
+            .enum_tags_map
+            .get(&enum_id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        self.tag_registry
+            .iter()
+            .filter(|t| !assigned.contains(&t.id))
+            .cloned()
+            .collect()
+    }
+
+    /// Duplicates an enum definition and places it directly below the original.
+    pub fn duplicate_enum(
+        &mut self,
+        original_id: lc_core::id::EnumDefId,
+    ) -> Option<lc_core::id::EnumDefId> {
+        let orig_idx = self.enum_draft.iter().position(|e| e.id == original_id)?;
+        let orig = self.enum_draft[orig_idx].clone();
+
+        let base_name = &orig.name;
+        let mut candidate_name = format!("{base_name}_Copy");
+        let mut counter = 2;
+        while self.enum_draft.iter().any(|e| e.name == candidate_name) {
+            candidate_name = format!("{base_name}_Copy{counter}");
+            counter += 1;
+        }
+
+        let next_id =
+            lc_core::id::EnumDefId(self.enum_draft.iter().map(|e| e.id.0).max().unwrap_or(0) + 1);
+
+        let mut dup_def = orig;
+        dup_def.id = next_id;
+        dup_def.name = candidate_name;
+
+        self.enum_draft.insert(orig_idx + 1, dup_def);
+
+        // Copy tags
+        if let Some(tags) = self.enum_tags_map.get(&original_id).cloned() {
+            self.enum_tags_map.insert(next_id, tags);
+        }
+
+        // Copy tileset mapping
+        if let Some(ts_id) = self.enum_tileset_map.get(&original_id).copied() {
+            self.enum_tileset_map.insert(next_id, ts_id);
+        }
+
+        self.selected_enum_def = Some(next_id);
+        self.enum_draft_revision += 1;
+        Some(next_id)
     }
 
     /// Read-only access to registry.
@@ -199,6 +583,45 @@ impl ShellApp {
     pub fn open_project_from_path(&mut self, path: &std::path::Path) -> Result<(), lc_io::IoError> {
         let loaded = lc_io::load_project(path)?;
         self.project = loaded;
+        self.enum_saved = self.project.defs.enums.clone();
+        self.enum_draft = self.project.defs.enums.clone();
+        self.enum_saved_revision = 0;
+        self.enum_draft_revision = 0;
+        self.enum_tileset_map.clear();
+        self.enum_drafts.clear();
+        self.enum_saved_defs.clear();
+        let has_ts1 = self.project.defs.tileset(lc_core::id::TilesetDefId(1)).is_some();
+        let has_ts2 = self.project.defs.tileset(lc_core::id::TilesetDefId(2)).is_some();
+        for enum_def in &mut self.project.defs.enums {
+            if enum_def.tileset_id.is_none() {
+                enum_def.tileset_id = enum_def
+                    .values
+                    .iter()
+                    .find_map(|v| v.tile.map(|t| t.tileset_id));
+            }
+            if enum_def.name == "BiomeType" && enum_def.tileset_id.is_none() && has_ts1 {
+                enum_def.tileset_id = Some(lc_core::id::TilesetDefId(1));
+            }
+            if enum_def.name == "WeaponType" && enum_def.tileset_id.is_none() && has_ts2 {
+                enum_def.tileset_id = Some(lc_core::id::TilesetDefId(2));
+            }
+            if let Some(ts_id) = enum_def.tileset_id {
+                self.enum_tileset_map.insert(enum_def.id, ts_id);
+            }
+            self.enum_drafts
+                .insert(enum_def.id, EnumDraft::new(enum_def.clone()));
+            self.enum_saved_defs
+                .insert(enum_def.id, enum_def.clone());
+        }
+        self.enum_saved = self.project.defs.enums.clone();
+        self.enum_draft = self.project.defs.enums.clone();
+        self.tag_registry.clear();
+        self.next_tag_id = 1;
+        self.enum_tags_map.clear();
+        self.tileset_tags_map.clear();
+        self.tag_registry_saved.clear();
+        self.next_tag_id_saved = 1;
+        self.enum_tags_saved.clear();
         self.project_path = Some(path.to_path_buf());
         self.assets
             .set_project_dir(path.parent().map(|p| p.to_path_buf()));
@@ -317,16 +740,19 @@ impl ShellApp {
         }
     }
 
-    /// Opens or focuses a document tab. Guarantees the same `DocKind` never opens twice.
-    pub fn open_document(&mut self, kind: DocKind) {
-        if self.open_documents.contains_key(&kind) {
-            // Already open: focus the tab in dock_state
-            self.focus_document(kind);
-            return;
-        }
+    /// Enqueues a command for deferred execution.
+    pub fn execute_command(&mut self, cmd: Box<dyn Command>) {
+        self.pending_commands.push(cmd);
+    }
 
-        let doc = match kind {
+    /// Opens or focuses a document tab, or opens the corresponding floating window for definition kinds.
+    pub fn open_document(&mut self, kind: DocKind) {
+        match kind {
             DocKind::Level(level_id) => {
+                if self.open_documents.contains_key(&kind) {
+                    self.focus_document(kind);
+                    return;
+                }
                 let mut view = lc_feature_level::LevelDocumentView::new(level_id);
                 view.add_handler(Box::new(lc_feature_tileset::TilesLayerHandler::new()));
                 view.add_handler(Box::new(lc_feature_tileset::IntGridLayerHandler::new()));
@@ -335,15 +761,62 @@ impl ShellApp {
                     lc_feature_entities::EntityInspectorSection::new(),
                 ));
                 view.set_tool(Box::new(crate::tool_router::LevelCanvasToolRouter::new()));
-                Box::new(view) as Box<dyn DocumentView>
+                self.open_documents.insert(kind, Box::new(view));
+                self.dock_state.push_to_first_leaf(kind);
+                self.status_message = format!("Opened Level {:?}", level_id.0);
             }
-            _ => self.registry.create_document(kind).unwrap_or_else(|| {
-                Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
-            }),
-        };
-        self.open_documents.insert(kind, doc);
-        self.dock_state.push_to_first_leaf(kind);
-        self.status_message = format!("Opened {kind:?}");
+            DocKind::World(world_id) => {
+                if self.open_documents.contains_key(&kind) {
+                    self.focus_document(kind);
+                    return;
+                }
+                let doc = self.registry.create_document(kind).unwrap_or_else(|| {
+                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                });
+                self.open_documents.insert(kind, doc);
+                self.dock_state.push_to_first_leaf(kind);
+                self.status_message = format!("Opened World {:?}", world_id.0);
+            }
+            DocKind::LayerDef(layer_id) => {
+                self.show_layer_window = true;
+                self.selected_layer_def = Some(layer_id);
+                self.status_message = "Opened Layer Window".to_string();
+            }
+            DocKind::EntityDef(entity_id) => {
+                self.show_entities_window = true;
+                self.selected_entity_def = Some(entity_id);
+                self.status_message = "Opened Entities Window".to_string();
+            }
+            DocKind::TilesetDef(tileset_id) => {
+                self.show_tileset_window = true;
+                self.selected_tileset_def = Some(tileset_id);
+                self.status_message = "Opened Tileset Window".to_string();
+            }
+            DocKind::EnumDef(enum_id) => {
+                if self.open_documents.contains_key(&kind) {
+                    self.focus_document(kind);
+                    return;
+                }
+                let doc = self.registry.create_document(kind).unwrap_or_else(|| {
+                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                });
+                self.open_documents.insert(kind, doc);
+                self.dock_state.push_to_first_leaf(kind);
+                self.status_message = format!("Opened Enum {:?}", enum_id.0);
+            }
+            DocKind::ProjectSettings => {
+                if self.open_documents.contains_key(&kind) {
+                    self.focus_document(kind);
+                    return;
+                }
+                let doc = self.registry.create_document(kind).unwrap_or_else(|| {
+                    Box::new(crate::doc_tab_viewer::PlaceholderDocumentView { kind })
+                });
+                self.open_documents.insert(kind, doc);
+                self.dock_state.push_to_first_leaf(kind);
+                self.status_message = "Opened Project Settings".to_string();
+            }
+        }
     }
 
     /// Automatically opens the first level of the project into a document tab and focuses it.
@@ -454,70 +927,88 @@ impl ShellApp {
             .show(ui, |ui| {
                 crate::menu::render_menu_bar(self, ui);
             });
-        // 2. Bottom status bar
-        Panel::bottom("status_bar")
-            .exact_size(theme::STATUS_H)
-            .frame(
-                egui::Frame::new()
-                    .fill(tokens.bg)
-                    .inner_margin(egui::Margin::ZERO),
-            )
-            .show(ui, |ui| {
-                crate::status_bar::render_status_bar(self, ui);
-            });
-        let mut dock_geometry = crate::dock_panels::DockGeometry::default();
+        match self.active_mode {
+            crate::app_mode::AppMode::Editor => {
+                // 2. Bottom status bar
+                Panel::bottom("status_bar")
+                    .exact_size(theme::STATUS_H)
+                    .frame(
+                        egui::Frame::new()
+                            .fill(tokens.bg)
+                            .inner_margin(egui::Margin::ZERO),
+                    )
+                    .show(ui, |ui| {
+                        crate::status_bar::render_status_bar(self, ui);
+                    });
+                let mut dock_geometry = crate::dock_panels::DockGeometry::default();
+                const DOCK_UNIFORM_WIDTH: f32 = 260.0;
+                const DOCK_MIN_WIDTH: f32 = 240.0;
 
-        // 3. Left dock panel
-        if !self.dock_layout.left.panels.is_empty() {
-            Panel::left("left_dock")
-                .resizable(true)
-                .default_size(220.0)
-                .frame(
-                    egui::Frame::new()
-                        .fill(tokens.panel)
-                        .inner_margin(egui::Margin::ZERO),
-                )
-                .show(ui, |ui| {
-                    dock_geometry.left = Some(crate::dock_panels::render_dock_slot(
-                        self,
-                        ui,
-                        DockSlotLocation::Left,
-                    ));
-                });
-        }
-        // 4. Right dock panel
-        if !self.dock_layout.right.panels.is_empty() {
-            Panel::right("right_dock")
-                .resizable(true)
-                .default_size(260.0)
-                .frame(
-                    egui::Frame::new()
-                        .fill(tokens.panel)
-                        .inner_margin(egui::Margin::ZERO),
-                )
-                .show(ui, |ui| {
-                    dock_geometry.right = Some(crate::dock_panels::render_dock_slot(
-                        self,
-                        ui,
-                        DockSlotLocation::Right,
-                    ));
-                });
-        }
-        // 5. Bottom dock (collapsible)
-        dock_geometry.bottom = crate::dock_panels::render_bottom_dock(self, ui);
-        // 6. Central document area (egui_dock)
-        CentralPanel::default()
-            .frame(
-                egui::Frame::new()
-                    .fill(tokens.bg)
-                    .inner_margin(egui::Margin::ZERO),
-            )
-            .show(ui, |ui| {
-                self.render_central_documents(ui);
-            });
+                // 3. Left dock panel
+                if !self.dock_layout.left.panels.is_empty() {
+                    Panel::left("left_dock")
+                        .resizable(true)
+                        .default_size(DOCK_UNIFORM_WIDTH)
+                        .min_size(DOCK_MIN_WIDTH)
+                        .frame(
+                            egui::Frame::new()
+                                .fill(tokens.panel)
+                                .inner_margin(egui::Margin::ZERO),
+                        )
+                        .show(ui, |ui| {
+                            ui.set_min_width(DOCK_MIN_WIDTH);
+                            dock_geometry.left = Some(crate::dock_panels::render_dock_slot(
+                                self,
+                                ui,
+                                DockSlotLocation::Left,
+                            ));
+                        });
+                }
+                // 4. Right dock panel
+                if !self.dock_layout.right.panels.is_empty() {
+                    Panel::right("right_dock")
+                        .resizable(true)
+                        .default_size(DOCK_UNIFORM_WIDTH)
+                        .min_size(DOCK_MIN_WIDTH)
+                        .frame(
+                            egui::Frame::new()
+                                .fill(tokens.panel)
+                                .inner_margin(egui::Margin::ZERO),
+                        )
+                        .show(ui, |ui| {
+                            ui.set_min_width(DOCK_MIN_WIDTH);
+                            dock_geometry.right = Some(crate::dock_panels::render_dock_slot(
+                                self,
+                                ui,
+                                DockSlotLocation::Right,
+                            ));
+                        });
+                }
+                // 5. Bottom dock (collapsible)
+                dock_geometry.bottom = crate::dock_panels::render_bottom_dock(self, ui);
+                // 6. Central document area (egui_dock)
+                CentralPanel::default()
+                    .frame(
+                        egui::Frame::new()
+                            .fill(tokens.bg)
+                            .inner_margin(egui::Margin::ZERO),
+                    )
+                    .show(ui, |ui| {
+                        self.render_central_documents(ui);
+                    });
 
-        // 7. Drag preview, drop indicator and drop completion.
-        crate::dock_panels::handle_drag_and_drop(self, ui, &dock_geometry);
+                // 7. Drag preview, drop indicator and drop completion.
+                crate::dock_panels::handle_drag_and_drop(self, ui, &dock_geometry);
+
+                // 7b. Floating definition windows
+                crate::def_windows::render_layer_window(self, ui.ctx());
+                crate::def_windows::render_entities_window(self, ui.ctx());
+                crate::def_windows::render_tileset_window(self, ui.ctx());
+            }
+            crate::app_mode::AppMode::Enums => {
+                crate::enum_view::render_enum_view(self, ui);
+            }
+        }
 
         // 8. Process deferred commands and events
         self.process_commands_and_events();
@@ -564,15 +1055,30 @@ impl ShellApp {
             .style(dock_style)
             .show_inside(ui, &mut tab_viewer);
 
-        // Prune any documents that were closed or became invalid
-        let active_tabs: Vec<DocKind> = self.dock_state.iter_all_tabs().map(|(_, t)| *t).collect();
+        // Prune any documents that were closed or became invalid, or that should not be tabs
+        let active_tabs: Vec<DocKind> = self
+            .dock_state
+            .iter_all_tabs()
+            .map(|(_, t)| *t)
+            .filter(|t| {
+                matches!(
+                    t,
+                    DocKind::Level(_)
+                        | DocKind::World(_)
+                        | DocKind::ProjectSettings
+                        | DocKind::TilesetDef(_)
+                        | DocKind::EnumDef(_)
+                )
+            })
+            .collect();
         self.open_documents
             .retain(|k, v| active_tabs.contains(k) && v.is_valid(&self.project));
         let valid_docs = self.open_documents.keys().copied().collect::<Vec<_>>();
         self.dock_state.retain_tabs(|t| valid_docs.contains(t));
     }
 
-    fn process_commands_and_events(&mut self) {
+    /// Processes queued commands and events.
+    pub fn process_commands_and_events(&mut self) {
         // 1. Apply queued commands
         let commands = std::mem::take(&mut self.pending_commands);
         for cmd in commands {

@@ -1,8 +1,10 @@
-//! Document view for editing `EnumDef` enumerations and their values.
+//! Document view for editing `EnumDef` enumerations and their values matching reference picture 2.
+
+use std::collections::HashSet;
 
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, ScrollArea, Stroke, TextEdit, Ui};
 use lc_canvas::theme::{self, Tokens};
-use lc_canvas::widgets::{hud, meta_row, page, page_header};
+use lc_canvas::widgets::{button, ButtonKind};
 use lc_core::command::{Command, DocKind};
 use lc_core::defs::{EnumDef, EnumValueDef};
 use lc_core::id::EnumDefId;
@@ -38,9 +40,12 @@ impl ActionQueue {
 /// Document tab view for inspecting and editing an `EnumDef` and its values.
 pub struct EnumDefDocumentView {
     enum_def_id: EnumDefId,
+    active_sub_tab: usize, // 0 = ENUM DEF, 1 = DOCUMENT
 
     // Edit buffers
     name_buf: String,
+    display_title_buf: String,
+    is_bitmask: bool,
     values_buf: Vec<EnumValueDef>,
     buffers_synced: bool,
 
@@ -54,7 +59,10 @@ impl EnumDefDocumentView {
     pub fn new(enum_def_id: EnumDefId) -> Self {
         Self {
             enum_def_id,
+            active_sub_tab: 0,
             name_buf: String::new(),
+            display_title_buf: String::new(),
+            is_bitmask: false,
             values_buf: Vec::new(),
             buffers_synced: false,
             confirm_delete_enum: false,
@@ -71,6 +79,9 @@ impl EnumDefDocumentView {
     fn sync_buffers(&mut self, def: &EnumDef) {
         if !self.buffers_synced {
             self.name_buf = def.name.clone();
+            if self.display_title_buf.is_empty() {
+                self.display_title_buf = format!("{} Tier", def.name);
+            }
             self.values_buf = def.values.clone();
             self.buffers_synced = true;
         }
@@ -107,37 +118,126 @@ impl DocumentView for EnumDefDocumentView {
         let mut actions = ActionQueue::default();
         let references = find_enum_def_references(cx.project(), self.enum_def_id);
 
-        page(ui, |ui| {
-            // 1. Header: Name & ID
-            page_header(
-                ui,
-                "ENUM",
-                &format!("ENUM DEFINITION #{}", self.enum_def_id.0),
-                "Configure enumeration values, badge colors, and optional tile representations.",
-            );
+        let mut unique_entities = HashSet::new();
+        for r in &references {
+            if let EnumReferenceLocation::EntityField { entity_id, .. } = r {
+                unique_entities.insert(*entity_id);
+            }
+        }
+        let entity_count = unique_entities.len();
+        let field_count = references.len();
 
+        ScrollArea::vertical().show(ui, |ui| {
             ui.add_space(8.0);
 
-            // Metadata card
+            // 1. Top Sub-tabs (ENUM DEF / DOCUMENT) + Project Enums button
+            ui.horizontal(|ui| {
+                let is_def = self.active_sub_tab == 0;
+                let btn_def = Frame::new()
+                    .fill(if is_def { t.sunken } else { Color32::TRANSPARENT })
+                    .stroke(if is_def { Stroke::new(1.0, t.accent) } else { Stroke::NONE })
+                    .inner_margin(Margin::symmetric(10, 4))
+                    .corner_radius(CornerRadius::same(2))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("ENUM DEF")
+                                .size(11.0)
+                                .strong()
+                                .color(if is_def { t.accent_ink } else { t.muted }),
+                        );
+                    });
+                if btn_def.response.interact(egui::Sense::click()).clicked() {
+                    self.active_sub_tab = 0;
+                }
+
+                let is_doc = self.active_sub_tab == 1;
+                let btn_doc = Frame::new()
+                    .fill(if is_doc { t.sunken } else { Color32::TRANSPARENT })
+                    .stroke(if is_doc { Stroke::new(1.0, t.accent) } else { Stroke::NONE })
+                    .inner_margin(Margin::symmetric(10, 4))
+                    .corner_radius(CornerRadius::same(2))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("DOCUMENT")
+                                .size(11.0)
+                                .color(if is_doc { t.accent_ink } else { t.muted }),
+                        );
+                    });
+                if btn_doc.response.interact(egui::Sense::click()).clicked() {
+                    self.active_sub_tab = 1;
+                }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let _ = Frame::new()
+                        .stroke(Stroke::new(1.0, t.accent))
+                        .corner_radius(CornerRadius::same(2))
+                        .inner_margin(Margin::symmetric(8, 3))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new("PROJECT ENUMS")
+                                    .size(10.5)
+                                    .strong()
+                                    .color(t.accent_ink),
+                            );
+                        });
+                });
+            });
+
+            ui.add_space(10.0);
+
+            // 2. Heading
+            ui.heading(
+                RichText::new(format!("{} (Enum)", enum_def.name))
+                    .size(22.0)
+                    .strong()
+                    .color(t.ink_strong),
+            );
+            ui.label(
+                RichText::new(
+                    "Define enumeration keys, localized labels, badge colors, and optional bound tile graphics.",
+                )
+                .size(12.0)
+                .color(t.muted),
+            );
+
+            ui.add_space(14.0);
+
+            // 3. Section: ENUM IDENTIFIER & ATTRIBUTES
+            ui.label(
+                RichText::new("ENUM IDENTIFIER & ATTRIBUTES")
+                    .size(11.0)
+                    .strong()
+                    .color(t.accent_ink),
+            );
+            ui.add_space(4.0);
+
             Frame::new()
-                .fill(t.sunken)
+                .fill(t.panel)
                 .stroke(t.hairline())
                 .inner_margin(Margin::same(12))
-                .corner_radius(CornerRadius::ZERO)
+                .corner_radius(CornerRadius::same(4))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Enum Name").color(t.ink_strong));
+                        ui.label(RichText::new("Enum Identifier").strong().color(t.ink_strong));
                         let name_resp = ui.add(
                             TextEdit::singleline(&mut self.name_buf)
-                                .desired_width(220.0)
-                                .hint_text("Enum Name"),
+                                .desired_width(180.0)
+                                .hint_text("Identifier"),
                         );
-
-                        if name_resp.lost_focus() && self.name_buf.trim() != enum_def.name {
+                        if name_resp.lost_focus() && self.name_buf.trim() != enum_def.name && !self.name_buf.trim().is_empty() {
                             let mut updated = enum_def.clone();
                             updated.name = self.name_buf.trim().to_string();
                             actions.exec(UpdateEnumDefCommand::new(updated));
                         }
+
+                        ui.add_space(16.0);
+
+                        ui.label(RichText::new("Display Title").strong().color(t.ink_strong));
+                        ui.add(
+                            TextEdit::singleline(&mut self.display_title_buf)
+                                .desired_width(180.0)
+                                .hint_text("Display Title"),
+                        );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if !self.confirm_delete_enum {
@@ -164,191 +264,249 @@ impl DocumentView for EnumDefDocumentView {
                                     }
                                 } else {
                                     ui.checkbox(&mut self.cascade_delete_enum, "Force Cascade");
-                                    if self.cascade_delete_enum {
-                                        if ui
+                                    if self.cascade_delete_enum
+                                        && ui
                                             .button(RichText::new("Delete & Cascade").color(t.bad))
                                             .clicked()
-                                        {
-                                            actions.exec(RemoveEnumDefCommand::cascade(
-                                                self.enum_def_id,
-                                            ));
-                                            actions.emit(EditorEvent::CloseDocument(
-                                                DocKind::EnumDef(self.enum_def_id),
-                                            ));
-                                        }
-                                    } else {
-                                        ui.label(
-                                            RichText::new("Referenced by entity fields")
-                                                .color(t.warn),
-                                        );
+                                    {
+                                        actions.exec(RemoveEnumDefCommand::cascade(
+                                            self.enum_def_id,
+                                        ));
+                                        actions.emit(EditorEvent::CloseDocument(
+                                            DocKind::EnumDef(self.enum_def_id),
+                                        ));
                                     }
                                 }
                             }
                         });
                     });
+
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
+                        ui.checkbox(
+                            &mut self.is_bitmask,
+                            RichText::new(
+                                "Export as bitflag / multiselect bitmask (allows combining multiple values)",
+                            )
+                            .color(t.muted)
+                            .size(11.5),
+                        );
+                    });
                 });
 
-            // References Info Banner if used
+            // References alert if any
             if !references.is_empty() {
                 ui.add_space(8.0);
                 Frame::new()
-                    .fill(theme::tint(t.warn, 0.14))
+                    .fill(theme::tint(t.warn, 0.12))
                     .stroke(Stroke::new(1.0, t.warn))
-                    .inner_margin(Margin::same(10))
-                    .corner_radius(CornerRadius::ZERO)
+                    .inner_margin(Margin::same(8))
+                    .corner_radius(CornerRadius::same(3))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new(format!("Referenced by {} field(s):", references.len()))
-                                .color(t.warn)
-                                .strong(),
+                            RichText::new(format!(
+                                "Referenced by {} entity def(s) across {} field(s)",
+                                entity_count, field_count
+                            ))
+                            .color(t.warn)
+                            .strong()
+                            .size(11.0),
                         );
-                        for r in &references {
-                            if let EnumReferenceLocation::EntityField {
-                                entity_name,
-                                field_name,
-                                ..
-                            } = r
-                            {
-                                ui.label(
-                                    RichText::new(format!(
-                                        "  - Entity '{}' -> Field '{}'",
-                                        entity_name, field_name
-                                    ))
-                                    .color(t.ink_strong),
-                                );
-                            }
-                        }
                     });
             }
 
-            ui.add_space(16.0);
+            ui.add_space(14.0);
 
-            // 2. Enum Values Section
-            meta_row(ui, "VALUES", &format!("{} value(s)", enum_def.values.len()));
-            ui.add_space(8.0);
+            // 4. Section: ENUM VALUES (X DEFINED)
+            ui.label(
+                RichText::new(format!("ENUM VALUES ({} DEFINED)", enum_def.values.len()))
+                    .size(11.0)
+                    .strong()
+                    .color(t.accent_ink),
+            );
+            ui.add_space(4.0);
 
             Frame::new()
-                .fill(t.sunken)
+                .fill(t.panel)
                 .stroke(t.hairline())
                 .inner_margin(Margin::same(12))
-                .corner_radius(CornerRadius::ZERO)
+                .corner_radius(CornerRadius::same(4))
                 .show(ui, |ui| {
+                    // Table Header
+                    ui.horizontal(|ui| {
+                        ui.set_min_height(24.0);
+                        ui.add_sized(
+                            [140.0, 20.0],
+                            egui::Label::new(
+                                RichText::new("KEY / ID")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.muted),
+                            ),
+                        );
+                        ui.add_sized(
+                            [160.0, 20.0],
+                            egui::Label::new(
+                                RichText::new("DISPLAY LABEL")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.muted),
+                            ),
+                        );
+                        ui.add_sized(
+                            [120.0, 20.0],
+                            egui::Label::new(
+                                RichText::new("BADGE COLOR")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.muted),
+                            ),
+                        );
+                        ui.add_sized(
+                            [140.0, 20.0],
+                            egui::Label::new(
+                                RichText::new("BOUND TILE")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.muted),
+                            ),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(
+                                RichText::new("ACTION")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.muted),
+                            );
+                        });
+                    });
+
+                    ui.separator();
+                    ui.add_space(4.0);
+
                     if enum_def.values.is_empty() {
                         ui.vertical_centered(|ui| {
-                            ui.add_space(8.0);
-                            hud(ui, "NO VALUES DEFINED YET", t.muted);
-                            ui.add_space(8.0);
+                            ui.add_space(12.0);
+                            ui.label(
+                                RichText::new("No enum values defined yet.")
+                                    .color(t.muted)
+                                    .italics(),
+                            );
+                            ui.add_space(12.0);
                         });
                     } else {
-                        ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                            let num_values = enum_def.values.len();
-                            for idx in 0..num_values {
-                                let val = &enum_def.values[idx];
-                                let val_id = val.id.clone();
-                                let mut val_name = val.name.clone();
-                                let mut color_32 = Color32::from_rgba_unmultiplied(
-                                    val.color[0],
-                                    val.color[1],
-                                    val.color[2],
-                                    val.color[3],
-                                );
+                        let num_values = enum_def.values.len();
+                        for idx in 0..num_values {
+                            let val = &enum_def.values[idx];
+                            let val_id = val.id.clone();
+                            let mut val_id_buf = val.id.clone();
+                            let mut val_name_buf = val.name.clone();
+                            let mut color_32 = Color32::from_rgba_unmultiplied(
+                                val.color[0],
+                                val.color[1],
+                                val.color[2],
+                                val.color[3],
+                            );
 
-                                ui.horizontal(|ui| {
-                                    // Reorder controls: Up / Down
-                                    if idx > 0 {
-                                        if ui.small_button("▲").clicked() {
-                                            let mut new_order: Vec<String> = enum_def
-                                                .values
-                                                .iter()
-                                                .map(|v| v.id.clone())
-                                                .collect();
-                                            new_order.swap(idx, idx - 1);
-                                            actions.exec(ReorderEnumValuesCommand::new(
-                                                self.enum_def_id,
-                                                new_order,
-                                            ));
-                                        }
-                                    } else {
-                                        ui.add_space(17.0);
-                                    }
+                            ui.horizontal(|ui| {
+                                ui.set_min_height(28.0);
 
-                                    if idx + 1 < num_values {
-                                        if ui.small_button("▼").clicked() {
-                                            let mut new_order: Vec<String> = enum_def
-                                                .values
-                                                .iter()
-                                                .map(|v| v.id.clone())
-                                                .collect();
-                                            new_order.swap(idx, idx + 1);
-                                            actions.exec(ReorderEnumValuesCommand::new(
-                                                self.enum_def_id,
-                                                new_order,
-                                            ));
-                                        }
-                                    } else {
-                                        ui.add_space(17.0);
-                                    }
-
-                                    // Badge index
-                                    ui.label(
-                                        RichText::new(format!("#{idx}")).color(t.muted).monospace(),
-                                    );
-
-                                    // Value ID key
-                                    ui.label(
-                                        RichText::new(&val.id)
-                                            .color(t.accent_ink)
-                                            .monospace()
-                                            .strong(),
-                                    );
-
-                                    // Display Name TextEdit
-                                    let name_resp = ui.add(
-                                        TextEdit::singleline(&mut val_name)
-                                            .desired_width(140.0)
-                                            .hint_text("Display Name"),
-                                    );
-                                    if name_resp.lost_focus() && val_name != val.name {
-                                        let mut updated_val = val.clone();
-                                        updated_val.name = val_name;
-                                        actions.exec(UpdateEnumValueCommand::new(
-                                            self.enum_def_id,
-                                            updated_val,
-                                        ));
-                                    }
-
-                                    // Color picker button
-                                    if ui.color_edit_button_srgba(&mut color_32).changed() {
-                                        let mut updated_val = val.clone();
-                                        updated_val.color = color_32.to_array();
-                                        actions.exec(UpdateEnumValueCommand::new(
-                                            self.enum_def_id,
-                                            updated_val,
-                                        ));
-                                    }
-
-                                    // Tile icon association
-                                    if let Some(ref tile_ref) = val.tile {
-                                        ui.label(
-                                            RichText::new(format!(
-                                                "Tile #{} (TS #{})",
-                                                tile_ref.tile_id, tile_ref.tileset_id.0
-                                            ))
-                                            .color(t.muted),
+                                // Key / ID column
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(140.0, 24.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        let key_resp = ui.add(
+                                            TextEdit::singleline(&mut val_id_buf)
+                                                .desired_width(130.0)
+                                                .hint_text("Key"),
                                         );
-                                        if ui.small_button("Clear").clicked() {
+                                        if key_resp.lost_focus() && val_id_buf != val.id && !val_id_buf.trim().is_empty() {
                                             let mut updated_val = val.clone();
-                                            updated_val.tile = None;
+                                            updated_val.id = val_id_buf.trim().to_string();
                                             actions.exec(UpdateEnumValueCommand::new(
                                                 self.enum_def_id,
                                                 updated_val,
                                             ));
                                         }
-                                    } else {
-                                        // Check if user has an active palette tile selection
-                                        if let Some(ts) = cx.tile_selection() {
+                                    },
+                                );
+
+                                // Display Label column
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(160.0, 24.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        let name_resp = ui.add(
+                                            TextEdit::singleline(&mut val_name_buf)
+                                                .desired_width(150.0)
+                                                .hint_text("Display Label"),
+                                        );
+                                        if name_resp.lost_focus() && val_name_buf != val.name {
+                                            let mut updated_val = val.clone();
+                                            updated_val.name = val_name_buf;
+                                            actions.exec(UpdateEnumValueCommand::new(
+                                                self.enum_def_id,
+                                                updated_val,
+                                            ));
+                                        }
+                                    },
+                                );
+
+                                // Badge Color column
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(120.0, 24.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        if ui.color_edit_button_srgba(&mut color_32).changed() {
+                                            let mut updated_val = val.clone();
+                                            updated_val.color = color_32.to_array();
+                                            actions.exec(UpdateEnumValueCommand::new(
+                                                self.enum_def_id,
+                                                updated_val,
+                                            ));
+                                        }
+                                        let hex = format!(
+                                            "#{:02x}{:02x}{:02x}",
+                                            val.color[0], val.color[1], val.color[2]
+                                        );
+                                        ui.label(
+                                            RichText::new(hex)
+                                                .monospace()
+                                                .size(11.0)
+                                                .color(t.muted),
+                                        );
+                                    },
+                                );
+
+                                // Bound Tile column
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(140.0, 24.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        if let Some(ref tile_ref) = val.tile {
+                                            ui.label(
+                                                RichText::new("📦")
+                                                    .color(Color32::from_rgb(240, 180, 40)),
+                                            );
+                                            ui.label(
+                                                RichText::new(format!("tile_{}", tile_ref.tile_id))
+                                                    .monospace()
+                                                    .size(11.0)
+                                                    .color(t.ink_strong),
+                                            );
+                                            if ui.small_button("×").clicked() {
+                                                let mut updated_val = val.clone();
+                                                updated_val.tile = None;
+                                                actions.exec(UpdateEnumValueCommand::new(
+                                                    self.enum_def_id,
+                                                    updated_val,
+                                                ));
+                                            }
+                                        } else if let Some(ts) = cx.tile_selection() {
                                             if let Some(primary) = ts.primary_tile() {
-                                                if ui.small_button("+ Use Palette Tile").clicked() {
+                                                if ui.small_button("+ Bind Tile").clicked() {
                                                     let mut updated_val = val.clone();
                                                     updated_val.tile = Some(TileRef::new(
                                                         primary.tileset_id,
@@ -359,74 +517,73 @@ impl DocumentView for EnumDefDocumentView {
                                                         updated_val,
                                                     ));
                                                 }
+                                            } else {
+                                                ui.label(RichText::new("—").color(t.muted));
+                                            }
+                                        } else {
+                                            ui.label(RichText::new("—").color(t.muted));
+                                        }
+                                    },
+                                );
+
+                                // Action column: Delete (red text)
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        let val_refs = find_enum_value_references(
+                                            cx.project(),
+                                            self.enum_def_id,
+                                            &val_id,
+                                        );
+
+                                        if ui
+                                            .button(RichText::new("Delete").color(t.bad))
+                                            .clicked()
+                                        {
+                                            if val_refs.is_empty() {
+                                                actions.exec(RemoveEnumValueCommand::safe(
+                                                    self.enum_def_id,
+                                                    &val_id,
+                                                ));
+                                            } else {
+                                                actions.exec(RemoveEnumValueCommand::cascade(
+                                                    self.enum_def_id,
+                                                    &val_id,
+                                                ));
                                             }
                                         }
-                                    }
 
-                                    // Delete value button
-                                    let val_refs = find_enum_value_references(
-                                        cx.project(),
-                                        self.enum_def_id,
-                                        &val_id,
-                                    );
-
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            if ui.button(RichText::new("X").color(t.bad)).clicked()
-                                            {
-                                                if val_refs.is_empty() {
-                                                    actions.exec(RemoveEnumValueCommand::safe(
-                                                        self.enum_def_id,
-                                                        &val_id,
-                                                    ));
-                                                } else {
-                                                    actions.exec(RemoveEnumValueCommand::cascade(
-                                                        self.enum_def_id,
-                                                        &val_id,
-                                                    ));
-                                                }
-                                            }
-
-                                            if !val_refs.is_empty() {
-                                                ui.label(
-                                                    RichText::new(format!(
-                                                        "Used in {}",
-                                                        val_refs.len()
-                                                    ))
+                                        if !val_refs.is_empty() {
+                                            ui.label(
+                                                RichText::new(format!("{} refs", val_refs.len()))
                                                     .color(t.warn)
-                                                    .font(egui::FontId::new(
-                                                        11.0,
-                                                        egui::FontFamily::Monospace,
-                                                    )),
-                                                );
-                                            }
-                                        },
-                                    );
-                                });
+                                                    .size(10.5),
+                                            );
+                                        }
+                                    },
+                                );
+                            });
 
-                                ui.add_space(4.0);
-                            }
-                        });
+                            ui.separator();
+                        }
                     }
 
                     ui.add_space(8.0);
 
-                    // Add Value row
+                    // Add Enum Value & Sort A-Z buttons
                     ui.horizontal(|ui| {
-                        if ui.button("+ Add Value").clicked() {
+                        if button(ui, "+ Add Enum Value", ButtonKind::Primary, true).clicked() {
                             let next_num = enum_def.values.len() + 1;
                             let new_id = format!("Value_{next_num}");
                             let new_name = format!("Value {next_num}");
 
-                            // Generate attractive default colors in a cycle
                             let default_colors: [[u8; 4]; 6] = [
-                                [80, 160, 240, 255],  // Blue
-                                [100, 200, 120, 255], // Green
-                                [240, 160, 60, 255],  // Orange
-                                [220, 80, 80, 255],   // Red
-                                [180, 100, 220, 255], // Purple
-                                [240, 220, 80, 255],  // Yellow
+                                [156, 163, 175, 255], // Gray #9ca3af
+                                [61, 214, 184, 255],  // Teal #3fd6b8
+                                [45, 129, 255, 255],  // Blue #2d81ff
+                                [168, 85, 247, 255],  // Purple #a855f7
+                                [255, 193, 77, 255],  // Amber #ffc14d
+                                [239, 68, 68, 255],   // Red #ef4444
                             ];
                             let color = default_colors[(next_num - 1) % default_colors.len()];
 
@@ -439,6 +596,55 @@ impl DocumentView for EnumDefDocumentView {
 
                             actions.exec(AddEnumValueCommand::new(self.enum_def_id, new_val));
                         }
+
+                        if ui.button("Sort A-Z").clicked() {
+                            let mut sorted_ids: Vec<String> = enum_def
+                                .values
+                                .iter()
+                                .map(|v| v.id.clone())
+                                .collect();
+                            sorted_ids.sort();
+                            actions.exec(ReorderEnumValuesCommand::new(
+                                self.enum_def_id,
+                                sorted_ids,
+                            ));
+                        }
+                    });
+                });
+
+            ui.add_space(14.0);
+
+            // 5. Bottom Action Bar (matching picture-2.png)
+            Frame::new()
+                .fill(t.sunken)
+                .stroke(t.hairline())
+                .inner_margin(Margin::symmetric(14, 10))
+                .corner_radius(CornerRadius::same(3))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!(
+                                "ID: EnumDefId({}) • Used by {} Entity Def(s) & {} Field(s)",
+                                self.enum_def_id.0, entity_count, field_count
+                            ))
+                            .size(11.5)
+                            .color(t.muted),
+                        );
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if button(ui, "Save Enum Def", ButtonKind::Primary, true).clicked() {
+                                let mut updated = enum_def.clone();
+                                updated.name = self.name_buf.trim().to_string();
+                                actions.exec(UpdateEnumDefCommand::new(updated));
+                                cx.status(format!("Saved enum definition {}", self.name_buf));
+                            }
+
+                            if ui.button("Revert").clicked() {
+                                self.buffers_synced = false;
+                                self.sync_buffers(&enum_def);
+                                cx.status("Reverted enum definition edits");
+                            }
+                        });
                     });
                 });
         });

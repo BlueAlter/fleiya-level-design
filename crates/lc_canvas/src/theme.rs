@@ -270,6 +270,8 @@ pub fn apply(ctx: &egui::Context, choice: ThemeChoice) {
     let mono_family = mono_for(ctx);
 
     ctx.all_styles_mut(|style| {
+        style.interaction.selectable_labels = false;
+        style.interaction.multi_widget_text_select = false;
         style.spacing.item_spacing = egui::vec2(6.0, 4.0);
         style.spacing.icon_spacing = 8.0;
         style.spacing.button_padding = egui::vec2(10.0, 4.0);

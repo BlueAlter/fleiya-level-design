@@ -25,7 +25,7 @@ impl eframe::App for LevelCraftApp {
 
 fn main() -> eframe::Result {
     let (console_buffer, _writer) = init_shell_logging();
-    tracing::info!("Starting Level Craft editor...");
+    tracing::info!("Starting Fleiya Level Design Project editor...");
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -35,7 +35,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "Level Craft",
+        "Fleiya Level Design Project",
         native_options,
         Box::new(move |cc| {
             theme::install_fonts(&cc.egui_ctx);
@@ -59,6 +59,12 @@ fn main() -> eframe::Result {
                 } else {
                     shell.open_first_level();
                 }
+            }
+
+            if std::env::var("FLEIYA_MODE").as_deref() == Ok("enums")
+                || std::env::args().any(|a| a == "--enums")
+            {
+                shell.active_mode = lc_shell::AppMode::Enums;
             }
 
             Ok(Box::new(LevelCraftApp {

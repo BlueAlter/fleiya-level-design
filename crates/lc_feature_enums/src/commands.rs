@@ -871,3 +871,71 @@ fn rename_field_val_enum(fv: &mut FieldValue, old_id: &str, new_id: &str) -> boo
         _ => false,
     }
 }
+
+/// Command to reorder `EnumDef`s in the project.
+#[derive(Debug, Clone)]
+pub struct ReorderEnumDefsCommand {
+    new_order: Vec<EnumDefId>,
+    previous_order: Option<Vec<EnumDefId>>,
+}
+
+impl ReorderEnumDefsCommand {
+    /// Creates a new reorder command with the target order of enum IDs.
+    pub fn new(new_order: Vec<EnumDefId>) -> Self {
+        Self {
+            new_order,
+            previous_order: None,
+        }
+    }
+
+    /// Accessor for the target order.
+    pub fn new_order(&self) -> &[EnumDefId] {
+        &self.new_order
+    }
+}
+
+impl Command for ReorderEnumDefsCommand {
+    fn apply(&mut self, p: &mut Project) -> Result<(), CoreError> {
+        self.previous_order = Some(p.defs.enums.iter().map(|e| e.id).collect());
+
+        let mut reordered = Vec::with_capacity(p.defs.enums.len());
+        for &id in &self.new_order {
+            if let Some(pos) = p.defs.enums.iter().position(|e| e.id == id) {
+                reordered.push(p.defs.enums.remove(pos));
+            }
+        }
+        reordered.append(&mut p.defs.enums);
+        p.defs.enums = reordered;
+
+        Ok(())
+    }
+
+    fn revert(&mut self, p: &mut Project) {
+        if let Some(ref prev) = self.previous_order {
+            let mut restored = Vec::with_capacity(p.defs.enums.len());
+            for &id in prev {
+                if let Some(pos) = p.defs.enums.iter().position(|e| e.id == id) {
+                    restored.push(p.defs.enums.remove(pos));
+                }
+            }
+            restored.append(&mut p.defs.enums);
+            p.defs.enums = restored;
+        }
+    }
+
+    fn merge(&mut self, _next: &dyn Command) -> bool {
+        false
+    }
+
+    fn label(&self) -> String {
+        "Reorder Enum Definitions".to_string()
+    }
+
+    fn focus(&self) -> Option<DocKind> {
+        None
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}

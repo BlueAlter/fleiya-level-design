@@ -490,6 +490,8 @@ mod tests {
         project.defs.enums.push(EnumDef {
             id: enum_id,
             name: "Biomes".to_string(),
+            tileset_id: Some(tileset_id),
+            tags: Vec::new(),
             values: vec![EnumValueDef {
                 id: "Swamp".to_string(),
                 name: "Swamp".to_string(),

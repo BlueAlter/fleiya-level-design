@@ -21,6 +21,8 @@ pub struct LevelCanvasState {
     pub viewport: Viewport,
     /// Floating inspector window state.
     pub floating_window: FloatingWindowState,
+    /// Whether the floating properties panel is rendered on the canvas (defaults to false).
+    pub show_floating_properties: bool,
     /// Whether grid snapping is enabled for tools.
     pub grid_snap: bool,
     /// Whether the visual grid is displayed.
@@ -34,6 +36,7 @@ impl Default for LevelCanvasState {
         Self {
             viewport: Viewport::default(),
             floating_window: FloatingWindowState::default(),
+            show_floating_properties: false,
             grid_snap: true,
             grid_visible: true,
             initialized: false,
@@ -221,8 +224,10 @@ pub fn render_level_canvas(
     // 6. Mini Overlay Canvas Toolbar (top-left)
     render_canvas_toolbar(ui, available_rect, level, state);
 
-    // 7. Floating Properties Window (hosts InspectorSections)
-    render_floating_inspector(ui, available_rect, level, state, inspector_sections, cx);
+    // 7. Floating Properties Window (if enabled)
+    if state.show_floating_properties {
+        render_floating_inspector(ui, available_rect, level, state, inspector_sections, cx);
+    }
 }
 
 /// Renders the mini overlay toolbar in the top-left corner of the canvas.
@@ -236,7 +241,7 @@ fn render_canvas_toolbar(
     let toolbar_pos = canvas_rect.min + vec2(12.0, 12.0);
 
     egui::Area::new(ui.id().with("canvas_toolbar"))
-        .order(egui::Order::Foreground)
+        .order(egui::Order::Middle)
         .fixed_pos(toolbar_pos)
         .show(ui.ctx(), |ui| {
             Frame::new()

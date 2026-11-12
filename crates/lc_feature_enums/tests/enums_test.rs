@@ -26,6 +26,8 @@ fn create_test_project_with_enum() -> (Project, EnumDefId) {
     let enum_def = EnumDef {
         id: enum_id,
         name: "Difficulty".to_string(),
+        tileset_id: None,
+        tags: Vec::new(),
         values: vec![
             EnumValueDef {
                 id: "Easy".to_string(),
@@ -72,6 +74,8 @@ fn test_add_update_remove_enum_def_commands() {
     let def = EnumDef {
         id: enum_id,
         name: "Direction".to_string(),
+        tileset_id: None,
+        tags: Vec::new(),
         values: vec![EnumValueDef {
             id: "North".to_string(),
             name: "North".to_string(),

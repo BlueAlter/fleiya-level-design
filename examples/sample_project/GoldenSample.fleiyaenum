@@ -1,0 +1,201 @@
+{
+  "format": "fleiya.enum",
+  "version": 1,
+  "enums": [
+    {
+      "identifier": "BiomeType",
+      "uid": 1,
+      "iconTilesetUid": 1,
+      "values": [
+        {
+          "id": "Forest",
+          "color": 3050327,
+          "tileRect": {
+            "tilesetUid": 1,
+            "x": 48,
+            "y": 16,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Desert",
+          "color": 15583663,
+          "tileRect": {
+            "tilesetUid": 1,
+            "x": 32,
+            "y": 48,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Tundra",
+          "color": 11591910,
+          "tileRect": {
+            "tilesetUid": 1,
+            "x": 32,
+            "y": 32,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Volcanic",
+          "color": 11674146,
+          "tileRect": {
+            "tilesetUid": 1,
+            "x": 48,
+            "y": 0,
+            "w": 16,
+            "h": 16
+          }
+        }
+      ],
+      "tags": [],
+      "externalRelPath": null,
+      "externalFileChecksum": null
+    },
+    {
+      "identifier": "ItemRarity",
+      "uid": 2,
+      "iconTilesetUid": 2,
+      "values": [
+        {
+          "id": "Common",
+          "color": 10265519,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 0,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Uncommon",
+          "color": 4052664,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 64,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Rare",
+          "color": 2982399,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 96,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Epic",
+          "color": 11032055,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 128,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Legendary",
+          "color": 16761165,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 192,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
+        }
+      ],
+      "tags": [],
+      "externalRelPath": null,
+      "externalFileChecksum": null
+    },
+    {
+      "identifier": "WeaponType",
+      "uid": 3,
+      "iconTilesetUid": 2,
+      "values": [
+        {
+          "id": "Bow",
+          "color": 9127187,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 96,
+            "y": 528,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Staff",
+          "color": 9662683,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 112,
+            "y": 480,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Dagger",
+          "color": 4620980,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 0,
+            "y": 432,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Sword",
+          "color": 10526880,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 48,
+            "y": 432,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Spear",
+          "color": 11765248,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 176,
+            "y": 464,
+            "w": 16,
+            "h": 16
+          }
+        },
+        {
+          "id": "Axe",
+          "color": 13458524,
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 112,
+            "y": 448,
+            "w": 16,
+            "h": 16
+          }
+        }
+      ],
+      "tags": [],
+      "externalRelPath": null,
+      "externalFileChecksum": null
+    }
+  ]
+}

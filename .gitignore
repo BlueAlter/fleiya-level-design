@@ -1,3 +1,25 @@
 /target
 /logs
 /.autopilot
+
+# Read-only references and per-task worktrees (see AGENTS.md)
+/_ref
+/wt-T-*
+
+# Local agent/tooling state
+/.agents
+/inbox
+/pinned
+/reference
+/main
+/ui_ref_for_FigCraft
+/investigation.cany
+/New Script
+/usage.json
+
+# Local build/session artifacts
+/build-activity.log
+/feed.json
+/capture
+*.figcraft.bak
+*.figcraft.original.bak

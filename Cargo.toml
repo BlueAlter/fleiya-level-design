@@ -34,6 +34,7 @@ print_stderr = "deny"
 
 [workspace.dependencies]
 egui = "0.36.0"
+egui_extras = "0.36.0"
 eframe = "0.36.0"
 egui_dock = "0.21.1"
 egui-phosphor = "0.14.0"

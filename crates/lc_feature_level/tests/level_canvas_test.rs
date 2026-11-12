@@ -189,6 +189,7 @@ fn test_floating_inspector_sections_and_fallback() {
     });
 
     let mut view = LevelDocumentView::new(level_id).with_inspector_section(section);
+    view.state_mut().show_floating_properties = true;
 
     let ctx = egui::Context::default();
     let undo_stack = UndoStack::new();

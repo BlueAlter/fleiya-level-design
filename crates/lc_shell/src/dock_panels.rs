@@ -1,6 +1,7 @@
 //! Panel dock rendering for side slots and collapsible bottom tray.
 
 use egui::{CornerRadius, Id, LayerId, Order, Panel, Pos2, Rect, Stroke, StrokeKind, Ui};
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::{self, Tokens};
 use lc_canvas::widgets::{chevron, dock_tab, dock_tab_sized};
 use lc_ui_api::context::EditorCtx;
@@ -8,6 +9,7 @@ use lc_ui_api::view::PanelId;
 
 use crate::dock_layout::{BottomDockState, DockSlotLocation};
 use crate::shell_app::ShellApp;
+use crate::ui::context_menu::{show_context_menu, MenuAnchor, MenuItem};
 
 /// Geometry of one custom dock slot for drag/drop hit-testing.
 #[derive(Debug, Clone)]
@@ -156,18 +158,23 @@ pub fn render_bottom_dock(app: &mut ShellApp, ui: &mut Ui) -> Option<DockSlotGeo
                         }
 
                         // Context menu to move dock
-                        btn.context_menu(|ui| {
-                            if ui.button("Move to Left Dock").clicked() {
-                                app.dock_layout
-                                    .move_panel(&panel_id, DockSlotLocation::Left);
-                                ui.close();
-                            }
-                            if ui.button("Move to Right Dock").clicked() {
-                                app.dock_layout
-                                    .move_panel(&panel_id, DockSlotLocation::Right);
-                                ui.close();
-                            }
-                        });
+                        let dock_items = [
+                            MenuItem::action(
+                                DockSlotLocation::Left,
+                                "Move to Left Dock",
+                                Icon::ChevronLeft,
+                            ),
+                            MenuItem::action(
+                                DockSlotLocation::Right,
+                                "Move to Right Dock",
+                                Icon::ChevronRight,
+                            ),
+                        ];
+                        if let Some(target) =
+                            show_context_menu(ui, MenuAnchor::context_menu(&btn), &dock_items)
+                        {
+                            app.dock_layout.move_panel(&panel_id, target);
+                        }
                     }
                     ui.add_space(8.0);
                 },
@@ -269,6 +276,8 @@ pub fn render_dock_slot(
                         .or_else(|| {
                             if panel_id.as_str() == "tileset" {
                                 app.registry.find_panel(&PanelId::new("tile_palette"))
+                            } else if panel_id.as_str() == "tile_palette" {
+                                app.registry.find_panel(&PanelId::new("tileset"))
                             } else {
                                 None
                             }
@@ -296,28 +305,33 @@ pub fn render_dock_slot(
                     }
 
                     // Context menu to move panel
-                    btn.context_menu(|ui| {
-                        if location != DockSlotLocation::Left
-                            && ui.button("Move to Left Dock").clicked()
-                        {
-                            app.dock_layout.move_panel(panel_id, DockSlotLocation::Left);
-                            ui.close();
-                        }
-                        if location != DockSlotLocation::Right
-                            && ui.button("Move to Right Dock").clicked()
-                        {
-                            app.dock_layout
-                                .move_panel(panel_id, DockSlotLocation::Right);
-                            ui.close();
-                        }
-                        if location != DockSlotLocation::Bottom
-                            && ui.button("Move to Bottom Dock").clicked()
-                        {
-                            app.dock_layout
-                                .move_panel(panel_id, DockSlotLocation::Bottom);
-                            ui.close();
-                        }
-                    });
+                    let mut dock_items = Vec::new();
+                    if location != DockSlotLocation::Left {
+                        dock_items.push(MenuItem::action(
+                            DockSlotLocation::Left,
+                            "Move to Left Dock",
+                            Icon::ChevronLeft,
+                        ));
+                    }
+                    if location != DockSlotLocation::Right {
+                        dock_items.push(MenuItem::action(
+                            DockSlotLocation::Right,
+                            "Move to Right Dock",
+                            Icon::ChevronRight,
+                        ));
+                    }
+                    if location != DockSlotLocation::Bottom {
+                        dock_items.push(MenuItem::action(
+                            DockSlotLocation::Bottom,
+                            "Move to Bottom Dock",
+                            Icon::ChevronDown,
+                        ));
+                    }
+                    if let Some(target) =
+                        show_context_menu(ui, MenuAnchor::context_menu(&btn), &dock_items)
+                    {
+                        app.dock_layout.move_panel(panel_id, target);
+                    }
                 }
                 ui.add_space(8.0);
                 tab_rects
@@ -342,10 +356,14 @@ pub fn render_dock_slot(
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(theme::PANEL_PAD, 8))
             .show(ui, |ui| {
-                let target_id = if app.registry.find_panel(&active_id).is_none()
-                    && active_id.as_str() == "tileset"
-                {
-                    PanelId::new("tile_palette")
+                let target_id = if app.registry.find_panel(&active_id).is_none() {
+                    if active_id.as_str() == "tileset" {
+                        PanelId::new("tile_palette")
+                    } else if active_id.as_str() == "tile_palette" {
+                        PanelId::new("tileset")
+                    } else {
+                        active_id
+                    }
                 } else {
                     active_id
                 };

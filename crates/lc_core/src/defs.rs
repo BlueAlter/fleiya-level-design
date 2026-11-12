@@ -43,11 +43,28 @@ pub struct EnumDef {
     pub id: EnumDefId,
     /// Name of the enumeration (e.g. "Biome", "Direction").
     pub name: String,
+    /// Optional tileset bound for value tile icons.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tileset_id: Option<TilesetDefId>,
+    /// Tags assigned to this enum definition.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     /// Ordered list of possible enum values.
     pub values: Vec<EnumValueDef>,
 }
 
 impl EnumDef {
+    /// Constructs a new empty enum definition.
+    pub fn new(id: EnumDefId, name: impl Into<String>) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            tileset_id: None,
+            tags: Vec::new(),
+            values: Vec::new(),
+        }
+    }
+
     /// Finds a value definition by its string ID.
     pub fn value(&self, id: &str) -> Option<&EnumValueDef> {
         self.values.iter().find(|v| v.id == id)

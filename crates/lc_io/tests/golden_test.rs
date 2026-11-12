@@ -29,6 +29,8 @@ fn create_sample_project() -> Project {
     let enum_def = EnumDef {
         id: enum_id,
         name: "Difficulty".to_string(),
+        tileset_id: None,
+        tags: Vec::new(),
         values: vec![
             EnumValueDef {
                 id: "Easy".to_string(),

@@ -19,36 +19,235 @@
         ],
         "spacing": 0,
         "padding": 0
+      },
+      {
+        "id": 2,
+        "name": "Icons",
+        "path": "assets/tilesets/finalbossblues-icons_full_16.png",
+        "tile_size": [
+          16,
+          16
+        ],
+        "spacing": 0,
+        "padding": 0
       }
     ],
     "enums": [
       {
-        "id": 2,
-        "name": "Difficulty",
+        "id": 1,
+        "name": "BiomeType",
+        "tileset_id": 1,
         "values": [
           {
-            "id": "Easy",
-            "name": "Easy Mode",
+            "id": "Forest",
+            "name": "Deep Forest",
             "color": [
-              0,
-              255,
-              0,
+              46,
+              139,
+              87,
               255
             ],
             "tile": null
           },
           {
-            "id": "Hard",
-            "name": "Hardcore",
+            "id": "Desert",
+            "name": "Arid Desert",
             "color": [
-              255,
-              0,
-              0,
+              237,
+              201,
+              175,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Tundra",
+            "name": "Frozen Tundra",
+            "color": [
+              176,
+              224,
+              230,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Volcanic",
+            "name": "Volcano",
+            "color": [
+              178,
+              34,
+              34,
+              255
+            ],
+            "tile": null
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "ItemRarity",
+        "tileset_id": 2,
+        "values": [
+          {
+            "id": "Common",
+            "name": "Common Item",
+            "color": [
+              156,
+              163,
+              175,
               255
             ],
             "tile": {
-              "tileset_id": 1,
-              "tile_id": 1,
+              "tileset_id": 2,
+              "tile_id": 566,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Uncommon",
+            "name": "Uncommon Item",
+            "color": [
+              61,
+              214,
+              184,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Rare",
+            "name": "Rare Item",
+            "color": [
+              45,
+              129,
+              255,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Epic",
+            "name": "Epic Artifact",
+            "color": [
+              168,
+              85,
+              247,
+              255
+            ],
+            "tile": null
+          },
+          {
+            "id": "Legendary",
+            "name": "Legendary Relic",
+            "color": [
+              255,
+              193,
+              77,
+              255
+            ],
+            "tile": null
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "WeaponType",
+        "tileset_id": 2,
+        "values": [
+          {
+            "id": "Bow",
+            "name": "Hunting Bow",
+            "color": [
+              139,
+              69,
+              19,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 1062,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Staff",
+            "name": "Magic Staff",
+            "color": [
+              147,
+              112,
+              219,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 967,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Dagger",
+            "name": "Rogue Dagger",
+            "color": [
+              70,
+              130,
+              180,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 864,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Sword",
+            "name": "Iron Sword",
+            "color": [
+              160,
+              160,
+              160,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 867,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Axe",
+            "name": "Battleaxe",
+            "color": [
+              205,
+              92,
+              92,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 903,
+              "flip_x": false,
+              "flip_y": false
+            }
+          },
+          {
+            "id": "Spear",
+            "name": "Pike",
+            "color": [
+              218,
+              165,
+              32,
+              255
+            ],
+            "tile": {
+              "tileset_id": 2,
+              "tile_id": 939,
               "flip_x": false,
               "flip_y": false
             }
@@ -125,6 +324,17 @@
           16
         ],
         "tileset_id": null,
+        "int_grid_values": []
+      },
+      {
+        "id": 6,
+        "name": "Layer_6",
+        "kind": "Tiles",
+        "grid_size": [
+          16,
+          16
+        ],
+        "tileset_id": 1,
         "int_grid_values": []
       }
     ]

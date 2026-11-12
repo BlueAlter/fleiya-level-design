@@ -179,6 +179,8 @@ mod tests {
         vec![EnumDef {
             id: EnumDefId::new(1),
             name: "Biome".to_string(),
+            tileset_id: None,
+            tags: Vec::new(),
             values: vec![
                 EnumValueDef {
                     id: "Forest".to_string(),

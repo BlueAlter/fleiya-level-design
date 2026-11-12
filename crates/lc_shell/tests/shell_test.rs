@@ -384,14 +384,10 @@ fn test_bottom_dock_layout_and_persistence() {
     });
     output3.textures_delta.clear();
 
-    // Existing slots keep their persisted panels. Panels registered after the
-    // persisted layout was written (currently the Entities panel) are added
-    // exactly once to the left slot instead of being dropped.
-    assert_eq!(
-        app.dock_layout.left.panels,
-        vec![PanelId::new("project"), PanelId::new("entities")]
-    );
-    assert_eq!(app.dock_layout.right.panels.len(), 3);
+    // Existing slots keep their persisted panels. Newly registered Inspector panel
+    // is added to the right slot (3 persisted panels + 1 newly registered inspector).
+    assert_eq!(app.dock_layout.left.panels, vec![PanelId::new("project")]);
+    assert_eq!(app.dock_layout.right.panels.len(), 4);
     assert_eq!(app.dock_layout.bottom.panels.len(), 1);
     assert!(!app.dock_layout.bottom.collapsed);
 

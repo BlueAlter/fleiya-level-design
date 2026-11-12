@@ -132,11 +132,13 @@ enum DialogRequest {
 }
 
 fn run_dialog(request: DialogRequest) -> FileDialogOutcome {
-    let dialog = rfd::FileDialog::new().add_filter("Level Craft Project", &["lcproj"]);
+    let dialog = rfd::FileDialog::new().add_filter("Fleiya Level Design Project", &["lcproj"]);
     let picked = match request {
-        DialogRequest::OpenProject => dialog.set_title("Open Level Craft Project").pick_file(),
+        DialogRequest::OpenProject => dialog
+            .set_title("Open Fleiya Level Design Project")
+            .pick_file(),
         DialogRequest::SaveProjectAs => dialog
-            .set_title("Save Level Craft Project As")
+            .set_title("Save Fleiya Level Design Project As")
             .set_file_name("project.lcproj")
             .save_file(),
     };

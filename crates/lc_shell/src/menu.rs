@@ -25,7 +25,7 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                     .rect_filled(mark, egui::CornerRadius::ZERO, t.accent);
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("LEVEL CRAFT")
+                    RichText::new("FLEIYA LEVEL DESIGN")
                         .font(egui::FontId::new(16.0, theme::display_for(ui.ctx())))
                         .color(t.ink_strong),
                 );
@@ -101,6 +101,45 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                     }
                 });
 
+                menu_button(ui, "WINDOWS", |ui| {
+                    if ui
+                        .checkbox(&mut app.show_tileset_window, "Tileset Window")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                    if ui
+                        .checkbox(&mut app.show_entities_window, "Entities Window")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                    if ui
+                        .checkbox(&mut app.show_layer_window, "Layers Window")
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                });
+
+                // Centered segmented mode switcher (Editor / Enums)
+                let control_w = 26.0 * 2.0 + 4.0;
+                let bar_rect = ui.max_rect();
+                let center_x = bar_rect.center().x;
+                let center_y = bar_rect.center().y;
+                let control_rect = egui::Rect::from_center_size(
+                    egui::pos2(center_x, center_y),
+                    egui::vec2(control_w, 26.0),
+                );
+                ui.scope_builder(egui::UiBuilder::new().max_rect(control_rect), |ui| {
+                    crate::app_mode::render_mode_segmented_control(
+                        ui,
+                        &mut app.active_mode,
+                        app.enum_unsaved,
+                        &t,
+                    );
+                });
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     hud_elided(ui, &app.project.name, t.muted, 220.0);
                     ui.add_space(10.0);
@@ -155,6 +194,16 @@ fn theme_menu(ui: &mut Ui, app: &mut ShellApp) {
 
 /// Handles application-wide keyboard shortcuts.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
+    // Mode shortcuts (Ctrl+1 = Editor, Ctrl+2 = Enums) via consume_shortcut
+    let ctrl_1 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num1);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_1)) {
+        app.active_mode = crate::app_mode::AppMode::Editor;
+    }
+    let ctrl_2 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num2);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_2)) {
+        app.active_mode = crate::app_mode::AppMode::Enums;
+    }
+
     ctx.input(|i| {
         // Ctrl+` (Backtick): Toggle bottom dock
         if i.modifiers.ctrl && i.key_pressed(Key::Backtick) {

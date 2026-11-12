@@ -12,6 +12,7 @@ use lc_ui_api::session::TileSelection;
 use lc_ui_api::view::{PanelId, PanelView};
 
 use lc_canvas::grid::draw_checkerboard;
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_canvas::widgets::hud;
 
@@ -127,7 +128,7 @@ impl PanelView for TilePalettePanel {
                 });
             });
 
-        // 1b. Canvas Tools toolbar
+        // 1b. Canvas Tools toolbar (borderless icons)
         Frame::new()
             .fill(t.panel)
             .inner_margin(Margin::symmetric(8, 3))
@@ -136,21 +137,39 @@ impl PanelView for TilePalettePanel {
                     let active_tool = cx.active_tool_name().to_string();
 
                     let tools = [
-                        ("Paint", "Paint / Stamp Tiles (B)"),
-                        ("Erase", "Erase Tiles (E)"),
-                        ("Rectangle", "Rectangle Fill (R)"),
-                        ("Fill", "Flood Fill (F)"),
-                        ("Eyedropper", "Pick Tile from Canvas (I)"),
-                        ("Select", "Select a canvas region for copy/paste"),
+                        (Icon::Brush, "Paint", "Paint / Stamp Tiles (B)"),
+                        (Icon::Eraser, "Erase", "Erase Tiles (E)"),
+                        (Icon::Rectangle, "Rectangle", "Rectangle Fill (R)"),
+                        (Icon::Bucket, "Fill", "Flood Fill (F)"),
+                        (Icon::Picker, "Eyedropper", "Pick Tile from Canvas (I)"),
+                        (
+                            Icon::Cursor,
+                            "Select",
+                            "Select a canvas region for copy/paste",
+                        ),
                     ];
 
-                    for (tool_name, tooltip) in tools {
+                    for (icon, tool_name, tooltip) in tools {
                         let is_active = active_tool == tool_name;
-                        if ui
-                            .selectable_label(is_active, tool_name)
-                            .on_hover_text(tooltip)
-                            .clicked()
-                        {
+                        let icon_color = if is_active { t.accent_ink } else { t.muted };
+                        let bg_color = if is_active {
+                            lc_canvas::theme::tint(t.accent, 0.15)
+                        } else {
+                            Color32::TRANSPARENT
+                        };
+
+                        let resp = Frame::new()
+                            .fill(bg_color)
+                            .stroke(Stroke::NONE)
+                            .corner_radius(CornerRadius::same(3))
+                            .inner_margin(Margin::symmetric(8, 4))
+                            .show(ui, |ui| {
+                                ui.label(RichText::new(icon.glyph()).size(14.0).color(icon_color));
+                            })
+                            .response
+                            .interact(Sense::click());
+
+                        if resp.on_hover_text(tooltip).clicked() {
                             cx.emit(EditorEvent::SetActiveTool(tool_name.to_string()));
                         }
                     }

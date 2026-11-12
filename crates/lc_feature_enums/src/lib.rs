@@ -8,7 +8,7 @@ pub mod view;
 pub use commands::{
     find_enum_def_references, find_enum_value_references, AddEnumDefCommand, AddEnumValueCommand,
     EnumReferenceLocation, RemoveEnumDefCommand, RemoveEnumValueCommand, RenameEnumValueIdCommand,
-    ReorderEnumValuesCommand, UpdateEnumDefCommand, UpdateEnumValueCommand,
+    ReorderEnumDefsCommand, ReorderEnumValuesCommand, UpdateEnumDefCommand, UpdateEnumValueCommand,
 };
 pub use view::EnumDefDocumentView;
 

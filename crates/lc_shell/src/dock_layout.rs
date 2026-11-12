@@ -183,10 +183,13 @@ pub struct ShellDockLayout {
 impl Default for ShellDockLayout {
     fn default() -> Self {
         Self {
-            left: DockSlotState::new(vec![PanelId::new("project")], Some(PanelId::new("project"))),
+            left: DockSlotState::new(
+                vec![PanelId::new("project"), PanelId::new("layers")],
+                Some(PanelId::new("project")),
+            ),
             right: DockSlotState::new(
-                vec![PanelId::new("layers"), PanelId::new("tile_palette")],
-                Some(PanelId::new("layers")),
+                vec![PanelId::new("inspector"), PanelId::new("tileset")],
+                Some(PanelId::new("inspector")),
             ),
             bottom: BottomDockState::new(
                 vec![PanelId::new("console")],
@@ -269,16 +272,34 @@ impl ShellDockLayout {
 
     /// Ensures a panel is registered in a dock slot if not already present.
     pub fn ensure_panel(&mut self, id: PanelId, default_loc: DockSlotLocation) {
+        if id.as_str() == "entities" {
+            self.left.remove_panel(&id);
+            self.right.remove_panel(&id);
+            self.bottom.remove_panel(&id);
+            return;
+        }
+
+        let mut loc = default_loc;
+        if id.as_str() == "tileset" || id.as_str() == "tile_palette" || id.as_str() == "inspector" {
+            loc = DockSlotLocation::Right;
+        } else if id.as_str() == "layers" || id.as_str() == "project" {
+            loc = DockSlotLocation::Left;
+        }
+
         let is_present = self.left.panels.contains(&id)
             || self.right.panels.contains(&id)
             || self.bottom.panels.contains(&id)
             || (id.as_str() == "tile_palette"
                 && (self.left.panels.contains(&PanelId::new("tileset"))
                     || self.right.panels.contains(&PanelId::new("tileset"))
-                    || self.bottom.panels.contains(&PanelId::new("tileset"))));
+                    || self.bottom.panels.contains(&PanelId::new("tileset"))))
+            || (id.as_str() == "tileset"
+                && (self.left.panels.contains(&PanelId::new("tile_palette"))
+                    || self.right.panels.contains(&PanelId::new("tile_palette"))
+                    || self.bottom.panels.contains(&PanelId::new("tile_palette"))));
 
         if !is_present {
-            match default_loc {
+            match loc {
                 DockSlotLocation::Left => self.left.add_panel(id),
                 DockSlotLocation::Right => self.right.add_panel(id),
                 DockSlotLocation::Bottom => self.bottom.add_panel(id),
@@ -332,13 +353,16 @@ mod tests {
         let mut layout = ShellDockLayout::default();
 
         layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 0);
-        assert_eq!(layout.left.panels, vec![panel("console"), panel("project")]);
+        assert_eq!(
+            layout.left.panels,
+            vec![panel("console"), panel("project"), panel("layers")]
+        );
         assert!(layout.bottom.panels.is_empty());
 
         layout.move_panel_to(&panel("project"), DockSlotLocation::Right, 1);
         assert_eq!(
             layout.right.panels,
-            vec![panel("layers"), panel("project"), panel("tile_palette"),]
+            vec![panel("inspector"), panel("project"), panel("tileset")]
         );
         assert!(layout.left.panels.contains(&panel("console")));
     }
@@ -349,10 +373,16 @@ mod tests {
         layout.left.insert_panel(panel("console"), 1);
 
         layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 1);
-        assert_eq!(layout.left.panels, vec![panel("project"), panel("console")]);
+        assert_eq!(
+            layout.left.panels,
+            vec![panel("project"), panel("console"), panel("layers")]
+        );
 
-        layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 2);
-        assert_eq!(layout.left.panels, vec![panel("project"), panel("console")]);
+        layout.move_panel_to(&panel("console"), DockSlotLocation::Left, 3);
+        assert_eq!(
+            layout.left.panels,
+            vec![panel("project"), panel("layers"), panel("console")]
+        );
     }
 
     #[test]

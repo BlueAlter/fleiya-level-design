@@ -21,8 +21,11 @@ pub fn draw_grid(
     }
 
     let cell_px = viewport.zoom * grid_size as f32;
-    // At very low zoom, draw every eighth line only.
-    let step = if cell_px < 3.0 { 8 } else { 1 };
+    // When cell size is under 6px, draw only major lines; hide if below 2px.
+    if cell_px < 2.0 {
+        return;
+    }
+    let step = if cell_px < 6.0 { 8 } else { 1 };
     let (min, max) = viewport.visible_world_bounds();
 
     let start_x = min.x.div_euclid(grid_size).div_euclid(step) * step;
@@ -33,6 +36,8 @@ pub fn draw_grid(
     let p = painter.with_clip_rect(rect);
     let origin_x = viewport.screen_rect.min.x + viewport.pan.x;
     let origin_y = viewport.screen_rect.min.y + viewport.pan.y;
+
+    let mut shapes = Vec::new();
 
     let mut gx = start_x;
     while gx <= end_x {
@@ -46,7 +51,13 @@ pub fn draw_grid(
             } else {
                 Stroke::new(1.0, tokens.grid_minor)
             };
-            p.vline(x + 0.5, rect.y_range(), stroke);
+            shapes.push(egui::Shape::line_segment(
+                [
+                    egui::pos2(x + 0.5, rect.top()),
+                    egui::pos2(x + 0.5, rect.bottom()),
+                ],
+                stroke,
+            ));
         }
         gx += step;
     }
@@ -63,10 +74,18 @@ pub fn draw_grid(
             } else {
                 Stroke::new(1.0, tokens.grid_minor)
             };
-            p.hline(rect.x_range(), y + 0.5, stroke);
+            shapes.push(egui::Shape::line_segment(
+                [
+                    egui::pos2(rect.left(), y + 0.5),
+                    egui::pos2(rect.right(), y + 0.5),
+                ],
+                stroke,
+            ));
         }
         gy += step;
     }
+
+    p.extend(shapes);
 }
 
 /// Draws a checkerboard, used behind transparent tiles.

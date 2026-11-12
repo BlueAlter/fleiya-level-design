@@ -46,6 +46,8 @@ fn fixture() -> Fixture {
     project.defs.enums.push(EnumDef {
         id: enum_id,
         name: "Faction".to_string(),
+        tileset_id: None,
+        tags: Vec::new(),
         values: vec![
             EnumValueDef {
                 id: "Ally".to_string(),
