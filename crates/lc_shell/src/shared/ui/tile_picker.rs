@@ -11,12 +11,39 @@ use egui::{
     vec2, Color32, ColorImage, CornerRadius, CursorIcon, Frame, Id, Margin, Modifiers, Order,
     PointerButton, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureHandle, TextureOptions,
 };
-use lc_canvas::grid::draw_checkerboard;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
 
 use super::tile_bounds::{TileGrid, TileRect};
+
+/// Neutral, seamlessly repeating background drawn behind the tileset page.
+///
+/// Embedded so the page is never transparent, even when the tileset image has
+/// alpha pixels or the process working directory is not the repository root.
+const PAGE_BG_BYTES: &[u8] =
+    include_bytes!("../../../../../assets/Bg/tileset_picker_bg_netral.png");
+
+/// Page-space edge length of one repetition of the page background pattern.
+///
+/// Expressed in tileset (page) pixels, so on screen one cell measures
+/// `PAGE_BG_CELL * zoom`: the pattern keeps its size relative to the artwork
+/// and never shrinks when the user zooms in.
+pub const PAGE_BG_CELL: f32 = 16.0;
+
+/// UV rectangle that repeats the page background across a page-space `rect`.
+///
+/// The texture is uploaded with [`TextureOptions::NEAREST_REPEAT`], so texture
+/// coordinates beyond `1.0` simply start the pattern over again.
+pub fn page_bg_uv(rect: Rect) -> Rect {
+    Rect::from_min_size(
+        Pos2::ZERO,
+        vec2(
+            (rect.width() / PAGE_BG_CELL).max(0.0),
+            (rect.height() / PAGE_BG_CELL).max(0.0),
+        ),
+    )
+}
 
 /// Event emitted by the [`TilePicker`] component after user interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +199,8 @@ pub struct TilePicker {
     pub last_tileset_id: Option<TilesetDefId>,
     /// In-memory texture cache keyed by tileset ID.
     pub textures: HashMap<TilesetDefId, Result<CachedTextureInfo, String>>,
+    /// Cached neutral tiled background texture used behind the tileset page.
+    pub page_bg: Option<TextureHandle>,
     /// Multi-select drag start cell, if right mouse button is dragging.
     pub drag_start_cell: Option<(u32, u32)>,
     /// Whether user is currently dragging with the right mouse button.
@@ -194,6 +223,7 @@ impl Default for TilePicker {
             needs_initial_fit: true,
             last_tileset_id: None,
             textures: HashMap::new(),
+            page_bg: None,
             drag_start_cell: None,
             is_right_dragging: false,
             live_drag_rect: None,
@@ -751,22 +781,31 @@ impl TilePicker {
         let page_rect = Rect::from_min_size(Pos2::ZERO, vec2(img_w as f32, img_h as f32));
         let screen_page_rect = self.view.page_to_screen_rect(page_rect);
 
-        // Draw page panel: fill slightly different from workspace, 1px stroke, no rounding (Section 1)
-        painter.rect_filled(screen_page_rect, CornerRadius::ZERO, t.panel);
-        painter.rect_stroke(
-            screen_page_rect,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, t.line_strong),
-            StrokeKind::Inside,
+        // Drop shadow behind the page so it reads as a raised card on the workspace.
+        painter.add(
+            egui::epaint::Shadow {
+                offset: [4, 6],
+                blur: 16,
+                spread: 0,
+                color: Color32::from_black_alpha(130),
+            }
+            .as_shape(screen_page_rect, CornerRadius::ZERO),
         );
 
-        // Checkerboard inside page bounds
-        draw_checkerboard(
-            &painter,
-            screen_page_rect,
-            (16.0 * (self.view.zoom / 2.0).clamp(1.0, 4.0)).round(),
-            t,
-        );
+        // Opaque page: flat fallback first, then the neutral tiled background.
+        // This replaces the transparency checkerboard, so alpha tiles sit on a
+        // readable, non-transparent surface that covers the whole tileset.
+        // The pattern is tiled in page space, so it zooms together with the
+        // tileset and keeps its size relative to the artwork.
+        painter.rect_filled(screen_page_rect, CornerRadius::ZERO, t.panel);
+        if let Some(bg) = self.page_background(ui.ctx()) {
+            painter.image(
+                bg.id(),
+                screen_page_rect,
+                page_bg_uv(page_rect),
+                Color32::WHITE,
+            );
+        }
 
         // Render tileset texture with NEAREST filtering
         painter.image(
@@ -774,6 +813,15 @@ impl TilePicker {
             screen_page_rect,
             Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
             Color32::WHITE,
+        );
+
+        // Thick black page outline. Drawn outside the page so it frames the
+        // tileset without covering its edge tiles.
+        painter.rect_stroke(
+            screen_page_rect,
+            CornerRadius::ZERO,
+            Stroke::new(3.0, Color32::BLACK),
+            StrokeKind::Outside,
         );
 
         // 7. Grid Lines (Section 2: drawn strictly inside page bounds, culled)
@@ -954,6 +1002,30 @@ impl TilePicker {
         glam::UVec2::new(16, 16)
     }
 
+    /// Loads (once) and returns the embedded neutral page background texture.
+    ///
+    /// The texture repeats via [`TextureOptions::NEAREST_REPEAT`], so a single
+    /// image quad can tile it across the whole tileset page.
+    fn page_background(&mut self, ctx: &egui::Context) -> Option<TextureHandle> {
+        if let Some(handle) = &self.page_bg {
+            return Some(handle.clone());
+        }
+
+        let img = image::load_from_memory(PAGE_BG_BYTES).ok()?.to_rgba8();
+        let (w, h) = img.dimensions();
+        let size = [w as usize, h as usize];
+        let pixels = img.into_raw();
+        let color_image = ColorImage::from_rgba_unmultiplied(size, &pixels);
+
+        let handle = ctx.load_texture(
+            "tile_picker_page_bg",
+            color_image,
+            TextureOptions::NEAREST_REPEAT,
+        );
+        self.page_bg = Some(handle.clone());
+        Some(handle)
+    }
+
     /// Loads or fetches a cached TextureHandle for the specified tileset.
     fn get_or_load_texture(
         &mut self,
@@ -1048,5 +1120,35 @@ impl TilePicker {
             texture_size: (tex_w, tex_h),
             scale,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedded_page_background_decodes() {
+        let img = image::load_from_memory(PAGE_BG_BYTES).expect("embedded bg must decode");
+        assert_eq!((img.width(), img.height()), (16, 16));
+        assert_eq!(PAGE_BG_CELL, 16.0);
+    }
+
+    #[test]
+    fn page_bg_uv_tiles_by_page_cell() {
+        // Page-space rect: a 64x32 tileset repeats the 16 px pattern 4x2 times,
+        // independent of the zoom used to draw it.
+        let page = Rect::from_min_size(Pos2::new(40.0, 10.0), vec2(64.0, 32.0));
+        let uv = page_bg_uv(page);
+        assert_eq!(uv.min, Pos2::ZERO);
+        assert_eq!(uv.width(), 4.0);
+        assert_eq!(uv.height(), 2.0);
+    }
+
+    #[test]
+    fn page_bg_uv_is_zero_for_empty_rect() {
+        let uv = page_bg_uv(Rect::ZERO);
+        assert_eq!(uv.width(), 0.0);
+        assert_eq!(uv.height(), 0.0);
     }
 }
