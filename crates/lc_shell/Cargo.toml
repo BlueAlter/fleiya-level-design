@@ -22,6 +22,7 @@ lc_feature_world = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
 egui_dock = { workspace = true }
+egui_commonmark = { workspace = true }
 glam = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }

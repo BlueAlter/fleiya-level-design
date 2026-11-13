@@ -124,6 +124,14 @@ pub fn validate_dependencies(packages: &[PackageDepInfo]) -> Vec<String> {
             ));
         }
 
+        // egui_commonmark only in shell (ADR-0016)
+        if deps.contains("egui_commonmark") && name != "lc_shell" {
+            errors.push(format!(
+                "Third-party violation in `{}`: `egui_commonmark` is only allowed in `lc_shell`",
+                name
+            ));
+        }
+
         // serde_json only in io
         if deps.contains("serde_json") && name != "lc_io" {
             errors.push(format!(
@@ -247,6 +255,7 @@ mod tests {
                     "lc_feature_level".to_string(),
                     "egui".to_string(),
                     "egui_dock".to_string(),
+                    "egui_commonmark".to_string(),
                 ],
             },
             PackageDepInfo {
@@ -316,6 +325,17 @@ mod tests {
         let errors = validate_dependencies(&packages);
         assert_eq!(errors.len(), 1);
         assert!(errors[0].contains("`egui_dock` is only allowed in `lc_shell`"));
+    }
+
+    #[test]
+    fn test_detect_egui_commonmark_outside_shell() {
+        let packages = vec![PackageDepInfo {
+            name: "lc_feature_enums".to_string(),
+            dependencies: vec!["egui_commonmark".to_string()],
+        }];
+        let errors = validate_dependencies(&packages);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("`egui_commonmark` is only allowed in `lc_shell`"));
     }
 
     #[test]
