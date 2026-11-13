@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use egui::{
-    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Key, Layout, Margin,
-    Order, Panel, PointerButton, Popup, Pos2, Rect, RichText, ScrollArea, Sense, Stroke,
-    StrokeKind, TextEdit, Ui,
+    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Layout, Margin, Order,
+    Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextEdit,
+    Ui,
 };
 
 use lc_canvas::grid::draw_checkerboard;
@@ -32,6 +32,9 @@ use crate::shared::ui::context_menu::{
 use crate::shared::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
 use crate::shared::ui::reorder::Slot;
 pub use crate::shared::ui::reorder::{drop_index, reorder_item};
+use crate::shared::ui::search_picker::{
+    search_picker, PickerChoice, PickerItem, SearchPickerConfig, SearchPickerState,
+};
 use crate::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 use crate::shared::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
@@ -181,10 +184,8 @@ pub struct EnumViewState {
     pub tag_editing_text: String,
     /// Set when a tag input was just opened so it grabs keyboard focus exactly once.
     pub tag_focus_pending: bool,
-    pub tag_recall_open: bool,
-    pub tag_recall_search: String,
-    pub tag_recall_selected_idx: usize,
-    pub tag_recall_was_open: bool,
+    /// Shared searchable picker used by the "assign existing tag" popup.
+    pub tag_recall_picker: SearchPickerState,
     pub previous_selected_enum: Option<EnumDefId>,
     pub card_rects: Vec<egui::Rect>,
     pub delete_btn_rects: Vec<egui::Rect>,
@@ -230,10 +231,7 @@ impl Default for EnumViewState {
             tag_editing_id: None,
             tag_editing_text: String::new(),
             tag_focus_pending: false,
-            tag_recall_open: false,
-            tag_recall_search: String::new(),
-            tag_recall_selected_idx: 0,
-            tag_recall_was_open: false,
+            tag_recall_picker: SearchPickerState::default(),
             previous_selected_enum: None,
             card_rects: Vec::new(),
             delete_btn_rects: Vec::new(),
@@ -1224,8 +1222,6 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 None;
                             let mut create_tag_action: Option<String> = None;
                             let mut assign_tag_choice: Option<crate::features::editor::shell_app::TagId> = None;
-                            let mut recall_clicked = false;
-                            let mut recall_btn_rect = Rect::ZERO;
                             let mut recall_btn_resp: Option<egui::Response> = None;
                             let unused_tags = app.unused_tags_for_enum(current_enum_id);
                             let has_unused = !unused_tags.is_empty();
@@ -1436,11 +1432,6 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                     "No other tags available"
                                 });
 
-                                recall_btn_rect = recall_btn.rect;
-                                if recall_btn.clicked() {
-                                    recall_clicked = true;
-                                    state.tag_recall_open = !state.tag_recall_open;
-                                }
                                 recall_btn_resp = Some(recall_btn);
                             });
 
@@ -1460,136 +1451,28 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 }
                             }
 
-                            let tag_popup_id = Id::new("tag_recall_popup");
-                            let is_open_now = Popup::is_id_open(ui.ctx(), tag_popup_id);
-                            let just_opened = is_open_now && !state.tag_recall_was_open;
-                            state.tag_recall_was_open = is_open_now;
-                            if just_opened {
-                                state.tag_recall_search.clear();
-                                state.tag_recall_selected_idx = 0;
-                            }
-
+                            // Assign-existing-tag popup: the shared searchable picker renders a
+                            // flat list here (tags only categorize, so every item is untagged).
                             if let Some(ref recall_btn) = recall_btn_resp {
                                 if has_unused {
-                                    let tag_popup_theme = ContextMenuTheme::default();
-                                    Popup::from_toggle_button_response(recall_btn)
-                                        .id(tag_popup_id)
-                                        .frame(tag_popup_theme.frame(&t))
-                                        .width(200.0)
-                                        .show(|ui| {
-                                        ui.set_width(200.0);
-                                        let q = state.tag_recall_search.trim().to_lowercase();
-                                        let filtered_unused: Vec<&crate::features::editor::shell_app::TagDef> = unused_tags
-                                            .iter()
-                                            .filter(|tag| q.is_empty() || tag.name.to_lowercase().contains(&q))
-                                            .collect();
-
-                                        // Search bar on top (outside ScrollArea, does not scroll)
-                                        ui.horizontal(|ui| {
-                                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT;
-                                            let icon_rect = Rect::from_min_size(
-                                                ui.cursor().min,
-                                                vec2(16.0, CONTROL_HEIGHT),
-                                            );
-                                            lc_canvas::icons::paint_icon(
-                                                ui.painter(),
-                                                icon_rect.center(),
-                                                Icon::Search,
-                                                12.0,
-                                                t.muted,
-                                            );
-                                            ui.add_space(20.0);
-                                            let search_w = ui.available_width().max(60.0);
-                                            let search_resp = ui.add_sized(
-                                                [search_w, CONTROL_HEIGHT],
-                                                TextEdit::singleline(&mut state.tag_recall_search)
-                                                    .id(Id::new("tag_recall_search_input"))
-                                                    .hint_text("Search tags...")
-                                                    .vertical_align(Align::Center)
-                                                    .margin(Margin::symmetric(6, 0)),
-                                            );
-                                            if just_opened {
-                                                search_resp.request_focus();
-                                            }
-                                        });
-
-                                        ui.add_space(4.0);
-
-                                        // Keyboard navigation
-                                        if ui.input(|i| i.key_pressed(Key::ArrowDown)) && !filtered_unused.is_empty() {
-                                            state.tag_recall_selected_idx =
-                                                (state.tag_recall_selected_idx + 1).min(filtered_unused.len() - 1);
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::ArrowUp)) && state.tag_recall_selected_idx > 0 {
-                                            state.tag_recall_selected_idx -= 1;
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::Enter)) {
-                                            if let Some(tag) = filtered_unused.get(state.tag_recall_selected_idx) {
-                                                assign_tag_choice = Some(tag.id);
-                                                ui.close();
-                                            }
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::Escape)) {
-                                            ui.close();
-                                        }
-
-                                        // ScrollArea for items: max_height(5.0 * CONTROL_HEIGHT)
-                                        ScrollArea::vertical()
-                                            .id_salt("tag_recall_scroll")
-                                            .max_height(5.0 * CONTROL_HEIGHT)
-                                            .show(ui, |ui| {
-                                                ui.set_width(ui.available_width());
-                                                if filtered_unused.is_empty() {
-                                                    ui.vertical_centered(|ui| {
-                                                        ui.add_space(8.0);
-                                                        ui.label(RichText::new("No tags found").size(12.0).color(t.muted));
-                                                        ui.add_space(8.0);
-                                                    });
-                                                } else {
-                                                    for (idx, tag) in filtered_unused.iter().enumerate() {
-                                                        let is_kb_sel = idx == state.tag_recall_selected_idx;
-                                                        let (item_rect, item_resp) = ui.allocate_exact_size(
-                                                            vec2(ui.available_width(), CONTROL_HEIGHT),
-                                                            Sense::click(),
-                                                        );
-                                                        if item_resp.hovered() {
-                                                            state.tag_recall_selected_idx = idx;
-                                                        }
-                                                        let item_fill = if item_resp.hovered() || is_kb_sel {
-                                                            t.sunken
-                                                        } else {
-                                                            Color32::TRANSPARENT
-                                                        };
-                                                        ui.painter().rect_filled(item_rect, CornerRadius::ZERO, item_fill);
-
-                                                        let text_rect = item_rect.shrink2(vec2(8.0, 0.0));
-                                                        ui.new_child(
-                                                            egui::UiBuilder::new()
-                                                                .max_rect(text_rect)
-                                                                .layout(Layout::left_to_right(Align::Center)),
-                                                        )
-                                                        .add(
-                                                            egui::Label::new(
-                                                                RichText::new(&tag.name)
-                                                                    .size(12.0)
-                                                                    .color(t.ink_strong),
-                                                            )
-                                                            .truncate()
-                                                            .selectable(false),
-                                                        );
-
-                                                        let item_resp = item_resp.on_hover_text(&tag.name);
-                                                        if item_resp.clicked() {
-                                                            assign_tag_choice = Some(tag.id);
-                                                            ui.close();
-                                                        }
-                                                    }
-                                                }
-                                            });
-                                    });
+                                    let picker_items: Vec<
+                                        PickerItem<crate::features::editor::shell_app::TagId>,
+                                    > = unused_tags
+                                        .iter()
+                                        .map(|tag| PickerItem::new(tag.id, tag.name.clone()))
+                                        .collect();
+                                    let cfg = SearchPickerConfig::new("Search tags...");
+                                    if let Some(PickerChoice::Item(tag_id)) = search_picker(
+                                        recall_btn,
+                                        Id::new("tag_recall_popup"),
+                                        &picker_items,
+                                        &mut state.tag_recall_picker,
+                                        &cfg,
+                                    ) {
+                                        assign_tag_choice = Some(tag_id);
+                                    }
                                 }
                             }
-
                             if let Some(tag_id) = assign_tag_choice {
                                 app.assign_tag_to_enum(current_enum_id, tag_id);
                             }

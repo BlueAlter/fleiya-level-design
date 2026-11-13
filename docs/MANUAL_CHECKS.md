@@ -229,3 +229,16 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] With a canvas region selected, `Ctrl+C` reports `Copied <w>x<h> tile/IntGrid region` and `Ctrl+V` at the cursor stamps the same layout into the active layer of the matching kind.
 - [ ] `Ctrl+Z` after a multi-tile stamp or a paste removes the whole operation in one step.
 - [ ] `Ctrl+V` with an empty clipboard, no active layer, or a layer of the wrong kind reports a clear status message and does not mutate the project.
+
+## Shared Searchable Picker / Tag Recall Popup (feature/tileset)
+- [ ] Opening the enum window tag popup places the caret in the search field (it is focused and accepts typing immediately).
+- [ ] Typing filters the tag list case-insensitively; clearing the field restores every tag; a query matching nothing shows "No results" and the popup stays open.
+- [ ] Rows are 32 px tall with a flat hover fill, and hovering a row moves the keyboard highlight to it.
+- [ ] Arrow Down/Up move the highlight, skip group headers and disabled (greyed) rows, and stop at both ends of the list.
+- [ ] Enter assigns the highlighted tag and closes the popup; Escape closes it without assigning; clicking a row assigns that tag.
+- [ ] With more than five tags the list scrolls inside the popup while the search field stays fixed; group headers do not count toward the five-row cap.
+- [ ] Long tag names are truncated with an ellipsis and the full text appears in the hover tooltip.
+- [ ] The enum window tag popup still renders as a flat list: same width (200 px), no group header above the tags, same row height as before.
+- [ ] Grouped lists (multi-tag items, used by later tasks) list "Untagged" first, then tag names A-Z case-insensitively; an item with several tags appears under each of its groups.
+- [ ] The "-- None --" row, when enabled by a caller, is the first row, is keyboard-selectable and reports "none" rather than an item.
+- [ ] The tileset window has not changed in this task (its enum pickers are still plain combo boxes).
