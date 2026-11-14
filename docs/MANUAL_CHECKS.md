@@ -242,3 +242,8 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Grouped lists (multi-tag items, used by later tasks) list "Untagged" first, then tag names A-Z case-insensitively; an item with several tags appears under each of its groups.
 - [ ] The "-- None --" row, when enabled by a caller, is the first row, is keyboard-selectable and reports "none" rather than an item.
 - [ ] The tileset window has not changed in this task (its enum pickers are still plain combo boxes).
+
+## Enum Sub-Tabs (feature/tileset)
+- [ ] Clicking ENUM DEF / DOCUMENT (in the enum mode and the floating enum window) never moves or resizes either tab; the strip stays put while the active border and fill swap.
+- [ ] Both tabs render with the same font size and weight; only the active one uses the accent border/fill and accent text colour.
+- [ ] Hovering a tab shows the pointing-hand cursor and clicking switches the active tab.

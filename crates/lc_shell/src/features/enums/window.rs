@@ -16,6 +16,7 @@ use lc_feature_enums::{
 };
 
 use crate::features::editor::shell_app::ShellApp;
+use crate::shared::ui::sub_tabs::sub_tabs;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PendingDeleteModal {
@@ -652,48 +653,7 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
 
                     // 1. Top Sub-tabs (ENUM DEF / DOCUMENT) + Project Enums button
                     ui.horizontal(|ui| {
-                        let is_def = state.active_sub_tab == 0;
-                        let btn_def = Frame::new()
-                            .fill(if is_def { t.sunken } else { Color32::TRANSPARENT })
-                            .stroke(if is_def {
-                                Stroke::new(1.0, t.accent)
-                            } else {
-                                Stroke::NONE
-                            })
-                            .inner_margin(Margin::symmetric(10, 4))
-                            .corner_radius(CornerRadius::same(2))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("ENUM DEF")
-                                        .size(11.0)
-                                        .strong()
-                                        .color(if is_def { t.accent_ink } else { t.muted }),
-                                );
-                            });
-                        if btn_def.response.interact(egui::Sense::click()).clicked() {
-                            state.active_sub_tab = 0;
-                        }
-
-                        let is_doc = state.active_sub_tab == 1;
-                        let btn_doc = Frame::new()
-                            .fill(if is_doc { t.sunken } else { Color32::TRANSPARENT })
-                            .stroke(if is_doc {
-                                Stroke::new(1.0, t.accent)
-                            } else {
-                                Stroke::NONE
-                            })
-                            .inner_margin(Margin::symmetric(10, 4))
-                            .corner_radius(CornerRadius::same(2))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("DOCUMENT")
-                                        .size(11.0)
-                                        .color(if is_doc { t.accent_ink } else { t.muted }),
-                                );
-                            });
-                        if btn_doc.response.interact(egui::Sense::click()).clicked() {
-                            state.active_sub_tab = 1;
-                        }
+                        sub_tabs(ui, t, &mut state.active_sub_tab, &["ENUM DEF", "DOCUMENT"]);
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let _ = Frame::new()

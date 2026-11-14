@@ -35,6 +35,7 @@ pub use crate::shared::ui::reorder::{drop_index, reorder_item};
 use crate::shared::ui::search_picker::{
     search_picker, PickerChoice, PickerItem, SearchPickerConfig, SearchPickerState,
 };
+use crate::shared::ui::sub_tabs::sub_tabs;
 use crate::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 use crate::shared::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
@@ -1003,50 +1004,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             state.tag_editing_id.is_some() || state.tag_inline_new_active;
 
                 // 1. Sub-tabs: ENUM DEF / DOCUMENT
-                ui.horizontal(|ui| {
-                    let is_def = state.active_sub_tab == 0;
-                    let btn_def = Frame::new()
-                        .fill(if is_def { t.sunken } else { Color32::TRANSPARENT })
-                        .stroke(if is_def {
-                            Stroke::new(1.0, t.accent)
-                        } else {
-                            Stroke::NONE
-                        })
-                        .inner_margin(Margin::symmetric(10, 4))
-                        .corner_radius(CornerRadius::same(2))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("ENUM DEF")
-                                     .size(11.0)
-                                     .strong()
-                                     .color(if is_def { t.accent_ink } else { t.muted }),
-                            );
-                        });
-                    if btn_def.response.interact(Sense::click()).clicked() {
-                        state.active_sub_tab = 0;
-                    }
-
-                    let is_doc = state.active_sub_tab == 1;
-                    let btn_doc = Frame::new()
-                        .fill(if is_doc { t.sunken } else { Color32::TRANSPARENT })
-                        .stroke(if is_doc {
-                            Stroke::new(1.0, t.accent)
-                        } else {
-                            Stroke::NONE
-                        })
-                        .inner_margin(Margin::symmetric(10, 4))
-                        .corner_radius(CornerRadius::same(2))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("DOCUMENT")
-                                    .size(11.0)
-                                    .color(if is_doc { t.accent_ink } else { t.muted }),
-                            );
-                        });
-                    if btn_doc.response.interact(Sense::click()).clicked() {
-                        state.active_sub_tab = 1;
-                    }
-                });
+                sub_tabs(ui, &t, &mut state.active_sub_tab, &["ENUM DEF", "DOCUMENT"]);
 
                 ui.add_space(8.0);
 
