@@ -12,6 +12,7 @@ use lc_core::layer::TileRef;
 use lc_core::project::Project;
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
+use lc_ui_api::i18n::{keys, tr};
 use lc_ui_api::view::DocumentView;
 
 use crate::commands::{
@@ -140,7 +141,7 @@ impl DocumentView for EnumDefDocumentView {
                     .corner_radius(CornerRadius::same(2))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("ENUM DEF")
+                            RichText::new(tr(keys::ENUMS_TAB_DEFINITION))
                                 .size(11.0)
                                 .strong()
                                 .color(if is_def { t.accent_ink } else { t.muted }),
@@ -158,7 +159,7 @@ impl DocumentView for EnumDefDocumentView {
                     .corner_radius(CornerRadius::same(2))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new("DOCUMENT")
+                            RichText::new(tr(keys::ENUMS_TAB_DOCUMENT))
                                 .size(11.0)
                                 .color(if is_doc { t.accent_ink } else { t.muted }),
                         );
@@ -193,11 +194,9 @@ impl DocumentView for EnumDefDocumentView {
                     .color(t.ink_strong),
             );
             ui.label(
-                RichText::new(
-                    "Define enumeration keys, localized labels, badge colors, and optional bound tile graphics.",
-                )
-                .size(12.0)
-                .color(t.muted),
+                RichText::new(tr(keys::ENUMS_DESCRIPTION))
+                    .size(12.0)
+                    .color(t.muted),
             );
 
             ui.add_space(14.0);

@@ -26,6 +26,7 @@ use crate::features::enums::file::{
     validate_enum_file_data, write_enum_file_atomic, ConflictResolutionChoice, EnumConflict,
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
+use crate::shared::i18n::{keys, tr};
 use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
@@ -1004,7 +1005,15 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             state.tag_editing_id.is_some() || state.tag_inline_new_active;
 
                 // 1. Sub-tabs: ENUM DEF / DOCUMENT
-                sub_tabs(ui, &t, &mut state.active_sub_tab, &["ENUM DEF", "DOCUMENT"]);
+                sub_tabs(
+                    ui,
+                    &t,
+                    &mut state.active_sub_tab,
+                    &[
+                        tr(keys::ENUMS_TAB_DEFINITION),
+                        tr(keys::ENUMS_TAB_DOCUMENT),
+                    ],
+                );
 
                 ui.add_space(8.0);
 
@@ -1019,11 +1028,9 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     .truncate(),
                 );
                 ui.label(
-                    RichText::new(
-                        "Define enumeration keys, localized labels, badge colors, and optional bound tile graphics.",
-                    )
-                    .size(11.5)
-                    .color(t.muted),
+                    RichText::new(tr(keys::ENUMS_DESCRIPTION))
+                        .size(11.5)
+                        .color(t.muted),
                 );
 
                 ui.add_space(10.0);

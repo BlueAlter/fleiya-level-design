@@ -1985,6 +1985,7 @@ dependencies = [
  "egui",
  "glam",
  "lc_core",
+ "ron",
  "serde",
  "thiserror 2.0.21",
  "tracing",

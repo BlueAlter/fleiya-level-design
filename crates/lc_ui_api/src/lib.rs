@@ -6,6 +6,7 @@ pub mod assets;
 pub mod canvas;
 pub mod context;
 pub mod events;
+pub mod i18n;
 pub mod inspector;
 pub mod registry;
 pub mod selection;
