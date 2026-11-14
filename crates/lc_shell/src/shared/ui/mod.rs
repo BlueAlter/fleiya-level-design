@@ -1,4 +1,5 @@
 pub mod context_menu;
+pub mod def_workspace;
 pub mod drag_list;
 pub mod markdown_document;
 pub mod reorder;
@@ -11,6 +12,11 @@ pub mod tile_picker;
 pub use context_menu::{
     is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
     ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
+};
+pub use def_workspace::{
+    def_field_row, def_footer, def_left_panel, def_panel_width, def_right_header, def_row_layout,
+    def_section, format_footer_left, DefItem, DefLeftPanelAction, DefLeftPanelConfig, DefRowLayout,
+    DEF_CARD_HEIGHT, DEF_PANEL_WIDTH,
 };
 pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle};
 pub use markdown_document::{
