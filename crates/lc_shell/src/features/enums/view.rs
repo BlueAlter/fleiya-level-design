@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use egui::{
-    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Layout, Margin, Order,
-    Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextEdit,
-    Ui,
+    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, FontId, Frame, Id, Layout,
+    Margin, Order, Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke,
+    StrokeKind, TextEdit, TextStyle, Ui,
 };
+use egui_commonmark::CommonMarkViewer;
 
 use lc_canvas::grid::draw_checkerboard;
 use lc_canvas::icons::Icon;
@@ -26,7 +27,7 @@ use crate::features::enums::file::{
     validate_enum_file_data, write_enum_file_atomic, ConflictResolutionChoice, EnumConflict,
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
-use crate::shared::i18n::{keys, tr};
+use crate::shared::i18n::{doc, keys, tr};
 use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
@@ -189,6 +190,10 @@ pub struct EnumViewState {
     /// Shared searchable picker used by the "assign existing tag" popup.
     pub tag_recall_picker: SearchPickerState,
     pub previous_selected_enum: Option<EnumDefId>,
+    /// Markdown cache of the DOCUMENT sub-tab (view state, never in `Project`).
+    pub doc_cache: std::sync::Arc<std::sync::Mutex<egui_commonmark::CommonMarkCache>>,
+    /// Vertical scroll offset of the DOCUMENT sub-tab.
+    pub doc_scroll: f32,
     pub card_rects: Vec<egui::Rect>,
     pub delete_btn_rects: Vec<egui::Rect>,
 }
@@ -235,6 +240,10 @@ impl Default for EnumViewState {
             tag_focus_pending: false,
             tag_recall_picker: SearchPickerState::default(),
             previous_selected_enum: None,
+            doc_cache: std::sync::Arc::new(std::sync::Mutex::new(
+                egui_commonmark::CommonMarkCache::default(),
+            )),
+            doc_scroll: 0.0,
             card_rects: Vec::new(),
             delete_btn_rects: Vec::new(),
         }
@@ -291,6 +300,48 @@ pub fn sync_enum_draft_shadows(app: &mut ShellApp) {
             }
         }
     }
+}
+
+/// Renders the DOCUMENT sub-tab: the localized Markdown overview.
+///
+/// The Markdown cache and the scroll offset live in [`EnumViewState`] (view
+/// state), never in the project. Text uses the theme tokens so the page matches
+/// the rest of the enum window.
+pub fn render_enum_document(ui: &mut Ui, t: &Tokens, state: &mut EnumViewState) {
+    let mut style = ui.style().as_ref().clone();
+    style.visuals.override_text_color = Some(t.ink);
+    style.visuals.hyperlink_color = t.accent;
+    style.visuals.widgets.noninteractive.fg_stroke.color = t.ink_strong;
+    style
+        .text_styles
+        .insert(TextStyle::Heading, FontId::proportional(18.0));
+    style
+        .text_styles
+        .insert(TextStyle::Body, FontId::proportional(12.5));
+    style
+        .text_styles
+        .insert(TextStyle::Button, FontId::proportional(12.0));
+    style
+        .text_styles
+        .insert(TextStyle::Small, FontId::proportional(11.0));
+
+    let text = doc("enum", "overview");
+    let cache = &state.doc_cache;
+    ui.scope(|ui| {
+        ui.set_style(style);
+        let output = ScrollArea::vertical()
+            .id_salt("enum_document_scroll")
+            .auto_shrink([false, false])
+            .vertical_scroll_offset(state.doc_scroll)
+            .show(ui, |ui| {
+                let mut cache = match cache.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                CommonMarkViewer::new().show(ui, &mut cache, text);
+            });
+        state.doc_scroll = output.state.offset.y;
+    });
 }
 
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
@@ -1034,6 +1085,13 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                 );
 
                 ui.add_space(10.0);
+
+                // The DOCUMENT tab replaces the definition form and keeps the
+                // title row above.
+                if state.active_sub_tab == 1 {
+                    render_enum_document(ui, &t, &mut state);
+                    return;
+                }
 
                 // 3. Section: ENUM IDENTIFIER & ATTRIBUTES (Frozen top card)
                 ui.label(

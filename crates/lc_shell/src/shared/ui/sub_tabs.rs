@@ -102,10 +102,11 @@ mod tests {
     fn tab_ids_are_stable_and_distinct() {
         let ctx = egui::Context::default();
         let mut ids = Vec::new();
-        let _ = ctx.run_ui(Default::default(), |ui| {
+        let mut output = ctx.run_ui(Default::default(), |ui| {
             ids.push(sub_tab_id(ui, 0));
             ids.push(sub_tab_id(ui, 1));
         });
+        output.textures_delta.clear();
         assert_eq!(ids.len(), 2);
         assert_ne!(ids[0], ids[1]);
     }

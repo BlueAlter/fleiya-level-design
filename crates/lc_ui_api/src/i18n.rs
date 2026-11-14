@@ -58,9 +58,12 @@ struct DocPage {
 }
 
 /// Documentation pages compiled into the binary.
-///
-/// The first pages are registered by the feature that adds the DOCUMENT tab.
-const DOC_PAGES: &[DocPage] = &[];
+const DOC_PAGES: &[DocPage] = &[DocPage {
+    language: DEFAULT_LANGUAGE,
+    topic: "enum",
+    page: "overview",
+    text: include_str!("../../../assets/localization/en-US/docs/enum/overview.md"),
+}];
 
 /// Parsed string tables, keyed by the language code of the bundle.
 static TABLES: OnceLock<HashMap<&'static str, HashMap<String, String>>> = OnceLock::new();
@@ -233,6 +236,16 @@ mod tests {
             tr_for("EN-us", keys::ENUMS_TAB_DOCUMENT),
             tr_for("en-US", keys::ENUMS_TAB_DOCUMENT)
         );
+    }
+
+    #[test]
+    fn documents_fall_back_to_english() {
+        let english = doc_for(DEFAULT_LANGUAGE, "enum", "overview");
+        assert!(
+            english.contains("# Enums"),
+            "overview page must be embedded"
+        );
+        assert_eq!(doc_for("fr-FR", "enum", "overview"), english);
     }
 
     #[test]
