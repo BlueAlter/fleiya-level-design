@@ -127,8 +127,8 @@ pub struct ShellApp {
     pub show_layer_window: bool,
     /// Whether the floating entity definitions window is open.
     pub show_entities_window: bool,
-    /// Whether the floating tileset definitions window is open.
-    pub show_tileset_window: bool,
+    /// View state for the Tilesets workspace.
+    pub tileset_view_state: crate::features::tileset::state::TilesetViewState,
     /// Whether the floating enum definitions window is open.
     pub show_enum_window: bool,
     /// Currently focused layer definition in the Layer window.
@@ -259,7 +259,7 @@ impl ShellApp {
             show_unsaved_close_dialog: false,
             show_layer_window: false,
             show_entities_window: false,
-            show_tileset_window: false,
+            tileset_view_state: Default::default(),
             show_enum_window: false,
             selected_layer_def: None,
             selected_entity_def: None,
@@ -804,9 +804,9 @@ impl ShellApp {
             }
             DocKind::TilesetDef(tileset_id) => {
                 self.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
-                self.show_tileset_window = true;
                 self.selected_tileset_def = Some(tileset_id);
-                self.status_message = "Opened Tileset Window".to_string();
+                self.tileset_view_state.select_tileset(tileset_id);
+                self.status_message = format!("Opened Tileset {:?}", tileset_id);
             }
             DocKind::EnumDef(enum_id) => {
                 if self.open_documents.contains_key(&kind) {
@@ -1031,7 +1031,6 @@ impl ShellApp {
                 // 7b. Floating definition windows
                 crate::features::layers::window::render_layer_window(self, ui.ctx());
                 crate::features::entities::window::render_entities_window(self, ui.ctx());
-                crate::features::tileset::window::render_tileset_window(self, ui.ctx());
             }
             crate::features::editor::app_mode::AppMode::Enums => {
                 crate::features::enums::view::render_enum_view(self, ui);

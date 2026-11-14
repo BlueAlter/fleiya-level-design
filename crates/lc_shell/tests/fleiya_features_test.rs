@@ -78,9 +78,12 @@ fn test_definition_tabs_and_windows_behavior() {
     assert_eq!(shell.selected_entity_def, Some(EntityDefId(2)));
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
-    // Opening TilesetDef opens Tileset window, not tab bar
+    // Opening TilesetDef switches mode to Tilesets and selects the tileset, not opening in tab bar
     shell.open_document(DocKind::TilesetDef(TilesetDefId(1)));
-    assert!(shell.show_tileset_window);
+    assert_eq!(
+        shell.active_mode,
+        lc_shell::features::editor::app_mode::AppMode::Tilesets
+    );
     assert_eq!(shell.selected_tileset_def, Some(TilesetDefId(1)));
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 

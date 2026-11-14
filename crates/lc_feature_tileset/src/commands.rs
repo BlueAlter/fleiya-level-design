@@ -3,6 +3,7 @@
 pub use crate::paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
+pub use crate::reorder_command::ReorderTilesetDefCommand;
 
 use lc_core::command::{Command, DocKind};
 use lc_core::defs::TilesetDef;

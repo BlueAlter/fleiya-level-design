@@ -7,15 +7,24 @@ pub mod clipboard;
 pub mod commands;
 mod fill_tools;
 pub mod handler;
+pub mod helpers;
 pub mod paint_commands;
 pub mod palette;
+pub mod reorder_command;
 mod select;
 pub mod tools;
 pub mod view;
 
 pub use clipboard::TileClipboard;
-pub use commands::{AddTilesetDefCommand, RemoveTilesetDefCommand, UpdateTilesetDefCommand};
+pub use commands::{
+    AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
+    UpdateTilesetDefCommand,
+};
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
+pub use helpers::{
+    compute_tileset_grid, generate_unique_tileset_name, mode_availability, tileset_usage_counts,
+    GridMetrics, ModeEntry,
+};
 pub use paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };

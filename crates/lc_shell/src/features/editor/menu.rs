@@ -102,13 +102,8 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 });
 
                 menu_button(ui, "WINDOWS", |ui| {
-                    if ui
-                        .checkbox(&mut app.show_tileset_window, "Tileset Window")
-                        .clicked()
-                    {
-                        if app.show_tileset_window {
-                            app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
-                        }
+                    if ui.button("Tilesets Workspace  Ctrl+3").clicked() {
+                        app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
                         ui.close();
                     }
                     if ui
