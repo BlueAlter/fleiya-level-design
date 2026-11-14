@@ -340,6 +340,37 @@ pub fn sync_enum_draft_shadows(app: &mut ShellApp) {
     }
 }
 
+/// Applies the DOCUMENT-only list layout before Markdown is rendered.
+///
+/// `egui_commonmark` sizes list marker slots from the body text height while the
+/// app theme reserves `spacing.interact_size.y` (28 px) per row, which puts the
+/// marker ~6 px above its text line. Scoping the interact size to the body
+/// height fixes the alignment; markers (and bold text) take their color from
+/// `visuals.widgets.active`, set to the accent here. Both overrides live in this
+/// scope, so the global theme is never touched.
+fn apply_document_list_layout(ui: &mut Ui, t: &Tokens) {
+    let body = ui.text_style_height(&TextStyle::Body);
+    ui.spacing_mut().interact_size.y = body;
+    ui.visuals_mut().widgets.active.fg_stroke.color = t.accent;
+}
+
+/// Renders `markdown` with the DOCUMENT list layout (Body-height rows, accent
+/// markers).
+///
+/// Exposed so the list-alignment regression test can render a controlled
+/// document without duplicating the scope setup.
+pub fn render_markdown_document(
+    ui: &mut Ui,
+    t: &Tokens,
+    cache: &mut egui_commonmark::CommonMarkCache,
+    markdown: &str,
+) {
+    ui.scope(|ui| {
+        apply_document_list_layout(ui, t);
+        CommonMarkViewer::new().show(ui, cache, markdown);
+    });
+}
+
 /// Renders the DOCUMENT sub-tab: the localized Markdown overview.
 ///
 /// The Markdown cache and the scroll offset are view state, never project data.
@@ -376,7 +407,7 @@ pub fn render_enum_document(ui: &mut Ui, t: &Tokens, cache: &DocumentCache, scro
                     Ok(guard) => guard,
                     Err(poisoned) => poisoned.into_inner(),
                 };
-                CommonMarkViewer::new().show(ui, &mut cache, text);
+                render_markdown_document(ui, t, &mut cache, text);
             });
         *scroll = output.state.offset.y;
     });

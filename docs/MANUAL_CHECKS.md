@@ -252,6 +252,8 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Switching to DOCUMENT hides the title row ("<name> (Enum)"), the description, the identifier card, the value table, the tag card, and the bottom bar (ID / "Used by ..." / Revert / Save Enum Def). The page fills the whole detail area below the sub-tabs.
 - [ ] The floating Enum window behaves the same: in DOCUMENT it shows no title and no footer bar, and the page fills the right pane.
 - [ ] The page renders `assets/localization/en-US/docs/enum/overview.md`: the "Enums" heading, bullet lists, and the numbered "Create an enum" steps appear (no tables or images).
+- [ ] Bullet dots and list numbers sit on the same text line as their item (no vertical drift), including two-digit numbers such as "10." and long items that wrap onto a second line.
+- [ ] Bullet dots and list numbers use the accent colour; bold text inside the document also uses the accent colour (accepted side effect).
 - [ ] Document text uses the Fleiya theme colours and sizes (body text in the normal ink colour, headings larger, links in the accent colour) and scrolls inside the tab.
 - [ ] Switching to ENUM DEF and back restores the title, form, footer, and document scroll position; the draft and its dirty state do not change, and the page does not re-parse the Markdown every frame.
 - [ ] Sub-tab labels and the description come from `assets/localization/en-US/editor/enums.ron`; editing that file and rebuilding changes the visible text without touching Rust.
