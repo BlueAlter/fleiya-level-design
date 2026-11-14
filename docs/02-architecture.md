@@ -27,7 +27,7 @@ xtask/                  cargo xtask check|board
 | lc_feature_* | core, ui_api, canvas — NEVER io, shell, or another feature |
 | lc_shell | everything except lc_app |
 | lc_app | shell |
-Third-party: egui/eframe only in ui_api, canvas, features, shell, app. egui_dock only in shell. serde_json only in io.
+Third-party: egui/eframe only in ui_api, canvas, features, shell, app. egui_dock only in shell. egui_commonmark only in shell (ADR-0016). serde_json only in io.
 Toolchain: Pinned to stable `1.99.0` in `rust-toolchain.toml` (newest stable compiling egui 0.36 without nightly flags; see ADR-0012).
 
 ## Extension points (defined in lc_ui_api, with DocKind defined in lc_core::command)
