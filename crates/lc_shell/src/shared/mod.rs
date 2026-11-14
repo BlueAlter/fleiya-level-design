@@ -5,4 +5,5 @@
 
 pub mod assets;
 pub mod file_dialog;
+pub mod i18n;
 pub mod ui;
