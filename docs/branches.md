@@ -27,6 +27,13 @@ without touching the same files. `main` is the integration branch; every
    `main` through a PR (see `docs/04-multi-agent-workflow.md`).
 4. Keep the gate green on every branch: `cargo xtask check`.
 
+## Cross-branch exceptions
+
+- `feature/tileset` task (Tileset workspace mode switch):
+  - `crates/lc_shell/src/features/editor/app_mode.rs`: added `AppMode::Tilesets`, `ModeButton`, `MODE_BUTTONS`, `control_width`, `shows_unsaved`, and data-driven segmented control.
+  - `crates/lc_shell/src/features/editor/menu.rs`: added `Ctrl+3` shortcut in `handle_global_shortcuts` and `active_mode = Tilesets` when opening tileset window.
+  - `crates/lc_shell/src/features/editor/shell_app.rs`: added `AppMode::Tilesets` dispatch to `render_tileset_view` and `active_mode = Tilesets` in `open_document(DocKind::TilesetDef)`.
+
 ## Daily commands
 
 ```sh

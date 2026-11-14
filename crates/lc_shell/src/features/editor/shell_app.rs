@@ -803,6 +803,7 @@ impl ShellApp {
                 self.status_message = "Opened Entities Window".to_string();
             }
             DocKind::TilesetDef(tileset_id) => {
+                self.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
                 self.show_tileset_window = true;
                 self.selected_tileset_def = Some(tileset_id);
                 self.status_message = "Opened Tileset Window".to_string();
@@ -1034,6 +1035,9 @@ impl ShellApp {
             }
             crate::features::editor::app_mode::AppMode::Enums => {
                 crate::features::enums::view::render_enum_view(self, ui);
+            }
+            crate::features::editor::app_mode::AppMode::Tilesets => {
+                crate::features::tileset::view::render_tileset_view(self, ui);
             }
         }
 
