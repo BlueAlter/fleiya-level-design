@@ -26,6 +26,10 @@ without touching the same files. `main` is the integration branch; every
 3. `main` never receives feature work directly. Feature branches merge to
    `main` through a PR (see `docs/04-multi-agent-workflow.md`).
 4. Keep the gate green on every branch: `cargo xtask check`.
+5. `assets/localization/<lang>/editor/<domain>.ron` and
+   `assets/localization/<lang>/docs/<domain>/` belong to the domain branch; the
+   i18n loader (`lc_ui_api::i18n`, `lc_shell::shared::i18n`), `common.ron` and
+   `assets/localization/README.md` belong to `shared/ui-kit`.
 
 ## Daily commands
 
