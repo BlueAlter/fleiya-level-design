@@ -229,3 +229,8 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] With a canvas region selected, `Ctrl+C` reports `Copied <w>x<h> tile/IntGrid region` and `Ctrl+V` at the cursor stamps the same layout into the active layer of the matching kind.
 - [ ] `Ctrl+Z` after a multi-tile stamp or a paste removes the whole operation in one step.
 - [ ] `Ctrl+V` with an empty clipboard, no active layer, or a layer of the wrong kind reports a clear status message and does not mutate the project.
+
+## Sub-Tab Strip (shared/ui-kit)
+- [ ] Clicking ENUM DEF / DOCUMENT (in the enum mode and the floating enum window) never moves or resizes either tab; the strip stays put while the active border and fill swap.
+- [ ] Both tabs render with the same font size and weight; only the active one uses the accent border/fill and accent text colour.
+- [ ] Hovering a tab shows the pointing-hand cursor and clicking switches the active tab.
