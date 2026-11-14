@@ -339,7 +339,10 @@ mod tests {
     #[test]
     fn documents_fall_back_to_english() {
         register_catalog("i18n-fixture", FIXTURE);
-        assert_eq!(doc_for(DEFAULT_LANGUAGE, "i18n-fixture", "page"), "# Fixture\n");
+        assert_eq!(
+            doc_for(DEFAULT_LANGUAGE, "i18n-fixture", "page"),
+            "# Fixture\n"
+        );
         assert_eq!(doc_for("fr-FR", "i18n-fixture", "page"), "# Fixture\n");
     }
 
