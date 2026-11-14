@@ -9,5 +9,6 @@ pub mod inspector_panel;
 pub mod menu;
 pub mod shell_app;
 pub mod status_bar;
+pub mod tileset_placeholder;
 pub mod tool_router;
 pub mod workspace;

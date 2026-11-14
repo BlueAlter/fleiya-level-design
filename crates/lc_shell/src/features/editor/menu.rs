@@ -172,7 +172,7 @@ fn menu_button(ui: &mut Ui, text: &str, add: impl FnOnce(&mut Ui)) {
 
 /// Handles application-wide keyboard shortcuts.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
-    // Mode shortcuts (Ctrl+1 = Editor, Ctrl+2 = Enums) via consume_shortcut
+    // Mode shortcuts (Ctrl+1 = Editor, Ctrl+2 = Enums, Ctrl+3 = Tilesets) via consume_shortcut
     let ctrl_1 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num1);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_1)) {
         app.active_mode = crate::features::editor::app_mode::AppMode::Editor;
@@ -180,6 +180,10 @@ pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
     let ctrl_2 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num2);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_2)) {
         app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
+    }
+    let ctrl_3 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num3);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_3)) {
+        app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
     }
 
     ctx.input(|i| {

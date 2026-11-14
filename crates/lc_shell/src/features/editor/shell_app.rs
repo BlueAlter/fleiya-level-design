@@ -1035,7 +1035,13 @@ impl ShellApp {
             crate::features::editor::app_mode::AppMode::Enums => {
                 crate::features::enums::view::render_enum_view(self, ui);
             }
-            crate::features::editor::app_mode::AppMode::Tilesets => {}
+            crate::features::editor::app_mode::AppMode::Tilesets => {
+                // replace with features::tileset::view::render_tileset_view when the tileset workspace exists
+                crate::features::editor::tileset_placeholder::render_tileset_placeholder(
+                    ui,
+                    &theme::Tokens::get(ui.ctx()),
+                );
+            }
         }
 
         // 8. Process deferred commands and events
