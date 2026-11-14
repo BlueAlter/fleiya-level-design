@@ -5,11 +5,10 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use egui::{
-    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, FontId, Frame, Id, Layout,
-    Margin, Order, Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke,
-    StrokeKind, TextEdit, TextStyle, Ui,
+    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Layout, Margin, Order,
+    Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextEdit,
+    Ui,
 };
-use egui_commonmark::CommonMarkViewer;
 
 use lc_canvas::grid::draw_checkerboard;
 use lc_canvas::icons::Icon;
@@ -27,11 +26,14 @@ use crate::features::enums::file::{
     validate_enum_file_data, write_enum_file_atomic, ConflictResolutionChoice, EnumConflict,
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
-use crate::shared::i18n::{doc, keys, tr};
+use crate::features::enums::i18n::{self, keys};
+use crate::shared::i18n::{doc, tr};
 use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
 use crate::shared::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
+use crate::shared::ui::markdown_document::render_document_page;
+pub use crate::shared::ui::markdown_document::DocumentCache;
 use crate::shared::ui::reorder::Slot;
 pub use crate::shared::ui::reorder::{drop_index, reorder_item};
 use crate::shared::ui::search_picker::{
@@ -61,9 +63,6 @@ pub const TRASH_ICON_GAP: f32 = KEBAB_ICON_GAP;
 pub const ENUM_DEF_SUB_TAB: usize = 0;
 /// Sub-tab index of the generic Markdown document page.
 pub const DOCUMENT_SUB_TAB: usize = 1;
-
-/// Markdown cache of a DOCUMENT sub-tab (view state, never in `Project`).
-pub type DocumentCache = std::sync::Arc<std::sync::Mutex<egui_commonmark::CommonMarkCache>>;
 
 /// Chrome the enum detail panel draws around its content.
 ///
@@ -340,80 +339,24 @@ pub fn sync_enum_draft_shadows(app: &mut ShellApp) {
     }
 }
 
-/// Applies the DOCUMENT-only list layout before Markdown is rendered.
-///
-/// `egui_commonmark` sizes list marker slots from the body text height while the
-/// app theme reserves `spacing.interact_size.y` (28 px) per row, which puts the
-/// marker ~6 px above its text line. Scoping the interact size to the body
-/// height fixes the alignment; markers (and bold text) take their color from
-/// `visuals.widgets.active`, set to the accent here. Both overrides live in this
-/// scope, so the global theme is never touched.
-fn apply_document_list_layout(ui: &mut Ui, t: &Tokens) {
-    let body = ui.text_style_height(&TextStyle::Body);
-    ui.spacing_mut().interact_size.y = body;
-    ui.visuals_mut().widgets.active.fg_stroke.color = t.accent;
-}
-
-/// Renders `markdown` with the DOCUMENT list layout (Body-height rows, accent
-/// markers).
-///
-/// Exposed so the list-alignment regression test can render a controlled
-/// document without duplicating the scope setup.
-pub fn render_markdown_document(
-    ui: &mut Ui,
-    t: &Tokens,
-    cache: &mut egui_commonmark::CommonMarkCache,
-    markdown: &str,
-) {
-    ui.scope(|ui| {
-        apply_document_list_layout(ui, t);
-        CommonMarkViewer::new().show(ui, cache, markdown);
-    });
-}
-
 /// Renders the DOCUMENT sub-tab: the localized Markdown overview.
 ///
 /// The Markdown cache and the scroll offset are view state, never project data.
-/// Text uses the theme tokens so the page matches the rest of the enum window.
-/// The caller gives this function the full content area; it renders its own
-/// [`ScrollArea`].
+/// The caller gives this function the full content area; the shared document
+/// page renders its own [`ScrollArea`] in the Fleiya theme.
 pub fn render_enum_document(ui: &mut Ui, t: &Tokens, cache: &DocumentCache, scroll: &mut f32) {
-    let mut style = ui.style().as_ref().clone();
-    style.visuals.override_text_color = Some(t.ink);
-    style.visuals.hyperlink_color = t.accent;
-    style.visuals.widgets.noninteractive.fg_stroke.color = t.ink_strong;
-    style
-        .text_styles
-        .insert(TextStyle::Heading, FontId::proportional(18.0));
-    style
-        .text_styles
-        .insert(TextStyle::Body, FontId::proportional(12.5));
-    style
-        .text_styles
-        .insert(TextStyle::Button, FontId::proportional(12.0));
-    style
-        .text_styles
-        .insert(TextStyle::Small, FontId::proportional(11.0));
-
-    let text = doc("enum", "overview");
-    ui.scope(|ui| {
-        ui.set_style(style);
-        let output = ScrollArea::vertical()
-            .id_salt("enum_document_scroll")
-            .auto_shrink([false, false])
-            .vertical_scroll_offset(*scroll)
-            .show(ui, |ui| {
-                let mut cache = match cache.lock() {
-                    Ok(guard) => guard,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-                render_markdown_document(ui, t, &mut cache, text);
-            });
-        *scroll = output.state.offset.y;
-    });
+    render_document_page(
+        ui,
+        t,
+        cache,
+        scroll,
+        "enum_document_scroll",
+        doc("enum", "overview"),
+    );
 }
 
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
+    i18n::register();
     let t = Tokens::get(ui.ctx());
     let state_id = Id::new("enum_mode_view_transient_state");
     let mut state = ui

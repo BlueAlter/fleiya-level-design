@@ -1,15 +1,15 @@
-//! Regression test for Markdown list markers in the DOCUMENT tab.
+//! Regression test for Markdown list markers in shared document tabs.
 //!
 //! The app theme reserves `spacing.interact_size.y = 28 px` per row, while
 //! `egui_commonmark` paints list markers in a Body-height (16 px) slot. That
 //! mismatch used to push every bullet and number ~6 px above its text line and
-//! left the markers white. The document view scopes the interact size to the
-//! Body height and points the marker color at the accent, so this test measures
-//! the rendered shapes instead of trusting the code path.
+//! left the markers white. The shared document view scopes the interact size to
+//! the Body height and points the marker color at the accent, so this test
+//! measures the rendered shapes instead of trusting the code path.
 
 use egui::{pos2, vec2, Color32, Context, Pos2, RawInput, Rect};
 use lc_canvas::theme::{self, ThemeChoice, Tokens};
-use lc_shell::features::enums::view::render_markdown_document;
+use lc_shell::shared::ui::markdown_document::render_markdown_document;
 
 const MARKDOWN: &str = "\
 - Bullet item

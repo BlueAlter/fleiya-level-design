@@ -230,7 +230,7 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] `Ctrl+Z` after a multi-tile stamp or a paste removes the whole operation in one step.
 - [ ] `Ctrl+V` with an empty clipboard, no active layer, or a layer of the wrong kind reports a clear status message and does not mutate the project.
 
-## Shared Searchable Picker / Tag Recall Popup (feature/tileset)
+## Shared Searchable Picker / Tag Recall Popup (shared/ui-kit)
 - [ ] Opening the enum window tag popup places the caret in the search field (it is focused and accepts typing immediately).
 - [ ] Typing filters the tag list case-insensitively; clearing the field restores every tag; a query matching nothing shows "No results" and the popup stays open.
 - [ ] Rows are 32 px tall with a flat hover fill, and hovering a row moves the keyboard highlight to it.
@@ -243,17 +243,7 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] The "-- None --" row, when enabled by a caller, is the first row, is keyboard-selectable and reports "none" rather than an item.
 - [ ] The tileset window has not changed in this task (its enum pickers are still plain combo boxes).
 
-## Enum Sub-Tabs (feature/tileset)
+## Sub-Tab Strip (shared/ui-kit)
 - [ ] Clicking ENUM DEF / DOCUMENT (in the enum mode and the floating enum window) never moves or resizes either tab; the strip stays put while the active border and fill swap.
 - [ ] Both tabs render with the same font size and weight; only the active one uses the accent border/fill and accent text colour.
 - [ ] Hovering a tab shows the pointing-hand cursor and clicking switches the active tab.
-
-## Enum DOCUMENT Tab and Localization (feature/tileset)
-- [ ] Switching to DOCUMENT hides the title row ("<name> (Enum)"), the description, the identifier card, the value table, the tag card, and the bottom bar (ID / "Used by ..." / Revert / Save Enum Def). The page fills the whole detail area below the sub-tabs.
-- [ ] The floating Enum window behaves the same: in DOCUMENT it shows no title and no footer bar, and the page fills the right pane.
-- [ ] The page renders `assets/localization/en-US/docs/enum/overview.md`: the "Enums" heading, bullet lists, and the numbered "Create an enum" steps appear (no tables or images).
-- [ ] Bullet dots and list numbers sit on the same text line as their item (no vertical drift), including two-digit numbers such as "10." and long items that wrap onto a second line.
-- [ ] Bullet dots and list numbers use the accent colour; bold text inside the document also uses the accent colour (accepted side effect).
-- [ ] Document text uses the Fleiya theme colours and sizes (body text in the normal ink colour, headings larger, links in the accent colour) and scrolls inside the tab.
-- [ ] Switching to ENUM DEF and back restores the title, form, footer, and document scroll position; the draft and its dirty state do not change, and the page does not re-parse the Markdown every frame.
-- [ ] Sub-tab labels and the description come from `assets/localization/en-US/editor/enums.ron`; editing that file and rebuilding changes the visible text without touching Rust.

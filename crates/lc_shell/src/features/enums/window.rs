@@ -16,8 +16,9 @@ use lc_feature_enums::{
 };
 
 use crate::features::editor::shell_app::ShellApp;
+use crate::features::enums::i18n::{self, keys};
 use crate::features::enums::view::{render_enum_document, sections_for, DocumentCache};
-use crate::shared::i18n::{keys, tr};
+use crate::shared::i18n::tr;
 use crate::shared::ui::sub_tabs::sub_tabs;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,6 +211,7 @@ fn render_delete_confirmation_modal(app: &mut ShellApp, ctx: &egui::Context, t: 
 /// Renders the floating Enums window if open.
 pub fn render_enum_window(app: &mut ShellApp, ctx: &egui::Context) {
     if app.show_enum_window {
+        i18n::register();
         let mut open = app.show_enum_window;
         let t = Tokens::get(ctx);
 

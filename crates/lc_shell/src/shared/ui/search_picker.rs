@@ -22,6 +22,7 @@ use lc_canvas::icons::{paint_icon, Icon};
 use lc_canvas::theme::Tokens;
 
 use super::context_menu::ContextMenuTheme;
+use crate::shared::i18n::{common_keys, tr};
 
 /// Height of one selectable row (matches the enum window control height).
 pub const PICKER_ROW_HEIGHT: f32 = 32.0;
@@ -427,7 +428,11 @@ pub fn search_picker<K: Clone + PartialEq>(
                     if rows.is_empty() {
                         ui.vertical_centered(|ui| {
                             ui.add_space(8.0);
-                            ui.label(RichText::new("No results").size(12.0).color(t.muted));
+                            ui.label(
+                                RichText::new(tr(common_keys::SEARCH_NO_RESULTS))
+                                    .size(12.0)
+                                    .color(t.muted),
+                            );
                             ui.add_space(8.0);
                         });
                         return;
