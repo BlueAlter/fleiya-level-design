@@ -249,8 +249,9 @@ Headless Xvfb screenshots inspected at `/tmp/opencode/dock_reexpanded.png`,
 - [ ] Hovering a tab shows the pointing-hand cursor and clicking switches the active tab.
 
 ## Enum DOCUMENT Tab and Localization (feature/tileset)
-- [ ] Switching to DOCUMENT hides the identifier card, value table, and tag card; the title row ("<name> (Enum)") and description stay above the page.
+- [ ] Switching to DOCUMENT hides the title row ("<name> (Enum)"), the description, the identifier card, the value table, the tag card, and the bottom bar (ID / "Used by ..." / Revert / Save Enum Def). The page fills the whole detail area below the sub-tabs.
+- [ ] The floating Enum window behaves the same: in DOCUMENT it shows no title and no footer bar, and the page fills the right pane.
 - [ ] The page renders `assets/localization/en-US/docs/enum/overview.md`: the "Enums" heading, bullet lists, and the numbered "Create an enum" steps appear (no tables or images).
-- [ ] Document text uses the Fleiya theme colours and sizes (body text in the normal ink colour, headings larger, links in the accent colour) and scrolls inside the tab while the title row stays put.
-- [ ] Switching to ENUM DEF and back restores the document scroll position, and the page does not re-parse the Markdown every frame.
+- [ ] Document text uses the Fleiya theme colours and sizes (body text in the normal ink colour, headings larger, links in the accent colour) and scrolls inside the tab.
+- [ ] Switching to ENUM DEF and back restores the title, form, footer, and document scroll position; the draft and its dirty state do not change, and the page does not re-parse the Markdown every frame.
 - [ ] Sub-tab labels and the description come from `assets/localization/en-US/editor/enums.ron`; editing that file and rebuilding changes the visible text without touching Rust.

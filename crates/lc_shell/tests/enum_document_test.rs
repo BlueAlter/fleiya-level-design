@@ -1,7 +1,8 @@
 //! Headless tests for the enum DOCUMENT sub-tab.
 //!
 //! The tab renders the embedded Markdown overview instead of the definition
-//! form, while the title row stays visible.
+//! form. The title row and the pinned footer describe the definition being
+//! edited, so they belong to ENUM DEF only and must not appear here.
 
 use egui::{Context, Id, RawInput};
 use lc_core::defs::EnumDef;
@@ -12,6 +13,13 @@ use lc_shell::features::enums::view::EnumViewState;
 use lc_shell::ShellApp;
 
 const STATE_ID: &str = "enum_mode_view_transient_state";
+
+/// What one rendered frame produced.
+struct Rendered {
+    text: String,
+    app: ShellApp,
+    dirty: bool,
+}
 
 /// Collects every text fragment egui produced this frame.
 fn rendered_text(shapes: &[egui::epaint::ClippedShape]) -> String {
@@ -37,8 +45,8 @@ fn rendered_text(shapes: &[egui::epaint::ClippedShape]) -> String {
     out
 }
 
-/// Renders the enum mode with `active_sub_tab` preselected and returns its text.
-fn render_tab(active_sub_tab: usize) -> String {
+/// Renders the enum mode with `active_sub_tab` preselected.
+fn render_tab(active_sub_tab: usize) -> Rendered {
     let ctx = Context::default();
     lc_canvas::theme::install_fonts(&ctx);
     lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
@@ -53,6 +61,7 @@ fn render_tab(active_sub_tab: usize) -> String {
         values: Vec::new(),
     }];
     app.selected_enum_def = Some(EnumDefId(1));
+    let dirty = app.enum_is_dirty();
 
     let state = EnumViewState {
         active_sub_tab,
@@ -65,12 +74,18 @@ fn render_tab(active_sub_tab: usize) -> String {
     });
     output.textures_delta.clear();
 
-    rendered_text(&output.shapes)
+    Rendered {
+        text: rendered_text(&output.shapes),
+        app,
+        dirty,
+    }
 }
 
 #[test]
-fn document_tab_renders_the_markdown_overview() {
-    let text = render_tab(1);
+fn document_tab_renders_only_the_markdown_overview() {
+    let rendered = render_tab(1);
+    let text = &rendered.text;
+
     assert!(
         text.contains("Create an enum"),
         "the overview heading must be rendered, got:\n{text}"
@@ -79,25 +94,59 @@ fn document_tab_renders_the_markdown_overview() {
         text.contains("Tags are labels that only"),
         "body text must be rendered"
     );
+
+    // Definition chrome: title row, usage footer and Save/Revert actions.
     assert!(
-        text.contains("ItemRarity (Enum)"),
-        "the title row must stay visible on the DOCUMENT tab"
+        !text.contains("ItemRarity (Enum)"),
+        "the definition title must not render on the DOCUMENT tab"
     );
     assert!(
         !text.contains("ENUM IDENTIFIER & ATTRIBUTES"),
         "the definition form must be hidden on the DOCUMENT tab"
     );
+    assert!(
+        !text.contains("Save Enum Def"),
+        "the Save action belongs to ENUM DEF only"
+    );
+    assert!(
+        !text.contains("Revert"),
+        "the Revert action belongs to ENUM DEF only"
+    );
+    assert!(
+        !text.contains("Used by"),
+        "the usage footer belongs to ENUM DEF only"
+    );
+
+    // Switching the sub-tab must not mutate the draft or its dirty state.
+    assert_eq!(rendered.app.enum_draft[0].name, "ItemRarity");
+    assert_eq!(rendered.app.enum_is_dirty(), rendered.dirty);
 }
 
 #[test]
-fn definition_tab_keeps_showing_the_form() {
-    let text = render_tab(0);
+fn definition_tab_keeps_title_form_and_footer() {
+    let rendered = render_tab(0);
+    let text = &rendered.text;
+
+    assert!(
+        text.contains("ItemRarity (Enum)"),
+        "the definition title is shown on the ENUM DEF tab"
+    );
     assert!(
         text.contains("ENUM IDENTIFIER & ATTRIBUTES"),
         "the definition form is shown on the ENUM DEF tab"
     );
     assert!(
+        text.contains("Save Enum Def"),
+        "the footer Save action is shown on the ENUM DEF tab"
+    );
+    assert!(
+        text.contains("Revert"),
+        "the footer Revert action is shown on the ENUM DEF tab"
+    );
+    assert!(
         !text.contains("Create an enum"),
         "the document must not render on the ENUM DEF tab"
     );
+
+    assert_eq!(rendered.app.enum_is_dirty(), rendered.dirty);
 }
