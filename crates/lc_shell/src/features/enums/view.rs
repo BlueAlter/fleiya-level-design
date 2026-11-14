@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use egui::{
-    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Key, Layout, Margin,
-    Order, Panel, PointerButton, Popup, Pos2, Rect, RichText, ScrollArea, Sense, Stroke,
-    StrokeKind, TextEdit, Ui,
+    vec2, Align, Align2, Area, Color32, CornerRadius, CursorIcon, Frame, Id, Layout, Margin, Order,
+    Panel, PointerButton, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, TextEdit,
+    Ui,
 };
 
 use lc_canvas::grid::draw_checkerboard;
@@ -26,12 +26,19 @@ use crate::features::enums::file::{
     validate_enum_file_data, write_enum_file_atomic, ConflictResolutionChoice, EnumConflict,
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
+use crate::shared::i18n::doc;
 use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
 };
 use crate::shared::ui::drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme};
+use crate::shared::ui::markdown_document::render_document_page;
+pub use crate::shared::ui::markdown_document::DocumentCache;
 use crate::shared::ui::reorder::Slot;
 pub use crate::shared::ui::reorder::{drop_index, reorder_item};
+use crate::shared::ui::search_picker::{
+    search_picker, PickerChoice, PickerItem, SearchPickerConfig, SearchPickerState,
+};
+use crate::shared::ui::sub_tabs::sub_tabs;
 use crate::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 use crate::shared::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
@@ -50,6 +57,41 @@ pub const KEBAB_ICON_WIDTH: f32 = 20.0;
 pub const KEBAB_ICON_GAP: f32 = 8.0;
 pub const TRASH_ICON_WIDTH: f32 = KEBAB_ICON_WIDTH;
 pub const TRASH_ICON_GAP: f32 = KEBAB_ICON_GAP;
+
+/// Sub-tab index of the enum definition form.
+pub const ENUM_DEF_SUB_TAB: usize = 0;
+/// Sub-tab index of the generic Markdown document page.
+pub const DOCUMENT_SUB_TAB: usize = 1;
+
+/// Chrome the enum detail panel draws around its content.
+///
+/// The title row and the pinned footer describe the definition being edited, so
+/// they belong to the ENUM DEF tab only. The DOCUMENT page is generic content
+/// that owns the whole detail area.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DetailSections {
+    /// Draw the enum name/description title row above the content.
+    pub title: bool,
+    /// Draw the pinned footer with ID, usage counts, Save and Revert.
+    pub footer: bool,
+}
+
+/// Which chrome sections `tab` shows.
+///
+/// Pure so the draw decision is testable without egui; both the enum mode view
+/// and the floating enum window use it.
+pub const fn sections_for(tab: usize) -> DetailSections {
+    match tab {
+        DOCUMENT_SUB_TAB => DetailSections {
+            title: false,
+            footer: false,
+        },
+        _ => DetailSections {
+            title: true,
+            footer: true,
+        },
+    }
+}
 
 /// State for the card context menu popup (Duplicate / Delete).
 #[derive(Clone, Debug)]
@@ -181,11 +223,13 @@ pub struct EnumViewState {
     pub tag_editing_text: String,
     /// Set when a tag input was just opened so it grabs keyboard focus exactly once.
     pub tag_focus_pending: bool,
-    pub tag_recall_open: bool,
-    pub tag_recall_search: String,
-    pub tag_recall_selected_idx: usize,
-    pub tag_recall_was_open: bool,
+    /// Shared searchable picker used by the "assign existing tag" popup.
+    pub tag_recall_picker: SearchPickerState,
     pub previous_selected_enum: Option<EnumDefId>,
+    /// Markdown cache of the DOCUMENT sub-tab (view state, never in `Project`).
+    pub doc_cache: DocumentCache,
+    /// Vertical scroll offset of the DOCUMENT sub-tab.
+    pub doc_scroll: f32,
     pub card_rects: Vec<egui::Rect>,
     pub delete_btn_rects: Vec<egui::Rect>,
 }
@@ -230,11 +274,12 @@ impl Default for EnumViewState {
             tag_editing_id: None,
             tag_editing_text: String::new(),
             tag_focus_pending: false,
-            tag_recall_open: false,
-            tag_recall_search: String::new(),
-            tag_recall_selected_idx: 0,
-            tag_recall_was_open: false,
+            tag_recall_picker: SearchPickerState::default(),
             previous_selected_enum: None,
+            doc_cache: std::sync::Arc::new(std::sync::Mutex::new(
+                egui_commonmark::CommonMarkCache::default(),
+            )),
+            doc_scroll: 0.0,
             card_rects: Vec::new(),
             delete_btn_rects: Vec::new(),
         }
@@ -291,6 +336,22 @@ pub fn sync_enum_draft_shadows(app: &mut ShellApp) {
             }
         }
     }
+}
+
+/// Renders the DOCUMENT sub-tab: the localized Markdown overview.
+///
+/// The Markdown cache and the scroll offset are view state, never project data.
+/// The caller gives this function the full content area; the shared document
+/// page renders its own [`ScrollArea`] in the Fleiya theme.
+pub fn render_enum_document(ui: &mut Ui, t: &Tokens, cache: &DocumentCache, scroll: &mut f32) {
+    render_document_page(
+        ui,
+        t,
+        cache,
+        scroll,
+        "enum_document_scroll",
+        doc("enum", "overview"),
+    );
 }
 
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
@@ -852,128 +913,134 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
         (0, 0)
     };
 
-    // A. Footer docked at the bottom of the detail area (declared BEFORE CentralPanel)
-    Panel::bottom("enum_mode_detail_footer")
-        .exact_size(48.0)
-        .frame(Frame::new().fill(t.panel))
-        .show_separator_line(true)
-        .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
-                ui.add_space(20.0);
-                if let Some(ref e) = selected_enum_info {
-                    let mut info = format!(
-                        "ID: EnumDefId({}) • Used by {} Entity Def(s) & {} Field(s)",
-                        e.0 .0, entity_count, field_count
-                    );
-                    if app.enum_is_dirty() {
-                        info.push_str(" • Unsaved changes");
+    let sections = sections_for(state.active_sub_tab);
+
+    // A. Footer docked at the bottom of the detail area (declared BEFORE CentralPanel).
+    // The footer describes the definition, so it is part of the ENUM DEF tab only.
+    if sections.footer {
+        Panel::bottom("enum_mode_detail_footer")
+            .exact_size(48.0)
+            .frame(Frame::new().fill(t.panel))
+            .show_separator_line(true)
+            .show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add_space(20.0);
+                    if let Some(ref e) = selected_enum_info {
+                        let mut info = format!(
+                            "ID: EnumDefId({}) • Used by {} Entity Def(s) & {} Field(s)",
+                            e.0 .0, entity_count, field_count
+                        );
+                        if app.enum_is_dirty() {
+                            info.push_str(" • Unsaved changes");
+                        }
+                        ui.label(RichText::new(info).size(11.5).color(t.muted));
                     }
-                    ui.label(RichText::new(info).size(11.5).color(t.muted));
-                }
 
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add_space(12.0);
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.add_space(12.0);
 
-                    let is_dirty = app.enum_is_dirty();
+                        let is_dirty = app.enum_is_dirty();
 
-                    // "Save Enum Def" button (solid blue accent, Title Case)
-                    let save_btn = ui.add_enabled(
-                        is_dirty,
-                        egui::Button::new(
-                            RichText::new("Save Enum Def")
-                                .size(12.0)
-                                .strong()
-                                .color(if is_dirty { t.invert_fg } else { t.muted }),
-                        )
-                        .fill(if is_dirty { t.accent } else { t.sunken })
-                        .corner_radius(CornerRadius::same(3))
-                        .min_size(vec2(110.0, 26.0)),
-                    );
-                    if save_btn.clicked() {
-                        if let Some(open_id) = app.selected_enum_def {
-                            if let Some(open_def) =
-                                app.enum_draft.iter().find(|e| e.id == open_id).cloned()
-                            {
-                                if let Some(pos) =
-                                    app.project.defs.enums.iter().position(|e| e.id == open_id)
+                        // "Save Enum Def" button (solid blue accent, Title Case)
+                        let save_btn = ui.add_enabled(
+                            is_dirty,
+                            egui::Button::new(
+                                RichText::new("Save Enum Def")
+                                    .size(12.0)
+                                    .strong()
+                                    .color(if is_dirty { t.invert_fg } else { t.muted }),
+                            )
+                            .fill(if is_dirty { t.accent } else { t.sunken })
+                            .corner_radius(CornerRadius::same(3))
+                            .min_size(vec2(110.0, 26.0)),
+                        );
+                        if save_btn.clicked() {
+                            if let Some(open_id) = app.selected_enum_def {
+                                if let Some(open_def) =
+                                    app.enum_draft.iter().find(|e| e.id == open_id).cloned()
                                 {
-                                    app.project.defs.enums[pos] = open_def.clone();
-                                } else {
-                                    app.project.defs.enums.push(open_def.clone());
-                                }
-                                app.enum_saved_defs.insert(open_id, open_def.clone());
-                                if let Some(pos) =
-                                    app.enum_saved.iter().position(|e| e.id == open_id)
-                                {
-                                    app.enum_saved[pos] = open_def.clone();
-                                } else {
-                                    app.enum_saved.push(open_def.clone());
-                                }
-                                if let Some(draft) = app.enum_drafts.get_mut(&open_id) {
-                                    draft.saved_revision = draft.revision;
-                                }
-                                for ((eid, vid), rect) in &app.enum_value_tile_rects {
-                                    if *eid == open_id {
-                                        app.enum_saved_tile_rects
-                                            .insert((*eid, vid.clone()), *rect);
+                                    if let Some(pos) =
+                                        app.project.defs.enums.iter().position(|e| e.id == open_id)
+                                    {
+                                        app.project.defs.enums[pos] = open_def.clone();
+                                    } else {
+                                        app.project.defs.enums.push(open_def.clone());
+                                    }
+                                    app.enum_saved_defs.insert(open_id, open_def.clone());
+                                    if let Some(pos) =
+                                        app.enum_saved.iter().position(|e| e.id == open_id)
+                                    {
+                                        app.enum_saved[pos] = open_def.clone();
+                                    } else {
+                                        app.enum_saved.push(open_def.clone());
+                                    }
+                                    if let Some(draft) = app.enum_drafts.get_mut(&open_id) {
+                                        draft.saved_revision = draft.revision;
+                                    }
+                                    for ((eid, vid), rect) in &app.enum_value_tile_rects {
+                                        if *eid == open_id {
+                                            app.enum_saved_tile_rects
+                                                .insert((*eid, vid.clone()), *rect);
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        let save_path = get_default_enum_file_path(app);
-                        let resolver = |tid| app.resolve_tileset_image_size(tid);
-                        let file_data = convert_project_enums_to_file(
-                            &app.project.defs.enums,
-                            &app.project.defs.tilesets,
-                            Some(&app.enum_tileset_map),
-                            &resolver,
-                        );
+                            let save_path = get_default_enum_file_path(app);
+                            let resolver = |tid| app.resolve_tileset_image_size(tid);
+                            let file_data = convert_project_enums_to_file(
+                                &app.project.defs.enums,
+                                &app.project.defs.tilesets,
+                                Some(&app.enum_tileset_map),
+                                &resolver,
+                            );
 
-                        match validate_enum_file_data(&file_data) {
-                            Ok(()) => match write_enum_file_atomic(&save_path, &file_data) {
-                                Ok(()) => {
-                                    app.enum_unsaved = false;
-                                    app.status_message = format!(
-                                        "Saved enum definition to '{}'",
-                                        save_path.display()
-                                    );
-                                    state.toast = Some((
-                                        "Enum definition saved successfully".to_string(),
-                                        Instant::now(),
-                                    ));
+                            match validate_enum_file_data(&file_data) {
+                                Ok(()) => match write_enum_file_atomic(&save_path, &file_data) {
+                                    Ok(()) => {
+                                        app.enum_unsaved = false;
+                                        app.status_message = format!(
+                                            "Saved enum definition to '{}'",
+                                            save_path.display()
+                                        );
+                                        state.toast = Some((
+                                            "Enum definition saved successfully".to_string(),
+                                            Instant::now(),
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        state.error_modal = Some(vec![format!(
+                                            "Failed to save enum definition: {e}"
+                                        )]);
+                                    }
+                                },
+                                Err(errs) => {
+                                    state.error_modal = Some(errs);
                                 }
-                                Err(e) => {
-                                    state.error_modal =
-                                        Some(vec![format!("Failed to save enum definition: {e}")]);
-                                }
-                            },
-                            Err(errs) => {
-                                state.error_modal = Some(errs);
                             }
                         }
-                    }
 
-                    ui.add_space(6.0);
+                        ui.add_space(6.0);
 
-                    // "Revert" button (outline, Title Case)
-                    let revert_btn = ui.add_enabled(
-                        is_dirty,
-                        egui::Button::new(RichText::new("Revert").size(12.0).color(t.ink))
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::new(
-                                1.0,
-                                if is_dirty { t.line_strong } else { t.line },
-                            ))
-                            .corner_radius(CornerRadius::same(3))
-                            .min_size(vec2(70.0, 26.0)),
-                    );
-                    if revert_btn.clicked() {
-                        state.revert_confirm_open = true;
-                    }
+                        // "Revert" button (outline, Title Case)
+                        let revert_btn = ui.add_enabled(
+                            is_dirty,
+                            egui::Button::new(RichText::new("Revert").size(12.0).color(t.ink))
+                                .fill(Color32::TRANSPARENT)
+                                .stroke(Stroke::new(
+                                    1.0,
+                                    if is_dirty { t.line_strong } else { t.line },
+                                ))
+                                .corner_radius(CornerRadius::same(3))
+                                .min_size(vec2(70.0, 26.0)),
+                        );
+                        if revert_btn.clicked() {
+                            state.revert_confirm_open = true;
+                        }
+                    });
                 });
             });
-        });
+    }
 
     // B. Central content area filling the space above the footer
     let sel_id = app.selected_enum_def;
@@ -995,6 +1062,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
             ui.set_max_width(ui.available_width());
 
             if let Some(enum_idx) = selected_idx {
+                if sections.title {
                 ScrollArea::vertical()
                     .id_salt("enum_right_panel_scroll")
                     .auto_shrink([false, false])
@@ -1005,50 +1073,12 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             state.tag_editing_id.is_some() || state.tag_inline_new_active;
 
                 // 1. Sub-tabs: ENUM DEF / DOCUMENT
-                ui.horizontal(|ui| {
-                    let is_def = state.active_sub_tab == 0;
-                    let btn_def = Frame::new()
-                        .fill(if is_def { t.sunken } else { Color32::TRANSPARENT })
-                        .stroke(if is_def {
-                            Stroke::new(1.0, t.accent)
-                        } else {
-                            Stroke::NONE
-                        })
-                        .inner_margin(Margin::symmetric(10, 4))
-                        .corner_radius(CornerRadius::same(2))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("ENUM DEF")
-                                     .size(11.0)
-                                     .strong()
-                                     .color(if is_def { t.accent_ink } else { t.muted }),
-                            );
-                        });
-                    if btn_def.response.interact(Sense::click()).clicked() {
-                        state.active_sub_tab = 0;
-                    }
-
-                    let is_doc = state.active_sub_tab == 1;
-                    let btn_doc = Frame::new()
-                        .fill(if is_doc { t.sunken } else { Color32::TRANSPARENT })
-                        .stroke(if is_doc {
-                            Stroke::new(1.0, t.accent)
-                        } else {
-                            Stroke::NONE
-                        })
-                        .inner_margin(Margin::symmetric(10, 4))
-                        .corner_radius(CornerRadius::same(2))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("DOCUMENT")
-                                    .size(11.0)
-                                    .color(if is_doc { t.accent_ink } else { t.muted }),
-                            );
-                        });
-                    if btn_doc.response.interact(Sense::click()).clicked() {
-                        state.active_sub_tab = 1;
-                    }
-                });
+                sub_tabs(
+                    ui,
+                    &t,
+                    &mut state.active_sub_tab,
+                    &["ENUM DEF", "DOCUMENT"],
+                );
 
                 ui.add_space(8.0);
 
@@ -1224,8 +1254,6 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 None;
                             let mut create_tag_action: Option<String> = None;
                             let mut assign_tag_choice: Option<crate::features::editor::shell_app::TagId> = None;
-                            let mut recall_clicked = false;
-                            let mut recall_btn_rect = Rect::ZERO;
                             let mut recall_btn_resp: Option<egui::Response> = None;
                             let unused_tags = app.unused_tags_for_enum(current_enum_id);
                             let has_unused = !unused_tags.is_empty();
@@ -1436,11 +1464,6 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                     "No other tags available"
                                 });
 
-                                recall_btn_rect = recall_btn.rect;
-                                if recall_btn.clicked() {
-                                    recall_clicked = true;
-                                    state.tag_recall_open = !state.tag_recall_open;
-                                }
                                 recall_btn_resp = Some(recall_btn);
                             });
 
@@ -1460,136 +1483,28 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 }
                             }
 
-                            let tag_popup_id = Id::new("tag_recall_popup");
-                            let is_open_now = Popup::is_id_open(ui.ctx(), tag_popup_id);
-                            let just_opened = is_open_now && !state.tag_recall_was_open;
-                            state.tag_recall_was_open = is_open_now;
-                            if just_opened {
-                                state.tag_recall_search.clear();
-                                state.tag_recall_selected_idx = 0;
-                            }
-
+                            // Assign-existing-tag popup: the shared searchable picker renders a
+                            // flat list here (tags only categorize, so every item is untagged).
                             if let Some(ref recall_btn) = recall_btn_resp {
                                 if has_unused {
-                                    let tag_popup_theme = ContextMenuTheme::default();
-                                    Popup::from_toggle_button_response(recall_btn)
-                                        .id(tag_popup_id)
-                                        .frame(tag_popup_theme.frame(&t))
-                                        .width(200.0)
-                                        .show(|ui| {
-                                        ui.set_width(200.0);
-                                        let q = state.tag_recall_search.trim().to_lowercase();
-                                        let filtered_unused: Vec<&crate::features::editor::shell_app::TagDef> = unused_tags
-                                            .iter()
-                                            .filter(|tag| q.is_empty() || tag.name.to_lowercase().contains(&q))
-                                            .collect();
-
-                                        // Search bar on top (outside ScrollArea, does not scroll)
-                                        ui.horizontal(|ui| {
-                                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT;
-                                            let icon_rect = Rect::from_min_size(
-                                                ui.cursor().min,
-                                                vec2(16.0, CONTROL_HEIGHT),
-                                            );
-                                            lc_canvas::icons::paint_icon(
-                                                ui.painter(),
-                                                icon_rect.center(),
-                                                Icon::Search,
-                                                12.0,
-                                                t.muted,
-                                            );
-                                            ui.add_space(20.0);
-                                            let search_w = ui.available_width().max(60.0);
-                                            let search_resp = ui.add_sized(
-                                                [search_w, CONTROL_HEIGHT],
-                                                TextEdit::singleline(&mut state.tag_recall_search)
-                                                    .id(Id::new("tag_recall_search_input"))
-                                                    .hint_text("Search tags...")
-                                                    .vertical_align(Align::Center)
-                                                    .margin(Margin::symmetric(6, 0)),
-                                            );
-                                            if just_opened {
-                                                search_resp.request_focus();
-                                            }
-                                        });
-
-                                        ui.add_space(4.0);
-
-                                        // Keyboard navigation
-                                        if ui.input(|i| i.key_pressed(Key::ArrowDown)) && !filtered_unused.is_empty() {
-                                            state.tag_recall_selected_idx =
-                                                (state.tag_recall_selected_idx + 1).min(filtered_unused.len() - 1);
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::ArrowUp)) && state.tag_recall_selected_idx > 0 {
-                                            state.tag_recall_selected_idx -= 1;
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::Enter)) {
-                                            if let Some(tag) = filtered_unused.get(state.tag_recall_selected_idx) {
-                                                assign_tag_choice = Some(tag.id);
-                                                ui.close();
-                                            }
-                                        }
-                                        if ui.input(|i| i.key_pressed(Key::Escape)) {
-                                            ui.close();
-                                        }
-
-                                        // ScrollArea for items: max_height(5.0 * CONTROL_HEIGHT)
-                                        ScrollArea::vertical()
-                                            .id_salt("tag_recall_scroll")
-                                            .max_height(5.0 * CONTROL_HEIGHT)
-                                            .show(ui, |ui| {
-                                                ui.set_width(ui.available_width());
-                                                if filtered_unused.is_empty() {
-                                                    ui.vertical_centered(|ui| {
-                                                        ui.add_space(8.0);
-                                                        ui.label(RichText::new("No tags found").size(12.0).color(t.muted));
-                                                        ui.add_space(8.0);
-                                                    });
-                                                } else {
-                                                    for (idx, tag) in filtered_unused.iter().enumerate() {
-                                                        let is_kb_sel = idx == state.tag_recall_selected_idx;
-                                                        let (item_rect, item_resp) = ui.allocate_exact_size(
-                                                            vec2(ui.available_width(), CONTROL_HEIGHT),
-                                                            Sense::click(),
-                                                        );
-                                                        if item_resp.hovered() {
-                                                            state.tag_recall_selected_idx = idx;
-                                                        }
-                                                        let item_fill = if item_resp.hovered() || is_kb_sel {
-                                                            t.sunken
-                                                        } else {
-                                                            Color32::TRANSPARENT
-                                                        };
-                                                        ui.painter().rect_filled(item_rect, CornerRadius::ZERO, item_fill);
-
-                                                        let text_rect = item_rect.shrink2(vec2(8.0, 0.0));
-                                                        ui.new_child(
-                                                            egui::UiBuilder::new()
-                                                                .max_rect(text_rect)
-                                                                .layout(Layout::left_to_right(Align::Center)),
-                                                        )
-                                                        .add(
-                                                            egui::Label::new(
-                                                                RichText::new(&tag.name)
-                                                                    .size(12.0)
-                                                                    .color(t.ink_strong),
-                                                            )
-                                                            .truncate()
-                                                            .selectable(false),
-                                                        );
-
-                                                        let item_resp = item_resp.on_hover_text(&tag.name);
-                                                        if item_resp.clicked() {
-                                                            assign_tag_choice = Some(tag.id);
-                                                            ui.close();
-                                                        }
-                                                    }
-                                                }
-                                            });
-                                    });
+                                    let picker_items: Vec<
+                                        PickerItem<crate::features::editor::shell_app::TagId>,
+                                    > = unused_tags
+                                        .iter()
+                                        .map(|tag| PickerItem::new(tag.id, tag.name.clone()))
+                                        .collect();
+                                    let cfg = SearchPickerConfig::new("Search tags...");
+                                    if let Some(PickerChoice::Item(tag_id)) = search_picker(
+                                        recall_btn,
+                                        Id::new("tag_recall_popup"),
+                                        &picker_items,
+                                        &mut state.tag_recall_picker,
+                                        &cfg,
+                                    ) {
+                                        assign_tag_choice = Some(tag_id);
+                                    }
                                 }
                             }
-
                             if let Some(tag_id) = assign_tag_choice {
                                 app.assign_tag_to_enum(current_enum_id, tag_id);
                             }
@@ -2034,6 +1949,18 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     }
                 }
                     });
+                } else {
+                    // DOCUMENT owns the full content area: no title, no footer,
+                    // and its own ScrollArea fills the space under the sub-tabs.
+                    sub_tabs(
+                        ui,
+                        &t,
+                        &mut state.active_sub_tab,
+                        &["ENUM DEF", "DOCUMENT"],
+                    );
+                    ui.add_space(8.0);
+                    render_enum_document(ui, &t, &state.doc_cache, &mut state.doc_scroll);
+                }
             } else {
                 ui.vertical_centered(|ui| {
                     ui.add_space(40.0);
@@ -2875,4 +2802,26 @@ fn apply_import_with_conflicts(
         format!("Imported {total} enums into draft ({replaced_count} replaced, {renamed_count} renamed)"),
         Instant::now(),
     ));
+}
+
+#[cfg(test)]
+mod sections_tests {
+    use super::*;
+
+    #[test]
+    fn document_tab_draws_no_definition_chrome() {
+        let sections = sections_for(DOCUMENT_SUB_TAB);
+        assert!(!sections.title, "DOCUMENT must not draw the title row");
+        assert!(!sections.footer, "DOCUMENT must not draw the footer");
+    }
+
+    #[test]
+    fn definition_tab_draws_title_and_footer() {
+        let sections = sections_for(ENUM_DEF_SUB_TAB);
+        assert!(sections.title, "ENUM DEF draws the title row");
+        assert!(sections.footer, "ENUM DEF draws the footer");
+        // Unknown future sub-tabs keep the definition chrome so the Save
+        // and Revert actions never disappear silently.
+        assert_eq!(sections_for(7), sections);
+    }
 }

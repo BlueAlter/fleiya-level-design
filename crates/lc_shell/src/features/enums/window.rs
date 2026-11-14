@@ -16,6 +16,8 @@ use lc_feature_enums::{
 };
 
 use crate::features::editor::shell_app::ShellApp;
+use crate::features::enums::view::{render_enum_document, sections_for, DocumentCache};
+use crate::shared::ui::sub_tabs::sub_tabs;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PendingDeleteModal {
@@ -47,6 +49,10 @@ struct EnumWindowState {
     drag_target_val_idx: Option<usize>,
     grab_val_offset: egui::Vec2,
     tileset_dialog: crate::features::tileset::dialog::TilesetDialogState,
+    /// Markdown cache of the DOCUMENT sub-tab (view state, never in `Project`).
+    doc_cache: DocumentCache,
+    /// Vertical scroll offset of the DOCUMENT sub-tab.
+    doc_scroll: f32,
 }
 
 fn render_delete_confirmation_modal(app: &mut ShellApp, ctx: &egui::Context, t: &Tokens) {
@@ -609,19 +615,21 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
         // ==========================================
         let right_rect = ui.available_rect_before_wrap();
         const FOOTER_HEIGHT: f32 = 48.0;
+        let sections = sections_for(state.active_sub_tab);
+
+        // The DOCUMENT tab draws no footer, so its scroll area takes the whole pane.
+        let footer_top = if sections.footer {
+            (right_rect.max.y - FOOTER_HEIGHT).max(right_rect.min.y)
+        } else {
+            right_rect.max.y
+        };
 
         let content_rect = egui::Rect::from_min_max(
             right_rect.min,
-            egui::pos2(
-                right_rect.max.x,
-                (right_rect.max.y - FOOTER_HEIGHT).max(right_rect.min.y),
-            ),
+            egui::pos2(right_rect.max.x, footer_top),
         );
         let footer_rect = egui::Rect::from_min_max(
-            egui::pos2(
-                right_rect.min.x,
-                (right_rect.max.y - FOOTER_HEIGHT).max(right_rect.min.y),
-            ),
+            egui::pos2(right_rect.min.x, footer_top),
             right_rect.max,
         );
 
@@ -652,48 +660,12 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
 
                     // 1. Top Sub-tabs (ENUM DEF / DOCUMENT) + Project Enums button
                     ui.horizontal(|ui| {
-                        let is_def = state.active_sub_tab == 0;
-                        let btn_def = Frame::new()
-                            .fill(if is_def { t.sunken } else { Color32::TRANSPARENT })
-                            .stroke(if is_def {
-                                Stroke::new(1.0, t.accent)
-                            } else {
-                                Stroke::NONE
-                            })
-                            .inner_margin(Margin::symmetric(10, 4))
-                            .corner_radius(CornerRadius::same(2))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("ENUM DEF")
-                                        .size(11.0)
-                                        .strong()
-                                        .color(if is_def { t.accent_ink } else { t.muted }),
-                                );
-                            });
-                        if btn_def.response.interact(egui::Sense::click()).clicked() {
-                            state.active_sub_tab = 0;
-                        }
-
-                        let is_doc = state.active_sub_tab == 1;
-                        let btn_doc = Frame::new()
-                            .fill(if is_doc { t.sunken } else { Color32::TRANSPARENT })
-                            .stroke(if is_doc {
-                                Stroke::new(1.0, t.accent)
-                            } else {
-                                Stroke::NONE
-                            })
-                            .inner_margin(Margin::symmetric(10, 4))
-                            .corner_radius(CornerRadius::same(2))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new("DOCUMENT")
-                                        .size(11.0)
-                                        .color(if is_doc { t.accent_ink } else { t.muted }),
-                                );
-                            });
-                        if btn_doc.response.interact(egui::Sense::click()).clicked() {
-                            state.active_sub_tab = 1;
-                        }
+                        sub_tabs(
+                            ui,
+                            t,
+                            &mut state.active_sub_tab,
+                            &["ENUM DEF", "DOCUMENT"],
+                        );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let _ = Frame::new()
@@ -712,6 +684,13 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
                     });
 
                     ui.add_space(8.0);
+
+                    // The DOCUMENT tab shows the generic page only: no title,
+                    // no description, and its own ScrollArea fills the pane.
+                    if !sections.title {
+                        render_enum_document(ui, t, &state.doc_cache, &mut state.doc_scroll);
+                        return;
+                    }
 
                     // 2. Heading
                     ui.heading(
@@ -1264,8 +1243,10 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
                 });
 
                 // ------------------------------------------
-                // FOOTER BAR (fixed at bottom of right panel)
+                // FOOTER BAR (fixed at bottom of right panel). The footer
+                // describes the definition, so it belongs to ENUM DEF only.
                 // ------------------------------------------
+                if sections.footer {
                 ui.painter().rect_filled(footer_rect, CornerRadius::ZERO, t.panel);
                 ui.painter().hline(footer_rect.x_range(), footer_rect.top(), t.hairline());
 
@@ -1324,6 +1305,7 @@ fn render_enum_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
                         );
                     });
                 });
+                }
             }
         } else {
             ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
