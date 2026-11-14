@@ -1,5 +1,6 @@
 pub mod context_menu;
 pub mod drag_list;
+pub mod markdown_document;
 pub mod reorder;
 pub mod search_picker;
 pub mod sub_tabs;
@@ -12,6 +13,9 @@ pub use context_menu::{
     ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
 };
 pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle};
+pub use markdown_document::{
+    new_document_cache, render_document_page, render_markdown_document, DocumentCache,
+};
 pub use reorder::Slot;
 pub use search_picker::{
     first_item_row, first_selectable, group_items, picker_rows, search_picker, step_selection,
