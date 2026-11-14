@@ -1,4 +1,4 @@
-//! Application modes (Editor, Enums) and toolbar mode switcher.
+//! Application modes (Editor, Enums, Tilesets) and toolbar mode switcher.
 
 use egui::{
     vec2, Align2, CornerRadius, CursorIcon, FontId, Response, Sense, Stroke, StrokeKind, Ui,
@@ -14,6 +14,49 @@ pub enum AppMode {
     Editor,
     /// Dedicated enum definitions management mode.
     Enums,
+    /// Dedicated tileset definitions and atlas management mode.
+    Tilesets,
+}
+
+/// Specification for a mode switch button in the top toolbar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModeButton {
+    pub mode: AppMode,
+    pub icon: Icon,
+    pub tooltip: &'static str,
+}
+
+/// Available mode buttons in toolbar order.
+pub const MODE_BUTTONS: [ModeButton; 3] = [
+    ModeButton {
+        mode: AppMode::Editor,
+        icon: Icon::Level,
+        tooltip: "Editor (Ctrl+1)",
+    },
+    ModeButton {
+        mode: AppMode::Enums,
+        icon: Icon::Enum,
+        tooltip: "Enums (Ctrl+2)",
+    },
+    ModeButton {
+        mode: AppMode::Tilesets,
+        icon: Icon::Tileset,
+        tooltip: "Tilesets (Ctrl+3)",
+    },
+];
+
+/// Computes the total width required by a segmented control of N buttons and gaps.
+pub fn control_width(button_count: usize, button_size: f32, gap: f32) -> f32 {
+    if button_count == 0 {
+        0.0
+    } else {
+        (button_count as f32) * button_size + (button_count - 1) as f32 * gap
+    }
+}
+
+/// Returns true if the unsaved indicator dot should be shown for the given mode.
+pub fn shows_unsaved(mode: AppMode, enum_unsaved: bool) -> bool {
+    matches!(mode, AppMode::Enums) && enum_unsaved
 }
 
 /// Renders the mode switcher segmented control in the center of the toolbar.
@@ -25,43 +68,30 @@ pub fn render_mode_segmented_control(
 ) {
     let button_size = 26.0;
     let gap = 4.0;
-    let control_width = button_size * 2.0 + gap;
+    let total_width = control_width(MODE_BUTTONS.len(), button_size, gap);
 
     let avail_width = ui.available_width();
-    let offset = ((avail_width - control_width) / 2.0).max(0.0);
+    let offset = ((avail_width - total_width) / 2.0).max(0.0);
 
     ui.horizontal(|ui| {
         ui.add_space(offset);
         ui.spacing_mut().item_spacing.x = gap;
 
-        // Editor mode button
-        let is_editor = *active_mode == AppMode::Editor;
-        let editor_resp = render_mode_button(
-            ui,
-            Icon::Level,
-            is_editor,
-            false,
-            button_size,
-            "Editor (Ctrl+1)",
-            t,
-        );
-        if editor_resp.clicked() {
-            *active_mode = AppMode::Editor;
-        }
-
-        // Enums mode button
-        let is_enums = *active_mode == AppMode::Enums;
-        let enums_resp = render_mode_button(
-            ui,
-            Icon::Enum,
-            is_enums,
-            enum_unsaved,
-            button_size,
-            "Enums (Ctrl+2)",
-            t,
-        );
-        if enums_resp.clicked() {
-            *active_mode = AppMode::Enums;
+        for btn in MODE_BUTTONS {
+            let is_active = *active_mode == btn.mode;
+            let show_dot = shows_unsaved(btn.mode, enum_unsaved);
+            let resp = render_mode_button(
+                ui,
+                btn.icon,
+                is_active,
+                show_dot,
+                button_size,
+                btn.tooltip,
+                t,
+            );
+            if resp.clicked() {
+                *active_mode = btn.mode;
+            }
         }
     });
 }
