@@ -17,8 +17,17 @@
 //!     body: |ui| { ui.label("Discard unsaved changes?"); },
 //!     buttons: &buttons,
 //!     width: 320.0,
+//!     default_button: None,
 //! });
 //! ```
+//!
+//! # Safety & Focus Contract
+//! Destructive dialogs (`ModalButtonKind::Danger`) **never** execute on a stray `Enter` key.
+//! When a Danger button is present and no explicit `default_button` is configured, initial
+//! focus safely goes to the Cancel/Normal button. A Danger action requires an explicit mouse click
+//! or deliberate keyboard navigation (Tab to focus it, then Space/Enter).
+//! Enum modals must set `default_button` when they must reproduce legacy behavior;
+//! the enum refactor will verify this with its characterization tests.
 
 use egui::{
     vec2, Align2, Color32, Context, CornerRadius, Frame, Id, Key, Margin, Order, RichText, Sense,
@@ -74,6 +83,12 @@ where
     pub buttons: &'a [ModalButton<ButtonId>],
     /// Preferred width of the dialog frame in pixels.
     pub width: f32,
+    /// Explicit button to receive initial keyboard focus.
+    ///
+    /// When `None` and a [`ModalButtonKind::Danger`] button exists, initial focus
+    /// safely defaults to the [`ModalButtonKind::Normal`] button (Cancel).
+    /// Enum modals must set `default_button` when they must reproduce legacy behavior.
+    pub default_button: Option<ButtonId>,
 }
 
 /// Action determined from keyboard events during modal presentation.
@@ -98,7 +113,39 @@ pub fn handle_modal_keys(esc_pressed: bool, enter_pressed: bool) -> ModalKeyActi
     }
 }
 
+/// Determines which modal button receives initial keyboard focus.
+///
+/// When an explicit `default_button` is supplied, that button is focused.
+/// If any button has [`ModalButtonKind::Danger`] and no default is set,
+/// initial focus safely defaults to the [`ModalButtonKind::Normal`] button (Cancel).
+/// Otherwise, focus defaults to the [`ModalButtonKind::Primary`] button.
+pub fn determine_initial_focus_button<ButtonId: PartialEq + Clone>(
+    default_button: Option<&ButtonId>,
+    buttons: &[ModalButton<ButtonId>],
+) -> Option<ButtonId> {
+    if let Some(id) = default_button {
+        return Some(id.clone());
+    }
+    let has_danger = buttons.iter().any(|b| b.kind == ModalButtonKind::Danger);
+    if has_danger {
+        buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Normal)
+            .map(|b| b.id.clone())
+    } else {
+        buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Primary)
+            .or_else(|| buttons.first())
+            .map(|b| b.id.clone())
+    }
+}
+
 /// Resolves a [`ModalKeyAction`] to a specific button ID from the available buttons.
+///
+/// Enter (`TriggerPrimary`) triggers only a [`ModalButtonKind::Primary`] button,
+/// **NEVER** a [`ModalButtonKind::Danger`] button. A destructive action requires an explicit
+/// click or tabbing to focus it first.
 pub fn resolve_modal_action<ButtonId: Clone>(
     action: ModalKeyAction,
     buttons: &[ModalButton<ButtonId>],
@@ -106,8 +153,7 @@ pub fn resolve_modal_action<ButtonId: Clone>(
     match action {
         ModalKeyAction::TriggerPrimary => buttons
             .iter()
-            .find(|b| b.kind == ModalButtonKind::Primary || b.kind == ModalButtonKind::Danger)
-            .or_else(|| buttons.first())
+            .find(|b| b.kind == ModalButtonKind::Primary)
             .map(|b| b.id.clone()),
         ModalKeyAction::Cancel => buttons
             .iter()
@@ -145,15 +191,10 @@ where
                 .rect_filled(rect, CornerRadius::ZERO, Color32::from_black_alpha(160));
         });
 
-    // 2. Keyboard shortcut processing
-    let esc = ctx.input(|i| i.key_pressed(Key::Escape));
-    let enter = ctx.input(|i| i.key_pressed(Key::Enter));
-    let key_action = handle_modal_keys(esc, enter);
-    if let Some(btn_id) = resolve_modal_action(key_action, spec.buttons) {
-        clicked_button = Some(btn_id);
-    }
+    let initial_focus_id =
+        determine_initial_focus_button(spec.default_button.as_ref(), spec.buttons);
 
-    // 3. Dialog window centered in foreground
+    // 2. Dialog window centered in foreground
     egui::Area::new(base_id.with("dialog_area"))
         .order(Order::Foreground)
         .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
@@ -178,10 +219,7 @@ where
                     // Action buttons
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        for (idx, btn) in spec.buttons.iter().enumerate() {
-                            let is_primary = btn.kind == ModalButtonKind::Primary
-                                || btn.kind == ModalButtonKind::Danger;
-
+                        for btn in spec.buttons {
                             let mut button_widget = egui::Button::new(match btn.kind {
                                 ModalButtonKind::Danger => {
                                     RichText::new(&btn.label).color(Color32::WHITE)
@@ -208,7 +246,9 @@ where
                             }
 
                             let resp = ui.add(button_widget);
-                            if idx == 0 && is_primary && ui.memory(|m| m.focused().is_none()) {
+                            if Some(&btn.id) == initial_focus_id.as_ref()
+                                && ui.memory(|m| m.focused().is_none())
+                            {
                                 resp.request_focus();
                             }
 
@@ -219,6 +259,16 @@ where
                     });
                 });
         });
+
+    // 3. Keyboard shortcut processing (Enter triggers Primary only; never Danger without focus)
+    if clicked_button.is_none() {
+        let esc = ctx.input(|i| i.key_pressed(Key::Escape));
+        let enter = ctx.input(|i| i.key_pressed(Key::Enter));
+        let key_action = handle_modal_keys(esc, enter);
+        if let Some(btn_id) = resolve_modal_action(key_action, spec.buttons) {
+            clicked_button = Some(btn_id);
+        }
+    }
 
     clicked_button
 }
@@ -242,21 +292,94 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_modal_action() {
-        let buttons = vec![
-            ModalButton::new(1, "Discard", ModalButtonKind::Danger),
+    fn test_determine_initial_focus_button() {
+        let danger_buttons = vec![
+            ModalButton::new(1, "Delete", ModalButtonKind::Danger),
             ModalButton::new(2, "Cancel", ModalButtonKind::Normal),
         ];
 
+        // Danger modal without explicit default: initial focus goes to Cancel/Normal
         assert_eq!(
-            resolve_modal_action(ModalKeyAction::TriggerPrimary, &buttons),
-            Some(1)
-        );
-        assert_eq!(
-            resolve_modal_action(ModalKeyAction::Cancel, &buttons),
+            determine_initial_focus_button(None, &danger_buttons),
             Some(2)
         );
-        assert_eq!(resolve_modal_action(ModalKeyAction::None, &buttons), None);
+
+        // Danger modal with explicit default: initial focus goes to the specified button
+        assert_eq!(
+            determine_initial_focus_button(Some(&1), &danger_buttons),
+            Some(1)
+        );
+
+        // Normal modal without explicit default: initial focus goes to Primary
+        let normal_buttons = vec![
+            ModalButton::new(10, "Confirm", ModalButtonKind::Primary),
+            ModalButton::new(20, "Cancel", ModalButtonKind::Normal),
+        ];
+        assert_eq!(
+            determine_initial_focus_button(None, &normal_buttons),
+            Some(10)
+        );
+    }
+
+    #[test]
+    fn test_resolve_modal_action_scenarios() {
+        // 1. Danger-only + Cancel
+        let danger_cancel = vec![
+            ModalButton::new(1, "Discard", ModalButtonKind::Danger),
+            ModalButton::new(2, "Cancel", ModalButtonKind::Normal),
+        ];
+        // Enter NEVER triggers Danger
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::TriggerPrimary, &danger_cancel),
+            None
+        );
+        // Esc triggers Cancel
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::Cancel, &danger_cancel),
+            Some(2)
+        );
+
+        // 2. Primary + Cancel
+        let primary_cancel = vec![
+            ModalButton::new(10, "Save", ModalButtonKind::Primary),
+            ModalButton::new(20, "Cancel", ModalButtonKind::Normal),
+        ];
+        // Enter triggers Primary
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::TriggerPrimary, &primary_cancel),
+            Some(10)
+        );
+        // Esc triggers Cancel
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::Cancel, &primary_cancel),
+            Some(20)
+        );
+
+        // 3. Danger first in the slice
+        let danger_first = vec![
+            ModalButton::new(100, "Delete All", ModalButtonKind::Danger),
+            ModalButton::new(200, "Cancel", ModalButtonKind::Normal),
+        ];
+        // Danger is at index 0, Enter still returns None (never triggers Danger)
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::TriggerPrimary, &danger_first),
+            None
+        );
+
+        // 4. No buttons
+        let empty_buttons: Vec<ModalButton<u32>> = Vec::new();
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::TriggerPrimary, &empty_buttons),
+            None
+        );
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::Cancel, &empty_buttons),
+            None
+        );
+        assert_eq!(
+            resolve_modal_action(ModalKeyAction::None, &empty_buttons),
+            None
+        );
     }
 
     #[test]
@@ -286,6 +409,7 @@ mod tests {
                     },
                     buttons: &buttons,
                     width: 350.0,
+                    default_button: None,
                 },
             );
             assert_eq!(res, None);
@@ -296,5 +420,49 @@ mod tests {
             !output.shapes.is_empty(),
             "Modal should produce render shapes (scrim, window, buttons)"
         );
+    }
+
+    #[test]
+    fn test_danger_modal_does_not_trigger_on_enter_headless() {
+        let ctx = Context::default();
+        theme::install_fonts(&ctx);
+        theme::apply(&ctx, ThemeChoice::Dark);
+
+        let buttons = [
+            ModalButton::new(1, "Delete Item", ModalButtonKind::Danger),
+            ModalButton::new(2, "Cancel", ModalButtonKind::Normal),
+        ];
+
+        let raw_input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            events: vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+
+        let mut output = ctx.run_ui(raw_input, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "danger_dialog",
+                ModalSpec {
+                    title: "Delete Forever?".into(),
+                    body: |ui| {
+                        ui.label("Are you sure?");
+                    },
+                    buttons: &buttons,
+                    width: 350.0,
+                    default_button: None,
+                },
+            );
+            // Enter must NOT trigger the Danger button
+            assert_eq!(res, None);
+        });
+
+        output.textures_delta.clear();
     }
 }
