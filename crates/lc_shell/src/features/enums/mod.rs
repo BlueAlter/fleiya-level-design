@@ -2,5 +2,6 @@
 
 pub mod file;
 pub mod i18n;
+pub mod metrics;
 pub mod view;
 pub mod window;

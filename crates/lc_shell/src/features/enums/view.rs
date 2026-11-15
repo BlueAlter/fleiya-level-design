@@ -27,6 +27,7 @@ use crate::features::enums::file::{
     EnumFileDialogManager, EnumFileDialogMessage, FleiyaEnumFile, ENUM_FILE_EXTENSION,
 };
 use crate::features::enums::i18n::{self, keys};
+use crate::features::enums::metrics::*;
 use crate::shared::i18n::{doc, tr};
 use crate::shared::ui::context_menu::{
     is_menu_open, show_context_menu, ContextMenuTheme, MenuAnchor, MenuItem,
@@ -401,17 +402,22 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     // 1. LEFT PANEL: Enum cards list & quick actions (Fixed width: 260px, padding: 12px)
     // =========================================================================
     Panel::left("enum_mode_left_panel")
-        .exact_size(260.0)
+        .exact_size(LEFT_PANEL_WIDTH)
         .resizable(false)
-        .frame(Frame::new().fill(t.panel).inner_margin(Margin::same(12)))
+        .frame(
+            Frame::new()
+                .fill(t.panel)
+                .inner_margin(Margin::same(WORKSPACE_PADDING as i8)),
+        )
         .show(ui, |ui| {
-            ui.set_width(ui.available_width().min(236.0));
-            ui.set_max_width(236.0);
+            let inner_w = LEFT_PANEL_WIDTH - 2.0 * WORKSPACE_PADDING;
+            ui.set_width(ui.available_width().min(inner_w));
+            ui.set_max_width(inner_w);
 
             // 1. Top action row: "+ New Enum" (stretches) + square 1:1 "..." button
-            let btn_h = 28.0;
+            let btn_h = CONTROL_HEIGHT_COMPACT;
             let gap = 6.0;
-            let dots_btn_size = btn_h;
+            let dots_btn_size = ICON_BUTTON_SIZE_COMPACT;
             let new_btn_w = (ui.available_width() - dots_btn_size - gap).max(1.0);
 
             ui.horizontal(|ui| {
@@ -462,19 +468,23 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     app.enum_draft_revision += 1;
                 }
 
-                // Three-dot 1:1 square button
+                // Three-dot 1:1 square button (exact 28x28)
                 let dots_resp = ui
-                    .add_sized(
-                        [dots_btn_size, btn_h],
-                        egui::Button::new(Icon::DotsThreeVertical.rich(
-                            ui.ctx(),
-                            14.0,
-                            t.ink_strong,
-                        ))
-                        .fill(t.sunken)
-                        .stroke(t.hairline())
-                        .corner_radius(CornerRadius::same(3)),
-                    )
+                    .scope(|ui| {
+                        ui.spacing_mut().button_padding = egui::Vec2::ZERO;
+                        ui.add_sized(
+                            [dots_btn_size, btn_h],
+                            egui::Button::new(Icon::DotsThreeVertical.rich(
+                                ui.ctx(),
+                                14.0,
+                                t.ink_strong,
+                            ))
+                            .fill(t.sunken)
+                            .stroke(t.hairline())
+                            .corner_radius(CornerRadius::same(3)),
+                        )
+                    })
+                    .inner
                     .on_hover_text("More actions (Import / Export All)");
 
                 let more_menu_items = [
@@ -537,7 +547,9 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
             let mut pending_list_action: Option<EnumListAction> = None;
             let selected_changed = state.previous_selected_enum != app.selected_enum_def;
 
-            ui.style_mut().spacing.scroll = egui::style::ScrollStyle::thin();
+            let mut scroll = egui::style::ScrollStyle::thin();
+            scroll.floating_allocated_width = 0.0;
+            ui.style_mut().spacing.scroll = scroll;
 
             ScrollArea::vertical()
                 .id_salt("enum_cards_scroll")
