@@ -9,6 +9,7 @@ pub mod reorder;
 pub mod search_picker;
 pub mod sub_tabs;
 pub mod tag_input;
+pub mod tag_row;
 pub mod tile_bounds;
 pub mod tile_picker;
 pub mod workspace_metrics;
@@ -44,6 +45,7 @@ pub use search_picker::{
 };
 pub use sub_tabs::{sub_tab_id, sub_tabs};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
+pub use tag_row::{normalize_tag, normalize_tags, tag_row, TagEvent};
 pub use tile_bounds::{TileGrid, TileRect};
 pub use tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
 pub use workspace_metrics::*;
