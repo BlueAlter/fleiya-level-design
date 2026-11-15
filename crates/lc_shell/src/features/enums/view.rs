@@ -408,15 +408,6 @@ pub fn enum_sub_tabs(ui: &mut Ui, t: &Tokens, active: &mut usize, labels: &[&str
     changed
 }
 
-fn card_label(ui: &mut Ui, text: &str, t: &Tokens) {
-    let (rect, _) =
-        ui.allocate_exact_size(vec2(FORM_LABEL_COL_W, CONTROL_HEIGHT_FORM), Sense::hover());
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-    child.with_layout(Layout::left_to_right(Align::Center), |ui| {
-        ui.label(RichText::new(text).strong().color(t.ink_strong));
-    });
-}
-
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     i18n::register();
     let t = Tokens::get(ui.ctx());

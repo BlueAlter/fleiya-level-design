@@ -7,6 +7,7 @@ pub mod sub_tabs;
 pub mod tag_input;
 pub mod tile_bounds;
 pub mod tile_picker;
+pub mod workspace_metrics;
 
 pub use context_menu::{
     is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
@@ -26,3 +27,4 @@ pub use sub_tabs::{sub_tab_id, sub_tabs};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
 pub use tile_bounds::{TileGrid, TileRect};
 pub use tile_picker::{PickerTarget, PickerView, TilePicker, TilePickerEvent, TilesetData};
+pub use workspace_metrics::*;
