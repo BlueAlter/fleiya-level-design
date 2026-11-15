@@ -465,4 +465,185 @@ mod tests {
 
         output.textures_delta.clear();
     }
+
+    #[test]
+    fn test_confirm_modal_tab_focus_and_enter_navigation() {
+        let buttons = [
+            ModalButton::new(1, "Cancel", ModalButtonKind::Normal),
+            ModalButton::new(2, "Delete", ModalButtonKind::Danger),
+        ];
+
+        // Part 1: Enter with initial focus (Cancel) returns Cancel (1)
+        let ctx1 = Context::default();
+        theme::install_fonts(&ctx1);
+        theme::apply(&ctx1, ThemeChoice::Dark);
+
+        let raw1 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            ..Default::default()
+        };
+        let mut out1 = ctx1.run_ui(raw1, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "focus_modal_1",
+                ModalSpec {
+                    title: "Confirm".into(),
+                    body: |_| {},
+                    buttons: &buttons,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(res, None);
+        });
+        out1.textures_delta.clear();
+
+        let raw2 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            events: vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+        let mut out2 = ctx1.run_ui(raw2, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "focus_modal_1",
+                ModalSpec {
+                    title: "Confirm".into(),
+                    body: |_| {},
+                    buttons: &buttons,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(res, Some(1), "Enter on initial focus must return Cancel");
+        });
+        out2.textures_delta.clear();
+
+        // Part 2: Tab to Danger button, then press Enter -> returns Danger (2)
+        let ctx2 = Context::default();
+        theme::install_fonts(&ctx2);
+        theme::apply(&ctx2, ThemeChoice::Dark);
+
+        let raw_f1 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            ..Default::default()
+        };
+        let mut out_f1 = ctx2.run_ui(raw_f1, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "focus_modal_2",
+                ModalSpec {
+                    title: "Confirm".into(),
+                    body: |_| {},
+                    buttons: &buttons,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(res, None);
+        });
+        out_f1.textures_delta.clear();
+
+        // Press Tab to shift focus to Danger
+        let raw_f2 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            events: vec![egui::Event::Key {
+                key: Key::Tab,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+        let mut out_f2 = ctx2.run_ui(raw_f2, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "focus_modal_2",
+                ModalSpec {
+                    title: "Confirm".into(),
+                    body: |_| {},
+                    buttons: &buttons,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(res, None);
+        });
+        out_f2.textures_delta.clear();
+
+        // Press Enter while Danger has focus -> returns Danger (2)
+        let raw_f3 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            events: vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+        let mut out_f3 = ctx2.run_ui(raw_f3, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "focus_modal_2",
+                ModalSpec {
+                    title: "Confirm".into(),
+                    body: |_| {},
+                    buttons: &buttons,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(
+                res,
+                Some(2),
+                "Enter when Danger button is focused must return Danger id"
+            );
+        });
+        out_f3.textures_delta.clear();
+
+        // Part 3: Danger-only modal with nothing focused -> Enter returns None
+        let ctx3 = Context::default();
+        theme::install_fonts(&ctx3);
+        theme::apply(&ctx3, ThemeChoice::Dark);
+
+        let danger_only = [ModalButton::new(99, "Destroy", ModalButtonKind::Danger)];
+        let raw_d1 = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1024.0, 768.0))),
+            events: vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+        let mut out_d1 = ctx3.run_ui(raw_d1, |ui| {
+            let res = modal(
+                ui.ctx(),
+                "danger_only_modal",
+                ModalSpec {
+                    title: "Destroy".into(),
+                    body: |_| {},
+                    buttons: &danger_only,
+                    width: 300.0,
+                    default_button: None,
+                },
+            );
+            assert_eq!(
+                res, None,
+                "Enter with nothing focused must return None for Danger-only modal"
+            );
+        });
+        out_d1.textures_delta.clear();
+    }
 }

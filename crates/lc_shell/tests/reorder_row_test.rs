@@ -1,8 +1,10 @@
 use egui::{vec2, Context, Pos2, RawInput, Rect, Sense};
 use lc_canvas::theme::{self, ThemeChoice};
+use lc_shell::shared::ui::reorder_list::{reorder_list, ListItem};
 use lc_shell::shared::ui::reorder_row::{
-    reorder_row, ReorderRowSpec, Slot, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_VALUES,
+    reorder_row, GhostPreview, ReorderRowSpec, Slot, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_VALUES,
 };
+use lc_shell::shared::ui::DragListState;
 
 #[test]
 fn test_same_row_width_for_different_bodies() {
@@ -258,4 +260,56 @@ fn test_values_row_metrics_and_pitch() {
     });
 
     output.textures_delta.clear();
+}
+
+#[test]
+fn test_pitch_through_reorder_list() {
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    let raw_input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+
+    let items = vec![
+        ListItem::new("item_0", GhostPreview::new("Value 0")),
+        ListItem::new("item_1", GhostPreview::new("Value 1")),
+        ListItem::new("item_2", GhostPreview::new("Value 2")),
+    ];
+    let mut drag_state = DragListState::new();
+
+    let mut row_min_xs = Vec::new();
+    let mut first_body_slots = Vec::new();
+    let mut row_min_ys = Vec::new();
+
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let _ = reorder_list(
+            ui,
+            &mut drag_state,
+            &items,
+            ROW_LAYOUT_VALUES,
+            |ui, idx, body| {
+                row_min_xs.push(ui.cursor().min.x);
+                if let Some(r0) = body.slot_rect(0) {
+                    first_body_slots.push(r0);
+                    row_min_ys.push(r0.min.y);
+                }
+                body.slot(ui, 0, |ui| {
+                    ui.label(format!("Body {idx}"));
+                });
+            },
+        );
+    });
+
+    output.textures_delta.clear();
+
+    assert_eq!(first_body_slots.len(), 3);
+    // The first body slot starts at row.min.x + 28.0 (handle 20.0 + slot_gap 8.0)
+    assert_eq!(first_body_slots[0].min.x, row_min_xs[0] + 28.0);
+    // Consecutive row rects are exactly 40.0 apart (32.0 height + 8.0 row_gap)
+    assert_eq!(row_min_ys[1] - row_min_ys[0], 40.0);
+    assert_eq!(row_min_ys[2] - row_min_ys[1], 40.0);
 }

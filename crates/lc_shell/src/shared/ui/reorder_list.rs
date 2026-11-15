@@ -295,6 +295,21 @@ mod tests {
         }
     }
 
+    fn shape_contains_color(shape: &Shape, target: Color32) -> bool {
+        match shape {
+            Shape::Rect(r) => r.fill == target || r.stroke.color == target,
+            Shape::Circle(c) => c.fill == target || c.stroke.color == target,
+            Shape::Vec(vec) => vec.iter().any(|s| shape_contains_color(s, target)),
+            _ => false,
+        }
+    }
+
+    fn any_shape_contains_color(shapes: &[egui::epaint::ClippedShape], target: Color32) -> bool {
+        shapes
+            .iter()
+            .any(|s| shape_contains_color(&s.shape, target))
+    }
+
     #[test]
     fn test_reorder_list_drag_and_ghost_preview_headless() {
         let ctx = Context::default();
@@ -350,6 +365,11 @@ mod tests {
         assert!(
             ghost_text_exists,
             "GhostPreview label 'Item Alpha' must exist in painted output shapes"
+        );
+        let target_color = Color32::from_rgb(255, 0, 0);
+        assert!(
+            any_shape_contains_color(&output2.shapes, target_color),
+            "GhostPreview color {target_color:?} must exist in painted output shapes"
         );
         output2.textures_delta.clear();
 
