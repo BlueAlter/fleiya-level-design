@@ -13,6 +13,8 @@ fn test_core_model_serde_round_trip() {
         tile_size: UVec2::new(16, 16),
         spacing: 1,
         padding: 2,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
 
     let enum_id = gen.next_enum_def_id();

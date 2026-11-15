@@ -112,7 +112,8 @@ pub struct ModeEntry {
 }
 
 /// Returns the available editor modes for a given tileset definition.
-pub fn mode_availability(_tileset: &TilesetDef) -> Vec<ModeEntry> {
+pub fn mode_availability(tileset: &TilesetDef) -> Vec<ModeEntry> {
+    let has_source_enum = tileset.marking.source_enum.is_some();
     vec![
         ModeEntry {
             id: "None",
@@ -123,8 +124,12 @@ pub fn mode_availability(_tileset: &TilesetDef) -> Vec<ModeEntry> {
         ModeEntry {
             id: "Marking",
             label: "Marking",
-            available: false,
-            hint: "Coming in a later update",
+            available: has_source_enum,
+            hint: if has_source_enum {
+                ""
+            } else {
+                "Select a source enum to enable tile marking"
+            },
         },
         ModeEntry {
             id: "Animation",

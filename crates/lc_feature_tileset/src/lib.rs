@@ -8,6 +8,7 @@ pub mod commands;
 mod fill_tools;
 pub mod handler;
 pub mod helpers;
+pub mod marking_command;
 pub mod paint_commands;
 pub mod palette;
 pub mod reorder_command;
@@ -18,7 +19,7 @@ pub mod view;
 pub use clipboard::TileClipboard;
 pub use commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
-    UpdateTilesetDefCommand,
+    SetMarkingSourceCommand, UpdateTilesetDefCommand,
 };
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
 pub use helpers::{

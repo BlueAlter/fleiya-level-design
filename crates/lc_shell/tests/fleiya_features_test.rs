@@ -8,7 +8,7 @@
 use egui::Context;
 use glam::UVec2;
 use lc_core::command::DocKind;
-use lc_core::defs::{IntGridValueDef, LayerDef, TilesetDef};
+use lc_core::defs::{IntGridValueDef, LayerDef, TileMarking, TilesetDef};
 use lc_core::id::{EntityDefId, EnumDefId, LayerDefId, LevelId, TilesetDefId, WorldId};
 use lc_core::layer::LayerKind;
 use lc_core::level::Level;
@@ -57,6 +57,8 @@ fn test_definition_tabs_and_windows_behavior() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
     shell.project.defs.enums.push(lc_core::defs::EnumDef {
         id: EnumDefId(1),
@@ -107,6 +109,8 @@ fn test_add_tileset_command_and_persistence() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
 
     shell
@@ -153,6 +157,8 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
 
     // Add a Tiles layer def

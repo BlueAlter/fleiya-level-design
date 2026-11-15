@@ -1,5 +1,6 @@
 //! Commands for managing Tileset definitions in the editor data model.
 
+pub use crate::marking_command::SetMarkingSourceCommand;
 pub use crate::paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
@@ -383,6 +384,8 @@ mod tests {
             tile_size: UVec2::new(16, 16),
             spacing: 1,
             padding: 2,
+            tags: Vec::new(),
+            marking: lc_core::defs::TileMarking::EMPTY,
         };
 
         let mut project = Project::new("Test Project");
@@ -401,6 +404,8 @@ mod tests {
             tile_size: UVec2::new(32, 32),
             spacing: 0,
             padding: 0,
+            tags: Vec::new(),
+            marking: lc_core::defs::TileMarking::EMPTY,
         };
 
         let mut cmd = AddTilesetDefCommand::new(new_def.clone());

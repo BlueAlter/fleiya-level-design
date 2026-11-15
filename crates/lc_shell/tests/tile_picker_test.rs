@@ -1,5 +1,5 @@
 use egui::{vec2, Context, Key, Modifiers, PointerButton, Pos2, RawInput, Rect};
-use lc_core::defs::TilesetDef;
+use lc_core::defs::{TileMarking, TilesetDef};
 use lc_core::id::TilesetDefId;
 use lc_shell::shared::ui::tile_bounds::{TileGrid, TileRect};
 use lc_shell::shared::ui::tile_picker::{TilePicker, TilePickerEvent, TilesetData};
@@ -43,6 +43,8 @@ fn test_tileset_data_empty_and_conversion() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let data = TilesetData::from(&def);
     assert!(!data.is_empty());
@@ -106,6 +108,8 @@ fn test_tile_picker_keyboard_shortcuts() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let data = TilesetData::from(&def);
 
@@ -166,6 +170,8 @@ fn test_tile_picker_texture_caching_and_registration() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let dungeon_data = TilesetData::from(&dungeon_def);
 
@@ -177,6 +183,8 @@ fn test_tile_picker_texture_caching_and_registration() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let icons_data = TilesetData::from(&icons_def);
 
@@ -212,6 +220,8 @@ fn test_tile_picker_page_centering_and_view() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let data = TilesetData::from(&def);
 
@@ -251,6 +261,8 @@ fn test_tile_picker_multi_select_right_drag_and_cancel() {
         tile_size: glam::UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     };
     let data = TilesetData::from(&def);
 

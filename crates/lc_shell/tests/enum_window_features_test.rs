@@ -76,6 +76,8 @@ fn test_enum_window_renders_when_opened() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::defs::TileMarking::EMPTY,
     });
     app.project.defs.enums.push(EnumDef {
         id: EnumDefId(1),

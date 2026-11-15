@@ -468,6 +468,8 @@ mod tests {
             tile_size: UVec2::splat(16),
             spacing: 0,
             padding: 0,
+            tags: Vec::new(),
+            marking: lc_core::defs::TileMarking::EMPTY,
         });
         project.defs.enums.push(EnumDef {
             id: EnumDefId(1),

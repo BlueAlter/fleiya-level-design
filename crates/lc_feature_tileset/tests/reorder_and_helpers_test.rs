@@ -20,6 +20,8 @@ fn test_reorder_tileset_def_command_apply_revert() {
             tile_size: UVec2::new(16, 16),
             spacing: 0,
             padding: 0,
+            tags: Vec::new(),
+            marking: lc_core::defs::TileMarking::EMPTY,
         });
     }
 
@@ -68,6 +70,8 @@ fn test_reorder_tileset_def_command_out_of_range() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::defs::TileMarking::EMPTY,
     });
 
     let mut cmd_out_of_range = ReorderTilesetDefCommand::new(TilesetDefId(1), 5);
@@ -186,6 +190,8 @@ fn test_mode_availability() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::defs::TileMarking::EMPTY,
     };
     let modes = mode_availability(&ts);
     assert_eq!(modes.len(), 3);
@@ -195,6 +201,21 @@ fn test_mode_availability() {
     assert!(!modes[1].available);
     assert_eq!(modes[2].id, "Animation");
     assert!(!modes[2].available);
+
+    let ts_with_marking = TilesetDef {
+        id: TilesetDefId(1),
+        name: "World".to_string(),
+        path: "world.png".to_string(),
+        tile_size: UVec2::new(16, 16),
+        spacing: 0,
+        padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::defs::TileMarking {
+            source_enum: Some(lc_core::id::EnumDefId(1)),
+        },
+    };
+    let modes2 = mode_availability(&ts_with_marking);
+    assert!(modes2[1].available);
 }
 
 #[test]

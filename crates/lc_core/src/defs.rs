@@ -6,6 +6,30 @@ use crate::layer::{LayerKind, TileRef};
 use glam::{UVec2, Vec2};
 use serde::{Deserialize, Serialize};
 
+/// Tile marking configuration (e.g. source enum for tile-level enum tagging).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TileMarking {
+    /// Source enum definition used for tile marking.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_enum: Option<EnumDefId>,
+}
+
+impl TileMarking {
+    /// Empty / default tile marking with no source enum.
+    pub const EMPTY: Self = Self { source_enum: None };
+
+    /// Returns `true` if no source enum is configured.
+    pub fn is_empty(&self) -> bool {
+        self.source_enum.is_none()
+    }
+}
+
+impl Default for TileMarking {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
 /// Definition of an external tileset asset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TilesetDef {
@@ -21,6 +45,12 @@ pub struct TilesetDef {
     pub spacing: u32,
     /// Padding around the tileset border in pixels.
     pub padding: u32,
+    /// Tags assigned to this tileset definition.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Tile marking configuration (e.g. source enum).
+    #[serde(default, skip_serializing_if = "TileMarking::is_empty")]
+    pub marking: TileMarking,
 }
 
 /// An individual value option within an `EnumDef`.
