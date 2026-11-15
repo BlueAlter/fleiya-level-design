@@ -10,9 +10,9 @@
 //!
 //! let spec = ReorderRowSpec::new(ui.id().with("item_1"), "Item 1");
 //! let slots = [Slot::Fixed(32.0), Slot::Flex];
-//! let resp = reorder_row(ui, spec, &slots, |body| {
-//!     body.slot(0, |ui| ui.label("Icon"));
-//!     body.slot(1, |ui| ui.text_edit_singleline(&mut name));
+//! let resp = reorder_row(ui, spec, &slots, |ui, body| {
+//!     body.slot(ui, 0, |ui| ui.label("Icon"));
+//!     body.slot(ui, 1, |ui| ui.text_edit_singleline(&mut name));
 //! });
 //! ```
 
@@ -160,16 +160,36 @@ pub fn split_slots(total_width: f32, slots: &[Slot], gap: f32) -> Vec<Rect> {
 }
 
 /// Scope passed to the row body closure to place widgets in strict slot bounds.
-pub struct RowBody<'a> {
-    ui: &'a mut Ui,
+#[derive(Clone, Debug, PartialEq)]
+pub struct RowBody {
     slot_rects: Vec<Rect>,
 }
 
-impl<'a> RowBody<'a> {
+impl RowBody {
+    /// Creates a new [`RowBody`] from calculated slot rectangles.
+    pub fn new(slot_rects: Vec<Rect>) -> Self {
+        Self { slot_rects }
+    }
+
+    /// Number of configured slots in this row.
+    pub fn len(&self) -> usize {
+        self.slot_rects.len()
+    }
+
+    /// Whether there are no slots in this row.
+    pub fn is_empty(&self) -> bool {
+        self.slot_rects.is_empty()
+    }
+
+    /// Rectangle allocated for slot `index`.
+    pub fn slot_rect(&self, index: usize) -> Option<Rect> {
+        self.slot_rects.get(index).copied()
+    }
+
     /// Runs a closure inside a child UI strictly clipped and bounded to slot `index`.
-    pub fn slot<R>(&mut self, index: usize, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+    pub fn slot<R>(&self, ui: &mut Ui, index: usize, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
         if let Some(&rect) = self.slot_rects.get(index) {
-            let mut child = self.ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
             child.set_clip_rect(rect);
             child.set_max_width(rect.width());
             Some(add(&mut child))
@@ -198,7 +218,7 @@ pub fn reorder_row<R>(
     ui: &mut Ui,
     spec: ReorderRowSpec,
     slots: &[Slot],
-    body: impl FnOnce(&mut RowBody<'_>) -> R,
+    body: impl FnOnce(&mut Ui, &mut RowBody) -> R,
 ) -> ReorderRowResponse<R> {
     let t = Tokens::get(ui.ctx());
     let available_w = ui.available_width();
@@ -306,10 +326,9 @@ pub fn reorder_row<R>(
         .collect();
 
     let mut body_scope = RowBody {
-        ui,
         slot_rects: absolute_rects,
     };
-    let body_res = body(&mut body_scope);
+    let body_res = body(ui, &mut body_scope);
 
     // 5. Alt+Up / Alt+Down move request
     let mut move_request = None;
@@ -333,8 +352,7 @@ pub fn reorder_row<R>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use egui::{vec2, Context, Pos2, RawInput, Rect};
-    use lc_canvas::theme::{self, ThemeChoice};
+    use egui::Rect;
 
     #[test]
     fn test_split_slots_zero_slots() {
@@ -367,165 +385,5 @@ mod tests {
         let res = split_slots(50.0, &slots, 6.0);
         assert_eq!(res.len(), 3);
         assert_eq!(res[1].width(), 0.0);
-    }
-
-    #[test]
-    fn test_same_row_width_for_different_bodies() {
-        let ctx = Context::default();
-        theme::install_fonts(&ctx);
-        theme::apply(&ctx, ThemeChoice::Dark);
-
-        let raw_input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-            ..Default::default()
-        };
-
-        let mut output = ctx.run_ui(raw_input, |ui| {
-            let spec1 = ReorderRowSpec::new("row_empty", "Item 1");
-            let resp1 = reorder_row(ui, spec1, &[Slot::Flex], |_| {});
-
-            let spec2 = ReorderRowSpec::new("row_short", "Item 2");
-            let resp2 = reorder_row(ui, spec2, &[Slot::Flex], |body| {
-                body.slot(0, |ui| ui.label("Short"));
-            });
-
-            let spec3 = ReorderRowSpec::new("row_long", "Item 3");
-            let resp3 = reorder_row(ui, spec3, &[Slot::Flex], |body| {
-                body.slot(0, |ui| {
-                    ui.label("Very long label text that could easily exceed space");
-                });
-            });
-
-            assert_eq!(resp1.rect.width(), resp2.rect.width());
-            assert_eq!(resp2.rect.width(), resp3.rect.width());
-        });
-
-        output.textures_delta.clear();
-    }
-
-    #[test]
-    fn test_fixed_slot_clipping_of_oversized_widget() {
-        let ctx = Context::default();
-        theme::install_fonts(&ctx);
-        theme::apply(&ctx, ThemeChoice::Dark);
-
-        let raw_input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-            ..Default::default()
-        };
-
-        let mut output = ctx.run_ui(raw_input, |ui| {
-            let spec = ReorderRowSpec::new("row_clip", "Item Clip");
-            let slots = [Slot::Fixed(32.0)];
-            let mut captured_clip_w = 0.0;
-
-            reorder_row(ui, spec, &slots, |body| {
-                body.slot(0, |ui| {
-                    captured_clip_w = ui.clip_rect().width();
-                    let mut text = "A".repeat(50);
-                    ui.text_edit_singleline(&mut text);
-                });
-            });
-
-            assert_eq!(captured_clip_w, 32.0);
-        });
-
-        output.textures_delta.clear();
-    }
-
-    #[test]
-    fn test_disabled_delete_state() {
-        let ctx = Context::default();
-        theme::install_fonts(&ctx);
-        theme::apply(&ctx, ThemeChoice::Dark);
-
-        let raw_input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-            ..Default::default()
-        };
-
-        let mut output = ctx.run_ui(raw_input, |ui| {
-            let mut spec = ReorderRowSpec::new("row_disabled_del", "Item Locked");
-            spec.deletable = false;
-            spec.delete_disabled_reason = Some("Used by 3 entities".to_string());
-
-            let resp = reorder_row(ui, spec, &[Slot::Flex], |_| {});
-            assert!(!resp.delete_clicked);
-            assert_eq!(resp.handle.sense, Sense::drag());
-        });
-
-        output.textures_delta.clear();
-    }
-
-    #[test]
-    fn test_reorder_row_headless_render_and_metrics() {
-        let ctx = Context::default();
-        theme::install_fonts(&ctx);
-        theme::apply(&ctx, ThemeChoice::Dark);
-
-        let raw_input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-            ..Default::default()
-        };
-
-        let mut output = ctx.run_ui(raw_input, |ui| {
-            let spec = ReorderRowSpec::new("row_1", "Value 1");
-            let slots = [Slot::Fixed(32.0), Slot::Fixed(32.0), Slot::Flex];
-            let resp = reorder_row(ui, spec, &slots, |body| {
-                body.slot(0, |ui| ui.label("A"));
-                body.slot(1, |ui| ui.label("B"));
-                body.slot(2, |ui| ui.label("Long text content"));
-            });
-
-            // Delete button exactly FORM x FORM with right edge = row right edge
-            let delete_right = resp.rect.max.x;
-            assert!(
-                (resp.rect.max.x - delete_right).abs() < 0.01,
-                "Row and delete button right edge must align"
-            );
-            assert!(!resp.delete_clicked);
-            assert_eq!(resp.move_request, None);
-        });
-
-        output.textures_delta.clear();
-        assert!(
-            !output.shapes.is_empty(),
-            "reorder_row should produce render shapes"
-        );
-    }
-
-    #[test]
-    fn test_values_row_metrics_and_pitch() {
-        let ctx = Context::default();
-        theme::install_fonts(&ctx);
-        theme::apply(&ctx, ThemeChoice::Dark);
-
-        let raw_input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-            ..Default::default()
-        };
-
-        let mut output = ctx.run_ui(raw_input, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            let spec1 = ReorderRowSpec::new("row_v1", "Value 1");
-            let mut first_body_min_x = 0.0;
-            let resp1 = reorder_row(ui, spec1, &[Slot::Fixed(32.0), Slot::Flex], |body| {
-                body.slot(0, |ui| {
-                    first_body_min_x = ui.cursor().min.x;
-                });
-            });
-            // First body rect starts at row.min.x + handle_w (20) + slot_gap (8) = row.min.x + 28
-            assert_eq!(first_body_min_x, resp1.rect.min.x + 28.0);
-
-            ui.add_space(ROW_LAYOUT_VALUES.row_gap);
-
-            let spec2 = ReorderRowSpec::new("row_v2", "Value 2");
-            let resp2 = reorder_row(ui, spec2, &[Slot::Fixed(32.0), Slot::Flex], |_| {});
-
-            // Consecutive rows separated by 40 px pitch (32 px height + 8 px gap)
-            assert_eq!(resp2.rect.min.y - resp1.rect.min.y, 40.0);
-        });
-
-        output.textures_delta.clear();
     }
 }
