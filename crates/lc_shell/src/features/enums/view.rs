@@ -40,7 +40,6 @@ pub use crate::shared::ui::reorder::{drop_index, reorder_item};
 use crate::shared::ui::search_picker::{
     search_picker, PickerChoice, PickerItem, SearchPickerConfig, SearchPickerState,
 };
-use crate::shared::ui::sub_tabs::sub_tabs;
 use crate::shared::ui::tag_input::{input_blocker, tag_text_input, TagInputEvent};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 use crate::shared::ui::tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
@@ -354,6 +353,59 @@ pub fn render_enum_document(ui: &mut Ui, t: &Tokens, cache: &DocumentCache, scro
         "enum_document_scroll",
         doc("enum", "overview"),
     );
+}
+
+/// Draws the sub-tab strip with compact control height (28px).
+pub fn enum_sub_tabs(ui: &mut Ui, t: &Tokens, active: &mut usize, labels: &[&str]) -> bool {
+    let base_id = ui.id();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 6.0;
+        for (index, label) in labels.iter().enumerate() {
+            let is_active = *active == index;
+            let color = if is_active { t.accent_ink } else { t.muted };
+            let galley = ui.painter().layout_no_wrap(
+                (*label).to_owned(),
+                egui::FontId::proportional(11.0),
+                color,
+            );
+            let size = vec2(galley.size().x + 10.0 * 2.0 + 1.0, CONTROL_HEIGHT_COMPACT);
+
+            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            let response: egui::Response = ui
+                .interact(rect, base_id.with(("sub_tab", index)), Sense::click())
+                .on_hover_cursor(CursorIcon::PointingHand);
+
+            let fill = if is_active {
+                t.sunken
+            } else {
+                Color32::TRANSPARENT
+            };
+            let stroke = Stroke::new(
+                1.0,
+                if is_active {
+                    t.accent
+                } else {
+                    Color32::TRANSPARENT
+                },
+            );
+            ui.painter().rect(
+                rect,
+                CornerRadius::same(2),
+                fill,
+                stroke,
+                StrokeKind::Inside,
+            );
+            ui.painter()
+                .galley(rect.center() - galley.size() * 0.5, galley, color);
+
+            if response.clicked() && !is_active {
+                *active = index;
+                changed = true;
+            }
+        }
+    });
+    changed
 }
 
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
@@ -938,7 +990,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
             .show_separator_line(true)
             .show(ui, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.add_space(20.0);
+                    ui.add_space(WORKSPACE_PADDING);
                     if let Some(ref e) = selected_enum_info {
                         let mut info = format!(
                             "ID: EnumDefId({}) • Used by {} Entity Def(s) & {} Field(s)",
@@ -951,7 +1003,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                     }
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.add_space(12.0);
+                        ui.add_space(WORKSPACE_PADDING);
 
                         let is_dirty = app.enum_is_dirty();
 
@@ -966,7 +1018,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             )
                             .fill(if is_dirty { t.accent } else { t.sunken })
                             .corner_radius(CornerRadius::same(3))
-                            .min_size(vec2(110.0, 26.0)),
+                            .min_size(vec2(110.0, CONTROL_HEIGHT_COMPACT)),
                         );
                         if save_btn.clicked() {
                             if let Some(open_id) = app.selected_enum_def {
@@ -1046,7 +1098,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                     if is_dirty { t.line_strong } else { t.line },
                                 ))
                                 .corner_radius(CornerRadius::same(3))
-                                .min_size(vec2(70.0, 26.0)),
+                                .min_size(vec2(70.0, CONTROL_HEIGHT_COMPACT)),
                         );
                         if revert_btn.clicked() {
                             state.revert_confirm_open = true;
@@ -1064,12 +1116,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
         .frame(
             Frame::new()
                 .fill(t.bg)
-                .inner_margin(Margin {
-                    left: 20,
-                    right: 12,
-                    top: 12,
-                    bottom: 12,
-                }),
+                .inner_margin(Margin::same(WORKSPACE_PADDING as i8)),
         )
         .show(ui, |ui| {
             ui.set_min_width(0.0);
@@ -1087,7 +1134,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             state.tag_editing_id.is_some() || state.tag_inline_new_active;
 
                 // 1. Sub-tabs: ENUM DEF / DOCUMENT
-                sub_tabs(
+                enum_sub_tabs(
                     ui,
                     &t,
                     &mut state.active_sub_tab,
@@ -1967,7 +2014,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                 } else {
                     // DOCUMENT owns the full content area: no title, no footer,
                     // and its own ScrollArea fills the space under the sub-tabs.
-                    sub_tabs(
+                    enum_sub_tabs(
                         ui,
                         &t,
                         &mut state.active_sub_tab,
