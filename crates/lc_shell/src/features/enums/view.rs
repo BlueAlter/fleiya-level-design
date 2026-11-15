@@ -1184,11 +1184,11 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                         // Row 1: Enum Identifier (full width) + Export this enum icon
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Enum Identifier").strong().color(t.ink_strong));
-                            let export_btn_w = CONTROL_HEIGHT;
+                            let export_btn_w = ICON_BUTTON_SIZE_FORM;
                             let text_w = (ui.available_width() - export_btn_w - 8.0).max(60.0);
                             let mut name_text = app.enum_draft[enum_idx].name.clone();
                             let name_resp = ui.add_sized(
-                                [text_w, CONTROL_HEIGHT],
+                                [text_w, CONTROL_HEIGHT_FORM],
                                 TextEdit::singleline(&mut name_text)
                                     .char_limit(48)
                                     .id(egui::Id::new(("enum_identifier", current_enum_id)))
@@ -1205,15 +1205,21 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                 app.enum_draft_revision += 1;
                             }
 
-                            // Top-right "Export this enum" button (1:1 square: CONTROL_HEIGHT x CONTROL_HEIGHT)
+                            // Top-right "Export this enum" button (1:1 square: ICON_BUTTON_SIZE_FORM x ICON_BUTTON_SIZE_FORM)
                             let export_btn = ui
-                                .add_sized(
-                                    [CONTROL_HEIGHT, CONTROL_HEIGHT],
-                                    egui::Button::new(Icon::Export.rich(ui.ctx(), 14.0, t.muted))
+                                .scope(|ui| {
+                                    ui.spacing_mut().button_padding = egui::Vec2::ZERO;
+                                    ui.add_sized(
+                                        [ICON_BUTTON_SIZE_FORM, ICON_BUTTON_SIZE_FORM],
+                                        egui::Button::new(
+                                            Icon::Export.rich(ui.ctx(), 14.0, t.muted),
+                                        )
                                         .fill(Color32::TRANSPARENT)
                                         .stroke(t.hairline())
                                         .corner_radius(CornerRadius::same(3)),
-                                )
+                                    )
+                                })
+                                .inner
                                 .on_hover_text("Export this enum (.fleiyaenum)");
 
                             if export_btn.clicked() {
@@ -1487,44 +1493,56 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                                     }
                                 }
 
-                                // 1:1 Square "+" button (CONTROL_HEIGHT x CONTROL_HEIGHT)
-                                let plus_btn = ui.add_sized(
-                                    [CONTROL_HEIGHT, CONTROL_HEIGHT],
-                                    egui::Button::new(Icon::Add.rich(ui.ctx(), 13.0, t.ink_strong))
-                                        .fill(t.sunken)
-                                        .stroke(t.hairline())
-                                        .corner_radius(CornerRadius::same(3)),
-                                )
-                                .on_hover_text("Add tag");
+                                // 1:1 Square "+" button (ICON_BUTTON_SIZE_FORM x ICON_BUTTON_SIZE_FORM)
+                                let plus_btn = ui
+                                    .scope(|ui| {
+                                        ui.spacing_mut().button_padding = egui::Vec2::ZERO;
+                                        ui.add_sized(
+                                            [ICON_BUTTON_SIZE_FORM, ICON_BUTTON_SIZE_FORM],
+                                            egui::Button::new(
+                                                Icon::Add.rich(ui.ctx(), 13.0, t.ink_strong),
+                                            )
+                                            .fill(t.sunken)
+                                            .stroke(t.hairline())
+                                            .corner_radius(CornerRadius::same(3)),
+                                        )
+                                    })
+                                    .inner
+                                    .on_hover_text("Add tag");
                                 if plus_btn.clicked() {
                                     state.tag_inline_new_active = true;
                                     state.tag_inline_new_text.clear();
                                     state.tag_focus_pending = true;
                                 }
 
-                                // 1:1 Square "⌄" button (CONTROL_HEIGHT x CONTROL_HEIGHT)
+                                // 1:1 Square "⌄" button (ICON_BUTTON_SIZE_FORM x ICON_BUTTON_SIZE_FORM)
                                 let recall_icon_color = if has_unused {
                                     t.ink_strong
                                 } else {
                                     t.muted.linear_multiply(0.4)
                                 };
 
-                                let recall_btn = ui.add_enabled(
-                                    has_unused,
-                                    egui::Button::new(Icon::ChevronDown.rich(
-                                        ui.ctx(),
-                                        13.0,
-                                        recall_icon_color,
-                                    ))
-                                    .fill(t.sunken)
-                                    .stroke(t.hairline())
-                                    .corner_radius(CornerRadius::same(3)),
-                                )
-                                .on_hover_text(if has_unused {
-                                    "Assign existing tag"
-                                } else {
-                                    "No other tags available"
-                                });
+                                let recall_btn = ui
+                                    .scope(|ui| {
+                                        ui.spacing_mut().button_padding = egui::Vec2::ZERO;
+                                        ui.add_sized(
+                                            [ICON_BUTTON_SIZE_FORM, ICON_BUTTON_SIZE_FORM],
+                                            egui::Button::new(Icon::ChevronDown.rich(
+                                                ui.ctx(),
+                                                13.0,
+                                                recall_icon_color,
+                                            ))
+                                            .fill(t.sunken)
+                                            .stroke(t.hairline())
+                                            .corner_radius(CornerRadius::same(3)),
+                                        )
+                                    })
+                                    .inner
+                                    .on_hover_text(if has_unused {
+                                        "Assign existing tag"
+                                    } else {
+                                        "No other tags available"
+                                    });
 
                                 recall_btn_resp = Some(recall_btn);
                             });
