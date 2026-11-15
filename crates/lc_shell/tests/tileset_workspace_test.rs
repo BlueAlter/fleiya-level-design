@@ -1,6 +1,6 @@
 use egui::Context;
 use glam::UVec2;
-use lc_core::defs::TilesetDef;
+use lc_core::defs::{TileMarking, TilesetDef};
 use lc_core::id::TilesetDefId;
 use lc_core::project::Project;
 use lc_shell::features::editor::app_mode::AppMode;
@@ -46,6 +46,8 @@ fn test_headless_render_one_tileset() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
 
     let mut app = ShellApp::new(p);
@@ -77,6 +79,8 @@ fn test_headless_render_many_tilesets() {
             tile_size: UVec2::new(16, 16),
             spacing: 1,
             padding: 2,
+            tags: Vec::new(),
+            marking: TileMarking::EMPTY,
         });
     }
 
@@ -107,6 +111,8 @@ fn test_headless_render_missing_image_no_panic() {
         tile_size: UVec2::new(32, 32),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
 
     let mut app = ShellApp::new(p);
@@ -134,6 +140,8 @@ fn test_headless_render_document_tab() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
 
     let mut app = ShellApp::new(p);
@@ -162,6 +170,8 @@ fn test_headless_render_long_names() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
     });
 
     let mut app = ShellApp::new(p);
@@ -256,6 +266,8 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
             tile_size: UVec2::new(16, 16),
             spacing: 0,
             padding: 0,
+            tags: Vec::new(),
+            marking: TileMarking::EMPTY,
         });
     }
 
@@ -343,7 +355,7 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
     // 2. every left row is bordered
     let left_row_borders: Vec<_> = stroke_rects
         .iter()
-        .filter(|r| r.min.x < 240.0 && r.max.x < 240.0 && (r.height() - 34.0).abs() < 2.0)
+        .filter(|r| r.min.x < 260.0 && r.max.x <= 260.0 && (r.height() - 36.0).abs() < 2.0)
         .collect();
     assert_eq!(
         left_row_borders.len(),
@@ -369,7 +381,7 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
         .expect("card must exist");
 
     let atlas_backdrop = fill_rects.iter().find(|r| {
-        r.min.x >= 240.0
+        r.min.x >= 250.0
             && r.min.y > card_title.1.max.y
             && r.max.y < footer_text.1.min.y + 10.0
             && r.height() > 200.0
@@ -398,5 +410,48 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
     assert!(
         marking_row.is_some(),
         "Enum for tile marking row must exist"
+    );
+}
+
+#[test]
+fn test_headless_render_source_enum_missing() {
+    let mut p = Project::new("Missing Source Enum");
+    p.defs.tilesets.push(TilesetDef {
+        id: TilesetDefId(1),
+        name: "MissingEnumTileset".to_string(),
+        path: "assets/tileset.png".to_string(),
+        tile_size: UVec2::new(16, 16),
+        spacing: 0,
+        padding: 0,
+        tags: vec!["Dungeon".to_string()],
+        marking: TileMarking {
+            source_enum: Some(lc_core::id::EnumDefId(999)),
+        },
+    });
+
+    let mut app = ShellApp::new(p);
+    app.active_mode = AppMode::Tilesets;
+
+    let ctx = Context::default();
+    let mut output = ctx.run_ui(Default::default(), |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output.textures_delta.clear();
+
+    fn find_text(shape: &egui::Shape, target: &str) -> bool {
+        match shape {
+            egui::Shape::Text(t) => t.galley.text().contains(target),
+            egui::Shape::Vec(children) => children.iter().any(|c| find_text(c, target)),
+            _ => false,
+        }
+    }
+
+    let found_missing = output
+        .shapes
+        .iter()
+        .any(|c| find_text(&c.shape, "(missing enum)"));
+    assert!(
+        found_missing,
+        "'(missing enum)' button text must be rendered when source enum is not found in project"
     );
 }

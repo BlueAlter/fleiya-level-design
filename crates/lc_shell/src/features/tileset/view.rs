@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{vec2, Button, CornerRadius, Frame, Id, Margin, RichText, Stroke, Ui};
+use egui::{vec2, Button, CornerRadius, Id, RichText, Stroke, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -21,6 +21,7 @@ use super::left_panel::render_left_panel;
 use super::right_panel::render_right_panel;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
+use crate::shared::ui::def_workspace::{def_footer, def_panel_width};
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::render_document_page;
 use crate::shared::ui::sub_tabs::sub_tabs;
@@ -114,6 +115,8 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
                         tile_size: glam::UVec2::splat(16),
                         spacing: 0,
                         padding: 0,
+                        tags: Vec::new(),
+                        marking: lc_core::defs::TileMarking::EMPTY,
                     };
                     app.execute_command(Box::new(AddTilesetDefCommand::new(def)));
                     app.selected_tileset_def = Some(next_id);
@@ -185,12 +188,12 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
             .unwrap_or_default()
     });
 
-    let left_w = 240.0;
+    let left_w = def_panel_width();
 
     ui.horizontal(|ui| {
         // Left Panel
         ui.allocate_ui(vec2(left_w, full_rect.height()), |ui| {
-            render_left_panel(app, ui, &t, &dialog_mgr, &mut drag_state);
+            render_left_panel(app, ui, &t, dialog_mgr.as_ref(), &mut drag_state);
         });
 
         // Detail / Workspace Area
@@ -333,7 +336,13 @@ fn render_detail_area(
 
                     // Right Panel Shell (docked)
                     ui.allocate_ui(vec2(right_panel_w, center_h), |ui| {
-                        render_right_panel(ui, t, &tileset, &mut app.tileset_view_state);
+                        render_right_panel(
+                            ui,
+                            t,
+                            &tileset,
+                            &app.project,
+                            &mut app.tileset_view_state,
+                        );
                     });
                 });
             });
@@ -341,23 +350,11 @@ fn render_detail_area(
             // Pinned Footer Bar
             if sections.footer {
                 let (layers_count, enums_count) = tileset_usage_counts(&app.project, tileset.id);
-
-                let footer_frame = Frame::new()
-                    .fill(t.panel)
-                    .inner_margin(Margin::symmetric(16, 6));
-
-                footer_frame.show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!(
-                                "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
-                                tileset.id.0, layers_count, enums_count
-                            ))
-                            .font(egui::FontId::proportional(11.5))
-                            .color(t.muted),
-                        );
-                    });
-                });
+                let left_text = format!(
+                    "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
+                    tileset.id.0, layers_count, enums_count
+                );
+                def_footer(ui, t, &left_text, |_| {});
             }
         }
     });

@@ -1,8 +1,11 @@
 use egui::{Context, Event, Key, Modifiers, RawInput};
+use lc_canvas::theme::Tokens;
 use lc_core::command::DocKind;
 use lc_core::id::TilesetDefId;
 use lc_core::project::Project;
-use lc_shell::features::editor::app_mode::{control_width, shows_unsaved, AppMode, MODE_BUTTONS};
+use lc_shell::features::editor::app_mode::{
+    control_width, render_mode_segmented_control, shows_unsaved, AppMode, MODE_BUTTONS,
+};
 use lc_shell::features::editor::menu::handle_global_shortcuts;
 use lc_shell::ShellApp;
 use std::collections::HashSet;
@@ -162,4 +165,63 @@ fn test_dockind_tileset_def_switches_mode_and_selects_tileset() {
 
     assert_eq!(app.active_mode, AppMode::Tilesets);
     assert_eq!(app.selected_tileset_def, Some(TilesetDefId(42)));
+}
+
+#[test]
+fn test_navigation_switching_and_active_highlight() {
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+    let t = Tokens::get(&ctx);
+
+    // 1. Segmented control rendering and active highlight check for all 3 modes
+    for expected_mode in [AppMode::Editor, AppMode::Enums, AppMode::Tilesets] {
+        let mut active_mode = expected_mode;
+        let mut output = ctx.run_ui(RawInput::default(), |ui| {
+            render_mode_segmented_control(ui, &mut active_mode, false, &t);
+        });
+        output.textures_delta.clear();
+
+        // One button should have t.accent fill (the active highlighted one)
+        let mut accent_fill_count = 0;
+        for clipped in &output.shapes {
+            if let egui::Shape::Rect(r) = &clipped.shape {
+                if r.fill == t.accent {
+                    accent_fill_count += 1;
+                }
+            }
+        }
+        assert_eq!(
+            accent_fill_count, 1,
+            "Exactly one mode button must have active accent highlight for mode {expected_mode:?}"
+        );
+    }
+
+    // 2. Switching modes via Ctrl+1, Ctrl+2, Ctrl+3
+    let mut app = ShellApp::new(Project::new("Navigation Test"));
+    assert_eq!(app.active_mode, AppMode::Editor);
+
+    for (key, mode) in [
+        (Key::Num3, AppMode::Tilesets),
+        (Key::Num2, AppMode::Enums),
+        (Key::Num1, AppMode::Editor),
+        (Key::Num3, AppMode::Tilesets),
+    ] {
+        let mut raw_input = RawInput::default();
+        raw_input.events.push(Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::CTRL,
+        });
+        let mut out = ctx.run_ui(raw_input, |_| {});
+        out.textures_delta.clear();
+        handle_global_shortcuts(&mut app, &ctx);
+        assert_eq!(
+            app.active_mode, mode,
+            "Pressing Ctrl+{:?} must switch to {:?}",
+            key, mode
+        );
+    }
 }
