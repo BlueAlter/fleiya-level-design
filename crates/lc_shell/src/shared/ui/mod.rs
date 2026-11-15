@@ -1,4 +1,6 @@
+pub mod atlas_canvas;
 pub mod context_menu;
+pub mod def_workspace;
 pub mod drag_list;
 pub mod markdown_document;
 pub mod reorder;
@@ -8,9 +10,19 @@ pub mod tag_input;
 pub mod tile_bounds;
 pub mod tile_picker;
 
+pub use atlas_canvas::{
+    clamp_offset, compute_fit_view, page_bg_uv, render_atlas_canvas, tile_at_screen_pos,
+    zoom_towards_cursor, AtlasCanvasState, AtlasEvent, PickerView, TileDimPredicate,
+    TileOverlayCallback, PAGE_BG_CELL,
+};
 pub use context_menu::{
     is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
     ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
+};
+pub use def_workspace::{
+    def_field_row, def_footer, def_left_panel, def_panel_width, def_right_header, def_row_layout,
+    def_section, format_footer_left, DefItem, DefLeftPanelAction, DefLeftPanelConfig, DefRowLayout,
+    DEF_CARD_HEIGHT, DEF_PANEL_WIDTH,
 };
 pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle};
 pub use markdown_document::{
@@ -25,4 +37,4 @@ pub use search_picker::{
 pub use sub_tabs::{sub_tab_id, sub_tabs};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
 pub use tile_bounds::{TileGrid, TileRect};
-pub use tile_picker::{PickerTarget, PickerView, TilePicker, TilePickerEvent, TilesetData};
+pub use tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
