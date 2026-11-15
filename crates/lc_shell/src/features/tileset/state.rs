@@ -1,10 +1,12 @@
 //! View state for the Tilesets workspace.
 
-use egui::Vec2;
+use egui::{Pos2, Vec2};
 use lc_core::id::TilesetDefId;
 use std::collections::HashMap;
 
+use crate::shared::ui::atlas_canvas::AtlasCanvasState;
 use crate::shared::ui::markdown_document::{new_document_cache, DocumentCache};
+use crate::shared::ui::search_picker::SearchPickerState;
 
 /// Stored pan and zoom per tileset for the editing session.
 #[derive(Debug, Clone)]
@@ -37,6 +39,8 @@ pub struct TilesetViewState {
     pub search_query: String,
     /// Pinned pan and zoom settings per tileset ID.
     pub pan_zoom: HashMap<TilesetDefId, TilesetPanZoom>,
+    /// Atlas canvas navigation and selection state per tileset ID.
+    pub canvas_states: HashMap<TilesetDefId, AtlasCanvasState>,
     /// Tileset ID pending delete confirmation dialog (if referenced).
     pub pending_delete_id: Option<TilesetDefId>,
     /// Document scroll offset for the DOCUMENT tab.
@@ -49,6 +53,22 @@ pub struct TilesetViewState {
     pub tags: HashMap<TilesetDefId, Vec<String>>,
     /// Selected enum for tile marking per tileset definition (view state).
     pub marking_enum: HashMap<TilesetDefId, Option<lc_core::id::EnumDefId>>,
+    /// Search picker state for tile marking enum selector.
+    pub marking_picker: SearchPickerState,
+    /// Search picker state for tag recall dropdown.
+    pub tag_recall_picker: SearchPickerState,
+    /// Whether inline tag creation input is open.
+    pub tag_inline_new_active: bool,
+    /// Buffer for new tag input.
+    pub tag_inline_new_text: String,
+    /// Whether tag input needs immediate focus.
+    pub tag_focus_pending: bool,
+    /// Tag name being edited inline.
+    pub tag_editing_name: Option<String>,
+    /// Buffer for tag name editing.
+    pub tag_editing_text: String,
+    /// Context menu anchor (item ID and pos) if open.
+    pub context_menu: Option<(TilesetDefId, Pos2)>,
 }
 
 impl Default for TilesetViewState {
@@ -60,12 +80,21 @@ impl Default for TilesetViewState {
             active_mode: "None".to_string(),
             search_query: String::new(),
             pan_zoom: HashMap::new(),
+            canvas_states: HashMap::new(),
             pending_delete_id: None,
             doc_scroll: 0.0,
             doc_cache: new_document_cache(),
             error_message: None,
             tags: HashMap::new(),
             marking_enum: HashMap::new(),
+            marking_picker: SearchPickerState::default(),
+            tag_recall_picker: SearchPickerState::default(),
+            tag_inline_new_active: false,
+            tag_inline_new_text: String::new(),
+            tag_focus_pending: false,
+            tag_editing_name: None,
+            tag_editing_text: String::new(),
+            context_menu: None,
         }
     }
 }
@@ -84,5 +113,10 @@ impl TilesetViewState {
     /// Gets or creates the pan and zoom state for a given tileset.
     pub fn pan_zoom_mut(&mut self, id: TilesetDefId) -> &mut TilesetPanZoom {
         self.pan_zoom.entry(id).or_default()
+    }
+
+    /// Gets or creates the atlas canvas state for a given tileset.
+    pub fn canvas_state_mut(&mut self, id: TilesetDefId) -> &mut AtlasCanvasState {
+        self.canvas_states.entry(id).or_default()
     }
 }
