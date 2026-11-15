@@ -9,6 +9,7 @@ pub mod reorder;
 pub mod row_menu;
 pub mod search_picker;
 pub mod sub_tabs;
+pub mod swatch;
 pub mod tag_input;
 pub mod tag_row;
 pub mod text_field;
@@ -48,6 +49,7 @@ pub use search_picker::{
     PICKER_HEADER_HEIGHT, PICKER_MAX_ROWS, PICKER_ROW_HEIGHT, PICKER_WIDTH,
 };
 pub use sub_tabs::{sub_tab_id, sub_tabs};
+pub use swatch::{color_swatch, tile_icon_button, TileIconData};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
 pub use tag_row::{normalize_tag, normalize_tags, tag_row, TagEvent};
 pub use text_field::{text_field, validate_identifier, FieldResponse, FieldStyle, IdentifierError};
