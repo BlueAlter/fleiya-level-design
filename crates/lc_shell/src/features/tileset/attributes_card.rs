@@ -1,6 +1,6 @@
 //! Attributes card and image metrics info line for the selected tileset definition.
 
-use egui::{vec2, CornerRadius, DragValue, Frame, Id, Margin, RichText, Stroke, TextEdit, Ui};
+use egui::{vec2, Color32, DragValue, Id, RichText, TextEdit, Ui};
 use glam::UVec2;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
@@ -8,10 +8,12 @@ use lc_feature_tileset::{compute_tileset_grid, GridMetrics, UpdateTilesetDefComm
 
 use super::file_dialog::TilesetDialogManager;
 use super::i18n::keys;
+use super::tags_row::{render_marking_enum_row, render_tags_row, CONTROL_HEIGHT};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::tr;
+use crate::shared::ui::def_workspace::def_section;
 
-/// Renders the "TILESET IDENTIFIER & ATTRIBUTES" card and the image info line below it.
+/// Renders the "TILESET IDENTIFIER & ATTRIBUTES" section and the image info line below it.
 pub fn render_attributes_card(
     app: &mut ShellApp,
     ui: &mut Ui,
@@ -20,22 +22,8 @@ pub fn render_attributes_card(
     dialogs: &TilesetDialogManager,
     texture: Option<&egui::TextureHandle>,
 ) {
-    let card_frame = Frame::new()
-        .fill(t.panel)
-        .corner_radius(CornerRadius::same(6))
-        .stroke(Stroke::new(1.0, t.line_strong))
-        .inner_margin(Margin::same(12));
-
-    card_frame.show(ui, |ui| {
+    def_section(ui, t, tr(keys::CARD_IDENTIFIER_ATTRIBUTES), |ui| {
         ui.vertical(|ui| {
-            // Card Title
-            ui.label(
-                RichText::new(tr(keys::CARD_IDENTIFIER_ATTRIBUTES))
-                    .font(egui::FontId::proportional(11.0))
-                    .color(t.muted),
-            );
-            ui.add_space(8.0);
-
             // Row 1: Identifier
             ui.horizontal(|ui| {
                 ui.label(
@@ -50,7 +38,10 @@ pub fn render_attributes_card(
                     .data(|d| d.get_temp::<String>(Id::new(("ts_name_buf", tileset.id))))
                     .unwrap_or_else(|| tileset.name.clone());
 
-                let resp = ui.add_sized(vec2(180.0, 24.0), TextEdit::singleline(&mut name_buf));
+                let resp = ui.add_sized(
+                    vec2(180.0, CONTROL_HEIGHT),
+                    TextEdit::singleline(&mut name_buf),
+                );
 
                 let enter_pressed =
                     resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -102,7 +93,10 @@ pub fn render_attributes_card(
                     .unwrap_or_else(|| tileset.path.clone());
 
                 let path_w = (ui.available_width() - 140.0).max(120.0);
-                let resp = ui.add_sized(vec2(path_w, 24.0), TextEdit::singleline(&mut path_buf));
+                let resp = ui.add_sized(
+                    vec2(path_w, CONTROL_HEIGHT),
+                    TextEdit::singleline(&mut path_buf),
+                );
 
                 let enter_pressed =
                     resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -139,7 +133,7 @@ pub fn render_attributes_card(
 
             ui.add_space(6.0);
 
-            // Row 3: Tile Size (W / H), Spacing, Padding
+            // Row 3: Tile size (W / H), Spacing, Padding
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("Tile size:")
@@ -234,72 +228,12 @@ pub fn render_attributes_card(
             ui.add_space(6.0);
 
             // Row 4: Tags
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Tags:")
-                        .font(egui::FontId::proportional(11.5))
-                        .strong()
-                        .color(t.ink_strong),
-                );
-
-                let tags_list = app.tileset_view_state.tags.entry(tileset.id).or_default();
-                let mut tags_buf = tags_list.join(", ");
-                let tags_w = (ui.available_width() - 8.0).max(120.0);
-                let resp = ui.add_sized(
-                    vec2(tags_w, 24.0),
-                    TextEdit::singleline(&mut tags_buf).hint_text("comma, separated, tags"),
-                );
-                if resp.changed() {
-                    *tags_list = tags_buf
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                }
-            });
+            render_tags_row(app, ui, t, tileset);
 
             ui.add_space(6.0);
 
             // Row 5: Enum for tile marking
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Enum for tile marking:")
-                        .font(egui::FontId::proportional(11.5))
-                        .strong()
-                        .color(t.ink_strong),
-                );
-
-                let current_marking_enum = app
-                    .tileset_view_state
-                    .marking_enum
-                    .get(&tileset.id)
-                    .copied()
-                    .flatten();
-                let current_label = current_marking_enum
-                    .and_then(|eid| app.project.defs.enums.iter().find(|e| e.id == eid))
-                    .map(|e| e.name.as_str())
-                    .unwrap_or("None");
-
-                egui::ComboBox::from_id_salt(("tile_marking_enum", tileset.id))
-                    .selected_text(current_label)
-                    .width(160.0)
-                    .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(current_marking_enum.is_none(), "None")
-                            .clicked()
-                        {
-                            app.tileset_view_state.marking_enum.insert(tileset.id, None);
-                        }
-                        for enum_def in &app.project.defs.enums {
-                            let is_sel = current_marking_enum == Some(enum_def.id);
-                            if ui.selectable_label(is_sel, &enum_def.name).clicked() {
-                                app.tileset_view_state
-                                    .marking_enum
-                                    .insert(tileset.id, Some(enum_def.id));
-                            }
-                        }
-                    });
-            });
+            render_marking_enum_row(app, ui, t, tileset);
         });
     });
 
@@ -339,14 +273,14 @@ pub fn render_attributes_card(
                         metrics.leftover_x, metrics.leftover_y
                     ))
                     .font(egui::FontId::proportional(11.5))
-                    .color(egui::Color32::from_rgb(234, 179, 8)),
+                    .color(Color32::from_rgb(234, 179, 8)),
                 );
             }
         } else if !tileset.path.is_empty() {
             ui.label(
                 RichText::new("⚠ Source image file could not be loaded.")
                     .font(egui::FontId::proportional(11.5))
-                    .color(egui::Color32::from_rgb(234, 179, 8)),
+                    .color(Color32::from_rgb(234, 179, 8)),
             );
         } else {
             ui.label(
