@@ -6,6 +6,7 @@ pub mod icon_button;
 pub mod markdown_document;
 pub mod modal;
 pub mod reorder;
+pub mod row_menu;
 pub mod search_picker;
 pub mod sub_tabs;
 pub mod tag_input;
@@ -38,6 +39,7 @@ pub use modal::{
     ModalSpec,
 };
 pub use reorder::Slot;
+pub use row_menu::{filter_menu_items, row_menu, row_menu_button, RowMenuItem};
 pub use search_picker::{
     first_item_row, first_selectable, group_items, picker_rows, search_picker, step_selection,
     PickerChoice, PickerItem, PickerRow, SearchPickerConfig, SearchPickerState,
