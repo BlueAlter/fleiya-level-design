@@ -4,6 +4,7 @@ pub mod def_workspace;
 pub mod drag_list;
 pub mod icon_button;
 pub mod markdown_document;
+pub mod modal;
 pub mod reorder;
 pub mod search_picker;
 pub mod sub_tabs;
@@ -30,6 +31,10 @@ pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, Pl
 pub use icon_button::{icon_button, IconButtonStyle};
 pub use markdown_document::{
     new_document_cache, render_document_page, render_markdown_document, DocumentCache,
+};
+pub use modal::{
+    handle_modal_keys, modal, resolve_modal_action, ModalButton, ModalButtonKind, ModalKeyAction,
+    ModalSpec,
 };
 pub use reorder::Slot;
 pub use search_picker::{
