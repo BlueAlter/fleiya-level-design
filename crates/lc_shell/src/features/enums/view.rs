@@ -408,6 +408,15 @@ pub fn enum_sub_tabs(ui: &mut Ui, t: &Tokens, active: &mut usize, labels: &[&str
     changed
 }
 
+fn card_label(ui: &mut Ui, text: &str, t: &Tokens) {
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(FORM_LABEL_COL_W, CONTROL_HEIGHT_FORM), Sense::hover());
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    child.with_layout(Layout::left_to_right(Align::Center), |ui| {
+        ui.label(RichText::new(text).strong().color(t.ink_strong));
+    });
+}
+
 pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     i18n::register();
     let t = Tokens::get(ui.ctx());
@@ -1183,9 +1192,10 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
 
                         // Row 1: Enum Identifier (full width) + Export this enum icon
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new("Enum Identifier").strong().color(t.ink_strong));
+                            card_label(ui, "Enum Identifier", &t);
                             let export_btn_w = ICON_BUTTON_SIZE_FORM;
-                            let text_w = (ui.available_width() - export_btn_w - 8.0).max(60.0);
+                            let gap = ui.spacing().item_spacing.x;
+                            let text_w = (ui.available_width() - export_btn_w - gap).max(60.0);
                             let mut name_text = app.enum_draft[enum_idx].name.clone();
                             let name_resp = ui.add_sized(
                                 [text_w, CONTROL_HEIGHT_FORM],
@@ -1232,8 +1242,8 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
 
                         // Row 2: Tileset dropdown (= iconTilesetUid)
                         ui.horizontal(|ui| {
-                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT;
-                            ui.label(RichText::new("Tileset:").strong().color(t.ink_strong));
+                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
+                            card_label(ui, "Tileset:", &t);
                             let tilesets = &app.project.defs.tilesets;
                             let prev_ts = app.enum_draft[enum_idx].tileset_id;
                             let current_tileset_name = prev_ts
@@ -1308,8 +1318,8 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
 
                         // Row 3: Tags row
                         ui.horizontal(|ui| {
-                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT;
-                            ui.label(RichText::new("Tags:").strong().color(t.ink_strong));
+                            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
+                            card_label(ui, "Tags:", &t);
 
                             let assigned_tag_ids: Vec<crate::features::editor::shell_app::TagId> = app
                                 .enum_tags_map
