@@ -2,6 +2,7 @@ pub mod atlas_canvas;
 pub mod context_menu;
 pub mod def_workspace;
 pub mod drag_list;
+pub mod icon_button;
 pub mod markdown_document;
 pub mod reorder;
 pub mod search_picker;
@@ -26,6 +27,7 @@ pub use def_workspace::{
     DEF_CARD_HEIGHT, DEF_PANEL_WIDTH,
 };
 pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle};
+pub use icon_button::{icon_button, IconButtonStyle};
 pub use markdown_document::{
     new_document_cache, render_document_page, render_markdown_document, DocumentCache,
 };
