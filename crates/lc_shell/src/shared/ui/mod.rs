@@ -14,6 +14,7 @@ pub mod tag_row;
 pub mod text_field;
 pub mod tile_bounds;
 pub mod tile_picker;
+pub mod tileset_select;
 pub mod workspace_metrics;
 
 pub use atlas_canvas::{
@@ -52,4 +53,5 @@ pub use tag_row::{normalize_tag, normalize_tags, tag_row, TagEvent};
 pub use text_field::{text_field, validate_identifier, FieldResponse, FieldStyle, IdentifierError};
 pub use tile_bounds::{TileGrid, TileRect};
 pub use tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
+pub use tileset_select::{tileset_select, TilesetSelectItem};
 pub use workspace_metrics::*;
