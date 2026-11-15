@@ -24,8 +24,9 @@ use lc_canvas::icons::{paint_icon, Icon};
 use lc_canvas::theme::Tokens;
 
 use super::icon_button::{icon_button, IconButtonStyle};
-use super::workspace_metrics::{
-    CONTROL_HEIGHT_FORM, DRAG_HANDLE_WIDTH, ICON_BUTTON_SIZE_DELETE, ROW_GAP, SLOT_GAP,
+pub use super::workspace_metrics::{
+    ReorderRowLayout, CONTROL_HEIGHT_FORM, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_CARD,
+    ROW_LAYOUT_VALUES,
 };
 
 /// Direction for keyboard-driven reordering requests.
@@ -85,6 +86,8 @@ pub struct ReorderRowSpec {
     pub delete_tooltip: Option<String>,
     /// Tooltip explaining why deletion is disabled.
     pub delete_disabled_reason: Option<String>,
+    /// Row layout parameters (handle width, slot gap, row gap).
+    pub layout: ReorderRowLayout,
     /// Lightweight preview for drag list integration.
     pub ghost: GhostPreview,
 }
@@ -100,6 +103,7 @@ impl ReorderRowSpec {
             deletable: true,
             delete_tooltip: Some("Delete".to_string()),
             delete_disabled_reason: None,
+            layout: ROW_LAYOUT_VALUES,
             ghost: GhostPreview::new(label),
         }
     }
@@ -222,7 +226,7 @@ pub fn reorder_row<R>(
     );
 
     // 2. Drag handle slot on the left
-    let handle_rect = Rect::from_min_size(row_rect.min, vec2(DRAG_HANDLE_WIDTH, spec.height));
+    let handle_rect = Rect::from_min_size(row_rect.min, vec2(spec.layout.handle_w, spec.height));
     let handle_resp = ui
         .interact(
             handle_rect,
@@ -286,11 +290,11 @@ pub fn reorder_row<R>(
     }
 
     // 4. Body slots in the remaining middle region
-    let body_start_x = handle_rect.max.x + SLOT_GAP;
-    let body_end_x = delete_rect.min.x - SLOT_GAP;
+    let body_start_x = handle_rect.max.x + spec.layout.slot_gap;
+    let body_end_x = delete_rect.min.x - spec.layout.slot_gap;
     let body_w = (body_end_x - body_start_x).max(0.0);
 
-    let relative_rects = split_slots(body_w, slots, SLOT_GAP);
+    let relative_rects = split_slots(body_w, slots, spec.layout.slot_gap);
     let absolute_rects: Vec<Rect> = relative_rects
         .into_iter()
         .map(|r| {
@@ -316,8 +320,6 @@ pub fn reorder_row<R>(
             move_request = Some(MoveDirection::Down);
         }
     }
-
-    ui.add_space(ROW_GAP);
 
     ReorderRowResponse {
         body: body_res,
@@ -490,5 +492,40 @@ mod tests {
             !output.shapes.is_empty(),
             "reorder_row should produce render shapes"
         );
+    }
+
+    #[test]
+    fn test_values_row_metrics_and_pitch() {
+        let ctx = Context::default();
+        theme::install_fonts(&ctx);
+        theme::apply(&ctx, ThemeChoice::Dark);
+
+        let raw_input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+            ..Default::default()
+        };
+
+        let mut output = ctx.run_ui(raw_input, |ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let spec1 = ReorderRowSpec::new("row_v1", "Value 1");
+            let mut first_body_min_x = 0.0;
+            let resp1 = reorder_row(ui, spec1, &[Slot::Fixed(32.0), Slot::Flex], |body| {
+                body.slot(0, |ui| {
+                    first_body_min_x = ui.cursor().min.x;
+                });
+            });
+            // First body rect starts at row.min.x + handle_w (20) + slot_gap (8) = row.min.x + 28
+            assert_eq!(first_body_min_x, resp1.rect.min.x + 28.0);
+
+            ui.add_space(ROW_LAYOUT_VALUES.row_gap);
+
+            let spec2 = ReorderRowSpec::new("row_v2", "Value 2");
+            let resp2 = reorder_row(ui, spec2, &[Slot::Fixed(32.0), Slot::Flex], |_| {});
+
+            // Consecutive rows separated by 40 px pitch (32 px height + 8 px gap)
+            assert_eq!(resp2.rect.min.y - resp1.rect.min.y, 40.0);
+        });
+
+        output.textures_delta.clear();
     }
 }
