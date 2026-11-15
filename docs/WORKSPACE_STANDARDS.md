@@ -115,3 +115,47 @@ Setiap workspace baru wajib dilengkapi tes integrasi headless (misalnya `tests/<
    - Tepi kartu detail sama dengan batas area konten (`(LEFT_PANEL_WIDTH + P) .. (SCREEN_WIDTH - P)`).
    - Seluruh baris kontrol form mulai pada posisi horizontal (`x`) yang identik.
    - Tombol footer dan tombol toolbar kanan merapat ke tepi kanan konten (`SCREEN_WIDTH - P`).
+
+---
+
+## 5. List Rows and Cards (Standard Baris & Kartu Daftar)
+
+Komponen daftar yang dapat diurutkan ulang (*reorderable lists*) dan kartu baris menggunakan komponen bersama `reorder_list` dan `reorder_row` dengan dua preset tata letak resmi dari `workspace_metrics`:
+
+### Tabel Perbandingan Preset Layout (Dimensi Hasil Ukur A0)
+
+| Parameter | `ROW_LAYOUT_VALUES` (Baris Nilai / Form) | `ROW_LAYOUT_CARD` (Kartu Daftar Panel Kiri) | Catatan Geometri A0 |
+|---|---|---|---|
+| **Tinggi (`height`)** | `32.0 px` (`CONTROL_HEIGHT_FORM`) | `36.0 px` | Sesuai tinggi kontrol form vs tinggi kartu daftar panel kiri |
+| **Padding Horizontal (`padding_x`)** | `0.0 px` | `11.0 px` | 10 px padding isi kartu + 1 px garis tepi (*inside stroke*) |
+| **Padding Vertikal (`padding_y`)** | `0.0 px` | `7.0 px` | 6 px padding isi kartu + 1 px garis tepi (*inside stroke*) |
+| **Lebar Handle Drag (`handle_w`)** | `20.0 px` | `16.0 px` | Ikon drag handle berada di `x: 23..39` (pusat `x = 31.0`, glif `x = 24.0`) |
+| **Jarak Setelah Handle (`handle_gap`)** | `8.0 px` | `12.0 px` | Teks nama mulai persis di `x = 51.0` (12 panel pad + 11 card pad + 16 handle + 12 gap) |
+| **Jarak Antar Slot Body (`slot_gap`)** | `8.0 px` | `8.0 px` | Jarak seragam antar elemen/slot di dalam body baris |
+| **Lebar Elemen Trailing (`trailing_w`)** | `32.0 px` | `20.0 px` | 32 px untuk tombol hapus (`Trailing::Delete`), 20 px untuk kebab menu (`Trailing::Kebab`) |
+| **Jarak Sebelum Trailing (`trailing_gap`)** | `8.0 px` | `8.0 px` | Tombol kebab berada di `x: 217..237` (pusat `x = 227.0`, glif `x = 221.5`) |
+| **Jarak Antar Baris (`row_gap`)** | `8.0 px` | `5.0 px` | Diterapkan oleh `reorder_list` setelah menyetel `item_spacing.y = 0` |
+| **Pitch Vertikal Total** | **40.0 px** (32 + 8) | **41.0 px** (36 + 5) | Jarak vertikal absolut antar titik awal baris berurutan |
+| **Jenis Trailing** | `Trailing::Delete` (ikon Trash 32x32) | `Trailing::Kebab` (ikon Kebab "⋮" 20x20) | Opsi `Trailing::None` juga didukung |
+
+### Ketentuan Rendering Baris & Kartu
+- **Outline dan Status Seleksi Digambar oleh Komponen Bersama**:
+  Garis tepi (*outline stroke*) dan latar belakang kartu digambar secara otomatis oleh `reorder_row`. Kartu yang tidak dipilih (*unselected*) memiliki garis tepi `t.hairline().color` (1.0 px). Kartu yang sedang dipilih (*selected*) digambar dengan garis tepi aksen `t.accent` (1.0 px).
+- **Interaktivitas & Aksesibilitas**:
+  Kartu yang dapat diklik (`clickable: true`) menampilkan kursor tangan pointer (`CursorIcon::PointingHand`) saat di-hover. Komponen mendukung navigasi keyboard penuh (Arrow Up/Down untuk memilih item, Enter untuk klik/aktivasi, dan Alt + Arrow Up/Down untuk memindahkan urutan).
+- **Larangan Menggambar Manual**:
+  Pemanggil (*caller*) **TIDAK BOLEH** menggambar baris, garis tepi kartu, ikon drag handle, atau tombol kebab secara manual dengan `ui.painter()`. Semua dekorasi visual dan penanganan interaksi ditangani oleh `reorder_row` dan `reorder_list`.
+
+---
+
+## 6. Checklist Pembuatan Workspace Baru (New Workspace Checklist)
+
+Setiap kali membuat workspace editor baru, ikuti checklist berikut:
+
+> [!IMPORTANT]
+> **A new workspace MUST use def_left_panel, reorder_list, and workspace_metrics; it MUST NOT define its own row drawing, card stroke, drag handle, or kebab code.**
+
+- [ ] **Gunakan `def_left_panel`**: Panel daftar kiri wajib menggunakan fungsi bersama `def_left_panel` dari modul `shared::ui::def_workspace`.
+- [ ] **Gunakan `reorder_list` & `reorder_row`**: Seluruh daftar yang memiliki urutan (baik kartu daftar panel kiri maupun baris nilai/properti di panel kanan) wajib dibangun di atas `reorder_list`.
+- [ ] **Gunakan Token dari `workspace_metrics`**: Gunakan konstanta `ROW_LAYOUT_CARD`, `ROW_LAYOUT_VALUES`, `LEFT_PANEL_WIDTH`, `WORKSPACE_PADDING`, dan token standar lainnya. Dilarang menggunakan *magic numbers*.
+- [ ] **Kunci Geometri dengan Rect Test**: Tambahkan tes integrasi headless (misalnya `tests/<name>_workspace_rects_test.rs`) yang memverifikasi tata letak pada resolusi 1366x768 dengan toleransi 0.5 px.
