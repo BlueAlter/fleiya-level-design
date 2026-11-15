@@ -36,128 +36,118 @@ pub fn render_attributes_card(
             );
             ui.add_space(8.0);
 
-            // Row 1: Identifier & Source Image
+            // Row 1: Identifier
             ui.horizontal(|ui| {
-                // Identifier
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(tr(keys::FIELD_IDENTIFIER))
-                            .font(egui::FontId::proportional(11.5))
-                            .color(t.muted),
-                    );
+                ui.label(
+                    RichText::new("Identifier:")
+                        .font(egui::FontId::proportional(11.5))
+                        .strong()
+                        .color(t.ink_strong),
+                );
 
-                    let mut name_buf = ui
-                        .ctx()
-                        .data(|d| d.get_temp::<String>(Id::new(("ts_name_buf", tileset.id))))
-                        .unwrap_or_else(|| tileset.name.clone());
+                let mut name_buf = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<String>(Id::new(("ts_name_buf", tileset.id))))
+                    .unwrap_or_else(|| tileset.name.clone());
 
-                    let resp = ui.add_sized(vec2(160.0, 24.0), TextEdit::singleline(&mut name_buf));
+                let resp = ui.add_sized(vec2(180.0, 24.0), TextEdit::singleline(&mut name_buf));
 
-                    let enter_pressed =
-                        resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    if resp.changed() {
+                let enter_pressed =
+                    resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if resp.changed() {
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(Id::new(("ts_name_buf", tileset.id)), name_buf.clone())
+                    });
+                }
+
+                if resp.lost_focus() || enter_pressed {
+                    let trimmed = name_buf.trim();
+                    if !trimmed.is_empty()
+                        && trimmed != tileset.name
+                        && !app
+                            .project
+                            .defs
+                            .tilesets
+                            .iter()
+                            .any(|other| other.id != tileset.id && other.name == trimmed)
+                    {
+                        let mut updated = tileset.clone();
+                        updated.name = trimmed.to_string();
+                        app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
+                    } else {
                         ui.ctx().data_mut(|d| {
-                            d.insert_temp(Id::new(("ts_name_buf", tileset.id)), name_buf.clone())
+                            d.insert_temp(
+                                Id::new(("ts_name_buf", tileset.id)),
+                                tileset.name.clone(),
+                            )
                         });
                     }
-
-                    if resp.lost_focus() || enter_pressed {
-                        let trimmed = name_buf.trim();
-                        if !trimmed.is_empty()
-                            && trimmed != tileset.name
-                            && !app
-                                .project
-                                .defs
-                                .tilesets
-                                .iter()
-                                .any(|other| other.id != tileset.id && other.name == trimmed)
-                        {
-                            let mut updated = tileset.clone();
-                            updated.name = trimmed.to_string();
-                            app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
-                        } else {
-                            // Revert buffer to actual name
-                            ui.ctx().data_mut(|d| {
-                                d.insert_temp(
-                                    Id::new(("ts_name_buf", tileset.id)),
-                                    tileset.name.clone(),
-                                )
-                            });
-                        }
-                    }
-                });
-
-                ui.add_space(16.0);
-
-                // Source Image path + Browse + Clear
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new(tr(keys::FIELD_SOURCE_IMAGE))
-                            .font(egui::FontId::proportional(11.5))
-                            .color(t.muted),
-                    );
-
-                    ui.horizontal(|ui| {
-                        let mut path_buf = ui
-                            .ctx()
-                            .data(|d| d.get_temp::<String>(Id::new(("ts_path_buf", tileset.id))))
-                            .unwrap_or_else(|| tileset.path.clone());
-
-                        let path_w = (ui.available_width() - 140.0).max(120.0);
-                        let resp =
-                            ui.add_sized(vec2(path_w, 24.0), TextEdit::singleline(&mut path_buf));
-
-                        let enter_pressed =
-                            resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        if resp.changed() {
-                            ui.ctx().data_mut(|d| {
-                                d.insert_temp(
-                                    Id::new(("ts_path_buf", tileset.id)),
-                                    path_buf.clone(),
-                                )
-                            });
-                        }
-
-                        if resp.lost_focus() || enter_pressed {
-                            let trimmed = path_buf.trim();
-                            if trimmed != tileset.path {
-                                let mut updated = tileset.clone();
-                                updated.path = trimmed.to_string();
-                                app.execute_command(Box::new(UpdateTilesetDefCommand::new(
-                                    updated,
-                                )));
-                            }
-                        }
-
-                        // Browse button
-                        if ui.button(tr(keys::BUTTON_BROWSE)).clicked() {
-                            dialogs.request_browse_image(tileset.id);
-                        }
-
-                        // Clear button
-                        if ui.button(tr(keys::BUTTON_CLEAR)).clicked() && !tileset.path.is_empty() {
-                            let mut updated = tileset.clone();
-                            updated.path = String::new();
-                            app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
-                            ui.ctx().data_mut(|d| {
-                                d.insert_temp(Id::new(("ts_path_buf", tileset.id)), String::new())
-                            });
-                        }
-                    });
-                });
+                }
             });
 
-            ui.add_space(10.0);
+            ui.add_space(6.0);
 
-            // Row 2: Tile Size (W / H), Spacing, Padding
+            // Row 2: Source image
             ui.horizontal(|ui| {
-                // Tile Width
-                let mut tile_w = tileset.tile_size.x;
                 ui.label(
-                    RichText::new(tr(keys::FIELD_TILE_SIZE))
+                    RichText::new("Source image:")
                         .font(egui::FontId::proportional(11.5))
-                        .color(t.muted),
+                        .strong()
+                        .color(t.ink_strong),
                 );
+
+                let mut path_buf = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<String>(Id::new(("ts_path_buf", tileset.id))))
+                    .unwrap_or_else(|| tileset.path.clone());
+
+                let path_w = (ui.available_width() - 140.0).max(120.0);
+                let resp = ui.add_sized(vec2(path_w, 24.0), TextEdit::singleline(&mut path_buf));
+
+                let enter_pressed =
+                    resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if resp.changed() {
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(Id::new(("ts_path_buf", tileset.id)), path_buf.clone())
+                    });
+                }
+
+                if resp.lost_focus() || enter_pressed {
+                    let trimmed = path_buf.trim();
+                    if trimmed != tileset.path {
+                        let mut updated = tileset.clone();
+                        updated.path = trimmed.to_string();
+                        app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
+                    }
+                }
+
+                // Browse button
+                if ui.button(tr(keys::BUTTON_BROWSE)).clicked() {
+                    dialogs.request_browse_image(tileset.id);
+                }
+
+                // Clear button
+                if ui.button(tr(keys::BUTTON_CLEAR)).clicked() && !tileset.path.is_empty() {
+                    let mut updated = tileset.clone();
+                    updated.path = String::new();
+                    app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
+                    ui.ctx().data_mut(|d| {
+                        d.insert_temp(Id::new(("ts_path_buf", tileset.id)), String::new())
+                    });
+                }
+            });
+
+            ui.add_space(6.0);
+
+            // Row 3: Tile Size (W / H), Spacing, Padding
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Tile size:")
+                        .font(egui::FontId::proportional(11.5))
+                        .strong()
+                        .color(t.ink_strong),
+                );
+                let mut tile_w = tileset.tile_size.x;
                 let resp_tw = ui.add(
                     DragValue::new(&mut tile_w)
                         .range(1..=512)
@@ -166,7 +156,6 @@ pub fn render_attributes_card(
                         .suffix(" px"),
                 );
 
-                // Tile Height
                 let mut tile_h = tileset.tile_size.y;
                 let resp_th = ui.add(
                     DragValue::new(&mut tile_h)
@@ -195,9 +184,10 @@ pub fn render_attributes_card(
 
                 // Spacing
                 ui.label(
-                    RichText::new(tr(keys::FIELD_SPACING))
+                    RichText::new("Spacing:")
                         .font(egui::FontId::proportional(11.5))
-                        .color(t.muted),
+                        .strong()
+                        .color(t.ink_strong),
                 );
                 let mut spacing = tileset.spacing;
                 let resp_sp = ui.add(
@@ -219,9 +209,10 @@ pub fn render_attributes_card(
 
                 // Padding
                 ui.label(
-                    RichText::new(tr(keys::FIELD_PADDING))
+                    RichText::new("Padding:")
                         .font(egui::FontId::proportional(11.5))
-                        .color(t.muted),
+                        .strong()
+                        .color(t.ink_strong),
                 );
                 let mut padding = tileset.padding;
                 let resp_pd = ui.add(
@@ -238,6 +229,76 @@ pub fn render_attributes_card(
                     updated.padding = padding;
                     app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
                 }
+            });
+
+            ui.add_space(6.0);
+
+            // Row 4: Tags
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Tags:")
+                        .font(egui::FontId::proportional(11.5))
+                        .strong()
+                        .color(t.ink_strong),
+                );
+
+                let tags_list = app.tileset_view_state.tags.entry(tileset.id).or_default();
+                let mut tags_buf = tags_list.join(", ");
+                let tags_w = (ui.available_width() - 8.0).max(120.0);
+                let resp = ui.add_sized(
+                    vec2(tags_w, 24.0),
+                    TextEdit::singleline(&mut tags_buf).hint_text("comma, separated, tags"),
+                );
+                if resp.changed() {
+                    *tags_list = tags_buf
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                }
+            });
+
+            ui.add_space(6.0);
+
+            // Row 5: Enum for tile marking
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Enum for tile marking:")
+                        .font(egui::FontId::proportional(11.5))
+                        .strong()
+                        .color(t.ink_strong),
+                );
+
+                let current_marking_enum = app
+                    .tileset_view_state
+                    .marking_enum
+                    .get(&tileset.id)
+                    .copied()
+                    .flatten();
+                let current_label = current_marking_enum
+                    .and_then(|eid| app.project.defs.enums.iter().find(|e| e.id == eid))
+                    .map(|e| e.name.as_str())
+                    .unwrap_or("None");
+
+                egui::ComboBox::from_id_salt(("tile_marking_enum", tileset.id))
+                    .selected_text(current_label)
+                    .width(160.0)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(current_marking_enum.is_none(), "None")
+                            .clicked()
+                        {
+                            app.tileset_view_state.marking_enum.insert(tileset.id, None);
+                        }
+                        for enum_def in &app.project.defs.enums {
+                            let is_sel = current_marking_enum == Some(enum_def.id);
+                            if ui.selectable_label(is_sel, &enum_def.name).clicked() {
+                                app.tileset_view_state
+                                    .marking_enum
+                                    .insert(tileset.id, Some(enum_def.id));
+                            }
+                        }
+                    });
             });
         });
     });

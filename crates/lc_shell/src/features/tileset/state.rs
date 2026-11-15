@@ -45,6 +45,10 @@ pub struct TilesetViewState {
     pub doc_cache: DocumentCache,
     /// Error banner or notification message (e.g. file outside project root).
     pub error_message: Option<String>,
+    /// Tags per tileset definition (view state).
+    pub tags: HashMap<TilesetDefId, Vec<String>>,
+    /// Selected enum for tile marking per tileset definition (view state).
+    pub marking_enum: HashMap<TilesetDefId, Option<lc_core::id::EnumDefId>>,
 }
 
 impl Default for TilesetViewState {
@@ -60,6 +64,8 @@ impl Default for TilesetViewState {
             doc_scroll: 0.0,
             doc_cache: new_document_cache(),
             error_message: None,
+            tags: HashMap::new(),
+            marking_enum: HashMap::new(),
         }
     }
 }

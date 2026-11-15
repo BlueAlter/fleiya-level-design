@@ -242,3 +242,161 @@ fn test_tileset_workspace_consolidation_guard() {
         "Exactly one fn render_tileset_view must be defined"
     );
 }
+
+#[test]
+fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
+    use egui::Rect;
+
+    let mut p = Project::new("Target Layout Test");
+    for i in 1..=3 {
+        p.defs.tilesets.push(TilesetDef {
+            id: TilesetDefId(i),
+            name: format!("Tileset_{i}"),
+            path: format!("assets/tileset_{i}.png"),
+            tile_size: UVec2::new(16, 16),
+            spacing: 0,
+            padding: 0,
+        });
+    }
+
+    let mut app = ShellApp::new(p);
+    app.active_mode = AppMode::Tilesets;
+
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+
+    let raw_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(1366.0, 768.0),
+        )),
+        ..Default::default()
+    };
+
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output.textures_delta.clear();
+
+    fn walk_shapes(
+        shape: &egui::Shape,
+        fill_rects: &mut Vec<Rect>,
+        stroke_rects: &mut Vec<Rect>,
+        text_items: &mut Vec<(String, Rect)>,
+        lines: &mut Vec<[egui::Pos2; 2]>,
+    ) {
+        match shape {
+            egui::Shape::Rect(r) => {
+                if r.fill != egui::Color32::TRANSPARENT {
+                    fill_rects.push(r.rect);
+                }
+                if r.stroke.width > 0.0 && r.stroke.color != egui::Color32::TRANSPARENT {
+                    stroke_rects.push(r.rect);
+                }
+            }
+            egui::Shape::Text(t) => {
+                text_items.push((t.galley.text().to_string(), t.visual_bounding_rect()));
+            }
+            egui::Shape::LineSegment { points, .. } => {
+                lines.push(*points);
+            }
+            egui::Shape::Vec(children) => {
+                for c in children {
+                    walk_shapes(c, fill_rects, stroke_rects, text_items, lines);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut fill_rects = Vec::new();
+    let mut stroke_rects = Vec::new();
+    let mut text_items = Vec::new();
+    let mut lines = Vec::new();
+    for clipped in &output.shapes {
+        walk_shapes(
+            &clipped.shape,
+            &mut fill_rects,
+            &mut stroke_rects,
+            &mut text_items,
+            &mut lines,
+        );
+    }
+
+    // 1. sub_tabs rect is ABOVE the title
+    let sub_tab = text_items
+        .iter()
+        .find(|(t, _)| t == "TILESET DEF")
+        .expect("sub_tabs TILESET DEF must be present");
+    let title = text_items
+        .iter()
+        .find(|(t, _)| t.contains("(Tileset)"))
+        .expect("title must be present");
+    let sub_tab_y = sub_tab.1.min.y;
+    let title_y = title.1.min.y;
+    assert!(
+        sub_tab_y < title_y,
+        "sub_tabs rect (y={sub_tab_y}) must be ABOVE title (y={title_y})"
+    );
+
+    // 2. every left row is bordered
+    let left_row_borders: Vec<_> = stroke_rects
+        .iter()
+        .filter(|r| r.min.x < 240.0 && r.max.x < 240.0 && (r.height() - 34.0).abs() < 2.0)
+        .collect();
+    assert_eq!(
+        left_row_borders.len(),
+        3,
+        "every left row (3 total) must be bordered, found: {:?}",
+        left_row_borders
+    );
+
+    // 3. atlas rect fills area between card and footer
+    let footer_text = text_items
+        .iter()
+        .find(|(t, _)| t.contains("Used by"))
+        .expect("footer text must exist");
+    assert!(
+        footer_text.0.contains('•'),
+        "footer must contain '•', found: {}",
+        footer_text.0
+    );
+
+    let card_title = text_items
+        .iter()
+        .find(|(t, _)| t.contains("TILESET IDENTIFIER & ATTRIBUTES"))
+        .expect("card must exist");
+
+    let atlas_backdrop = fill_rects.iter().find(|r| {
+        r.min.x >= 240.0
+            && r.min.y > card_title.1.max.y
+            && r.max.y < footer_text.1.min.y + 10.0
+            && r.height() > 200.0
+    });
+    assert!(
+        atlas_backdrop.is_some(),
+        "atlas rect must fill area between card and footer"
+    );
+
+    // 4. right panel is docked with a left divider
+    let divider = lines
+        .iter()
+        .find(|[p1, p2]| (p1.x - p2.x).abs() < 1.0 && p1.x > 1000.0 && (p1.y - p2.y).abs() > 100.0);
+    assert!(
+        divider.is_some(),
+        "right panel must be docked with a left divider"
+    );
+
+    // 5. Tags row and Enum for tile marking row exist
+    let tags_row = text_items.iter().find(|(t, _)| t.contains("Tags:"));
+    assert!(tags_row.is_some(), "Tags row must exist");
+
+    let marking_row = text_items
+        .iter()
+        .find(|(t, _)| t.contains("Enum for tile marking:"));
+    assert!(
+        marking_row.is_some(),
+        "Enum for tile marking row must exist"
+    );
+}

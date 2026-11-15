@@ -40,9 +40,16 @@ pub fn render_left_panel(
         ui.vertical(|ui| {
             ui.add_space(8.0);
 
-            // + New Tileset button
+            // + New Tileset button and ⋮ menu button
+            let btn_h = 28.0;
+            let gap = 6.0;
+            let dots_btn_size = btn_h;
+            let new_btn_w = (ui.available_width() - dots_btn_size - gap - 8.0).max(1.0);
+
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
+                ui.spacing_mut().item_spacing.x = gap;
+
                 let btn = Button::new(
                     RichText::new(tr(keys::NEW_BUTTON))
                         .font(egui::FontId::proportional(13.0))
@@ -51,12 +58,20 @@ pub fn render_left_panel(
                 .fill(t.accent)
                 .corner_radius(CornerRadius::same(4));
 
-                if ui
-                    .add_sized(vec2(ui.available_width() - 8.0, 28.0), btn)
-                    .clicked()
-                {
+                if ui.add_sized(vec2(new_btn_w, btn_h), btn).clicked() {
                     dialogs.request_new_tileset();
                 }
+
+                let dots_btn = Button::new(
+                    RichText::new("⋮")
+                        .font(egui::FontId::proportional(14.0))
+                        .color(t.ink_strong),
+                )
+                .fill(t.panel)
+                .stroke(Stroke::new(1.0, t.line))
+                .corner_radius(CornerRadius::same(4));
+
+                let _dots_resp = ui.add_sized(vec2(dots_btn_size, btn_h), dots_btn);
             });
 
             ui.add_space(6.0);
@@ -171,14 +186,13 @@ pub fn render_left_panel(
                                     bg_color,
                                 );
 
-                                if is_selected {
-                                    ui.painter().rect_stroke(
-                                        card_rect,
-                                        CornerRadius::same(4),
-                                        Stroke::new(1.0, t.accent),
-                                        egui::StrokeKind::Inside,
-                                    );
-                                }
+                                let stroke_color = if is_selected { t.accent } else { t.line };
+                                ui.painter().rect_stroke(
+                                    card_rect,
+                                    CornerRadius::same(4),
+                                    Stroke::new(1.0, stroke_color),
+                                    egui::StrokeKind::Inside,
+                                );
 
                                 // Inner card layout
                                 let inner_rect = card_rect.shrink2(vec2(6.0, 4.0));

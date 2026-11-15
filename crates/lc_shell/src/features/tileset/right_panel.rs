@@ -16,6 +16,11 @@ pub fn render_right_panel(
 ) {
     let rect = ui.available_rect_before_wrap();
     ui.painter().rect_filled(rect, CornerRadius::ZERO, t.panel);
+    ui.painter().vline(
+        rect.min.x,
+        rect.y_range(),
+        egui::Stroke::new(1.0, t.line_strong),
+    );
 
     ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         ui.vertical(|ui| {

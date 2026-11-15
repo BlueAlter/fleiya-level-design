@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{vec2, Button, CornerRadius, Frame, Id, Margin, RichText, Ui};
+use egui::{vec2, Button, CornerRadius, Frame, Id, Margin, RichText, Stroke, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -245,9 +245,18 @@ fn render_detail_area(
     let sections = sections_for(app.tileset_view_state.active_sub_tab);
 
     ui.vertical(|ui| {
-        // Header title row & description (only for TILESET DEF tab)
+        // Sub-tabs on the very top: [TILESET DEF | DOCUMENT]
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.add_space(16.0);
+            let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
+            sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
+        });
+
+        ui.add_space(6.0);
+
+        // Header title row & description (only for TILESET DEF tab, below sub-tabs)
         if sections.title {
-            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.add_space(16.0);
                 ui.label(
@@ -266,15 +275,6 @@ fn render_detail_area(
             });
             ui.add_space(6.0);
         }
-
-        // Sub-tabs: [TILESET DEF | DOCUMENT]
-        ui.horizontal(|ui| {
-            ui.add_space(16.0);
-            let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
-            sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
-        });
-
-        ui.add_space(6.0);
 
         // Content dispatch based on sub-tab
         if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {
@@ -312,7 +312,7 @@ fn render_detail_area(
 
             ui.allocate_ui(vec2(ui.available_width(), center_h), |ui| {
                 ui.horizontal(|ui| {
-                    // Atlas View
+                    // Atlas View (fills space)
                     ui.allocate_ui(vec2(atlas_w, center_h), |ui| {
                         render_atlas_view(
                             ui,
@@ -323,7 +323,15 @@ fn render_detail_area(
                         );
                     });
 
-                    // Right Panel Shell
+                    // Divider stroke between atlas and right panel
+                    let divider_x = ui.cursor().min.x;
+                    ui.painter().vline(
+                        divider_x,
+                        egui::Rangef::new(ui.min_rect().min.y, ui.min_rect().min.y + center_h),
+                        Stroke::new(1.0, t.line),
+                    );
+
+                    // Right Panel Shell (docked)
                     ui.allocate_ui(vec2(right_panel_w, center_h), |ui| {
                         render_right_panel(ui, t, &tileset, &mut app.tileset_view_state);
                     });
@@ -342,7 +350,7 @@ fn render_detail_area(
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!(
-                                "ID: TilesetDefId({}) - Used by {} Layer(s) & {} Enum(s)",
+                                "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
                                 tileset.id.0, layers_count, enums_count
                             ))
                             .font(egui::FontId::proportional(11.5))
