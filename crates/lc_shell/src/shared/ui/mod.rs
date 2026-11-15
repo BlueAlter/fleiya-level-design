@@ -47,7 +47,7 @@ pub use reorder::Slot;
 pub use reorder_list::{calculate_drop_index, reorder_list, ListEvents, ListItem};
 pub use reorder_row::{
     reorder_row, split_slots, DragCapability, GhostPreview, MoveDirection, ReorderRowResponse,
-    ReorderRowSpec, RowBody,
+    ReorderRowSpec, RowBody, SelectDirection, Trailing,
 };
 pub use row_menu::{filter_menu_items, row_menu, row_menu_button, RowMenuItem};
 pub use search_picker::{

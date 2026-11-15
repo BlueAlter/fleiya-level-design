@@ -44,25 +44,49 @@ pub const ICON_BUTTON_SIZE_DELETE: f32 = ICON_BUTTON_SIZE_FORM;
 /// Layout metrics configuration for reorderable rows and cards.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ReorderRowLayout {
+    /// Overall height of the row or card.
+    pub height: f32,
+    /// Horizontal inset/padding on left and right of the row.
+    pub padding_x: f32,
+    /// Vertical inset/padding on top and bottom of the row.
+    pub padding_y: f32,
     /// Width allocated for the drag handle on the left.
     pub handle_w: f32,
-    /// Horizontal gap between handle, body slots, and trailing button.
+    /// Gap between drag handle and the first body slot.
+    pub handle_gap: f32,
+    /// Horizontal gap between inner body slots.
     pub slot_gap: f32,
+    /// Width and height of the trailing action button (delete or kebab).
+    pub trailing_w: f32,
+    /// Gap between the last body slot and the trailing action button.
+    pub trailing_gap: f32,
     /// Vertical space between consecutive rows.
     pub row_gap: f32,
 }
 
 /// Standard row layout preset for enum values and form items.
 pub const ROW_LAYOUT_VALUES: ReorderRowLayout = ReorderRowLayout {
+    height: CONTROL_HEIGHT_FORM,
+    padding_x: 0.0,
+    padding_y: 0.0,
     handle_w: 20.0,
+    handle_gap: 8.0,
     slot_gap: 8.0,
+    trailing_w: ICON_BUTTON_SIZE_DELETE,
+    trailing_gap: 8.0,
     row_gap: 8.0,
 };
 
 /// Standard row layout preset for left list definition cards.
 pub const ROW_LAYOUT_CARD: ReorderRowLayout = ReorderRowLayout {
+    height: 36.0,
+    padding_x: 11.0,
+    padding_y: 7.0,
     handle_w: 16.0,
-    slot_gap: 12.0,
+    handle_gap: 12.0,
+    slot_gap: 8.0,
+    trailing_w: 20.0,
+    trailing_gap: 8.0,
     row_gap: 5.0,
 };
 
@@ -91,12 +115,22 @@ mod tests {
             assert!(LEFT_PANEL_WIDTH > 200.0);
             assert!(WORKSPACE_PADDING > 0.0);
             assert!(FORM_LABEL_COL_W > 80.0);
-            assert!(ROW_LAYOUT_VALUES.handle_w > 0.0);
-            assert!(ROW_LAYOUT_VALUES.slot_gap > 0.0);
-            assert!(ROW_LAYOUT_VALUES.row_gap > 0.0);
-            assert!(ROW_LAYOUT_CARD.handle_w > 0.0);
-            assert!(ROW_LAYOUT_CARD.slot_gap > 0.0);
-            assert!(ROW_LAYOUT_CARD.row_gap > 0.0);
+            assert!(ROW_LAYOUT_VALUES.height == 32.0);
+            assert!(ROW_LAYOUT_VALUES.handle_w == 20.0);
+            assert!(ROW_LAYOUT_VALUES.handle_gap == 8.0);
+            assert!(ROW_LAYOUT_VALUES.slot_gap == 8.0);
+            assert!(ROW_LAYOUT_VALUES.trailing_w == 32.0);
+            assert!(ROW_LAYOUT_VALUES.trailing_gap == 8.0);
+            assert!(ROW_LAYOUT_VALUES.row_gap == 8.0);
+            assert!(ROW_LAYOUT_CARD.height == 36.0);
+            assert!(ROW_LAYOUT_CARD.padding_x == 11.0);
+            assert!(ROW_LAYOUT_CARD.padding_y == 7.0);
+            assert!(ROW_LAYOUT_CARD.handle_w == 16.0);
+            assert!(ROW_LAYOUT_CARD.handle_gap == 12.0);
+            assert!(ROW_LAYOUT_CARD.slot_gap == 8.0);
+            assert!(ROW_LAYOUT_CARD.trailing_w == 20.0);
+            assert!(ROW_LAYOUT_CARD.trailing_gap == 8.0);
+            assert!(ROW_LAYOUT_CARD.row_gap == 5.0);
         }
     }
 

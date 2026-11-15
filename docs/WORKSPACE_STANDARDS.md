@@ -30,8 +30,8 @@ Setiap workspace harus menggunakan nilai metrik yang konsisten:
 | `FORM_LABEL_COL_W` | `110.0 px` | Lebar kolom label form. Memastikan kontrol input pertama pada setiap baris form mulai pada posisi horizontal (`x`) yang persis sama. |
 | `ICON_BUTTON_SIZE_COMPACT` | `28.0 x 28.0 px` | Tombol ikon tier kompak (contoh: tombol kebab "⋮" di toolbar atas). |
 | `ICON_BUTTON_SIZE_FORM` | `32.0 x 32.0 px` | Tombol ikon tier form (contoh: tombol export, tag "+", tag "⌄", tombol hapus / trash). |
-| `ROW_LAYOUT_VALUES` | `handle: 20px, slot_gap: 8px, row_gap: 8px` | Preset layout baris enum values / form item (pitch: 32 + 8 = 40 px). |
-| `ROW_LAYOUT_CARD` | `handle: 16px, slot_gap: 12px, row_gap: 5px` | Preset layout kartu daftar hirarki / panel kiri. |
+| `ROW_LAYOUT_VALUES` | `height: 32px, padding_x: 0px, padding_y: 0px, handle: 20px, handle_gap: 8px, slot_gap: 8px, trailing: 32px, trailing_gap: 8px, row_gap: 8px` | Preset layout baris enum values / form item (pitch: 32 + 8 = 40 px). |
+| `ROW_LAYOUT_CARD` | `height: 36px, padding_x: 11px, padding_y: 7px, handle: 16px, handle_gap: 12px, slot_gap: 8px, trailing: 20px, trailing_gap: 8px, row_gap: 5px` | Preset layout kartu daftar hirarki / panel kiri (pitch: 36 + 5 = 41 px). |
 
 ---
 

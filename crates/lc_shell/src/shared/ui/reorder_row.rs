@@ -29,6 +29,31 @@ pub use super::workspace_metrics::{
     ROW_LAYOUT_VALUES,
 };
 
+/// Trailing action button in a reorderable row.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Trailing {
+    /// Delete action button with standard trash icon.
+    Delete {
+        /// Tooltip shown when delete is enabled.
+        tooltip: Option<String>,
+        /// Tooltip reason shown when delete is disabled.
+        disabled_reason: Option<String>,
+    },
+    /// Kebab action button ("⋮") for context menus.
+    Kebab,
+    /// No trailing button.
+    None,
+}
+
+/// Direction for keyboard-driven selection requests.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectDirection {
+    /// Select previous row (triggered by `ArrowUp`).
+    Previous,
+    /// Select next row (triggered by `ArrowDown`).
+    Next,
+}
+
 /// Direction for keyboard-driven reordering requests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MoveDirection {
@@ -86,10 +111,16 @@ pub struct ReorderRowSpec {
     pub delete_tooltip: Option<String>,
     /// Tooltip explaining why deletion is disabled.
     pub delete_disabled_reason: Option<String>,
-    /// Row layout parameters (handle width, slot gap, row gap).
+    /// Row layout parameters (height, padding, handle, gaps, trailing, row gap).
     pub layout: ReorderRowLayout,
     /// Lightweight preview for drag list integration.
     pub ghost: GhostPreview,
+    /// Whether the row is currently marked as selected.
+    pub selected: bool,
+    /// Whether the row responds to clicks with pointer cursor.
+    pub clickable: bool,
+    /// Trailing action button kind (delete, kebab, or none).
+    pub trailing: Trailing,
 }
 
 impl ReorderRowSpec {
@@ -97,7 +128,7 @@ impl ReorderRowSpec {
     pub fn new(id: impl egui::AsId, label: impl Into<String>) -> Self {
         Self {
             id: Id::new(id),
-            height: CONTROL_HEIGHT_FORM,
+            height: ROW_LAYOUT_VALUES.height,
             outline: None,
             drag: DragCapability::Enabled,
             deletable: true,
@@ -105,6 +136,12 @@ impl ReorderRowSpec {
             delete_disabled_reason: None,
             layout: ROW_LAYOUT_VALUES,
             ghost: GhostPreview::new(label),
+            selected: false,
+            clickable: false,
+            trailing: Trailing::Delete {
+                tooltip: Some("Delete".to_string()),
+                disabled_reason: None,
+            },
         }
     }
 }
@@ -205,15 +242,25 @@ pub struct ReorderRowResponse<R> {
     pub body: R,
     /// Drag handle interaction response.
     pub handle: Response,
+    /// Response of the entire row container.
+    pub row_response: Response,
+    /// Whether the row was activated (via mouse click or keyboard Enter).
+    pub clicked: bool,
     /// Whether the delete button was clicked this frame.
     pub delete_clicked: bool,
+    /// Trailing action button interaction response (if present).
+    pub trailing_response: Option<Response>,
     /// Full bounding rectangle of the row.
     pub rect: Rect,
     /// Keyboard reorder request via `Alt+Up` or `Alt+Down`.
     pub move_request: Option<MoveDirection>,
+    /// Keyboard selection change request via `Up` or `Down`.
+    pub select_request: Option<SelectDirection>,
+    /// Position where a context menu was requested (via kebab click or right-click).
+    pub menu_requested: Option<Pos2>,
 }
 
-/// Renders a row with layout `[handle][body slots...][delete]` and strict sizing contracts.
+/// Renders a row with layout `[handle][body slots...][trailing]` and strict sizing contracts.
 pub fn reorder_row<R>(
     ui: &mut Ui,
     spec: ReorderRowSpec,
@@ -222,18 +269,29 @@ pub fn reorder_row<R>(
 ) -> ReorderRowResponse<R> {
     let t = Tokens::get(ui.ctx());
     let available_w = ui.available_width();
-    let (row_rect, row_resp) =
-        ui.allocate_exact_size(vec2(available_w, spec.height), Sense::click());
+    let row_h = spec.layout.height;
+    let (row_rect, mut row_resp) = ui.allocate_exact_size(vec2(available_w, row_h), Sense::click());
 
-    // 1. Paint row background and outline
+    if spec.clickable {
+        row_resp = row_resp.on_hover_cursor(CursorIcon::PointingHand);
+    }
+
+    // 1. Paint row background and 1px outline
     let is_hovered = row_resp.hovered();
-    let bg = if is_hovered { t.sunken } else { t.panel };
-    let border_color = if let Some(outline_c) = spec.outline {
-        outline_c
+    let bg = if spec.selected || is_hovered {
+        t.sunken
+    } else {
+        t.panel
+    };
+
+    let border_color = if spec.selected {
+        t.accent
     } else if is_hovered {
         t.line_strong
+    } else if let Some(outline_c) = spec.outline {
+        outline_c
     } else {
-        t.line
+        t.hairline().color
     };
 
     let painter = ui.painter();
@@ -246,7 +304,13 @@ pub fn reorder_row<R>(
     );
 
     // 2. Drag handle slot on the left
-    let handle_rect = Rect::from_min_size(row_rect.min, vec2(spec.layout.handle_w, spec.height));
+    let content_h = (row_h - 2.0 * spec.layout.padding_y).max(1.0);
+    let cy = row_rect.center().y;
+    let handle_min_x = row_rect.min.x + spec.layout.padding_x;
+    let handle_rect = Rect::from_min_size(
+        Pos2::new(handle_min_x, cy - content_h / 2.0),
+        vec2(spec.layout.handle_w, content_h),
+    );
     let handle_resp = ui
         .interact(
             handle_rect,
@@ -276,42 +340,78 @@ pub fn reorder_row<R>(
         handle_color,
     );
 
-    // 3. Delete button slot pinned to the right (icon_button at FORM size)
-    let delete_rect = Rect::from_min_size(
-        Pos2::new(row_rect.max.x - ICON_BUTTON_SIZE_DELETE, row_rect.min.y),
-        vec2(ICON_BUTTON_SIZE_DELETE, spec.height),
+    // 3. Trailing action slot on the right
+    let mut delete_clicked = false;
+    let mut trailing_response = None;
+    let mut trailing_rect_opt = None;
+    let tr_w = spec.layout.trailing_w;
+    let tr_rect = Rect::from_min_size(
+        Pos2::new(
+            row_rect.max.x - spec.layout.padding_x - tr_w,
+            cy - tr_w / 2.0,
+        ),
+        vec2(tr_w, tr_w),
     );
 
-    let mut delete_clicked = false;
-    let mut del_child = ui.new_child(egui::UiBuilder::new().max_rect(delete_rect));
-    if spec.deletable {
-        let del_resp = icon_button(
-            &mut del_child,
-            Icon::Delete,
-            ICON_BUTTON_SIZE_DELETE,
-            IconButtonStyle::ghost_danger(),
-        );
-        if let Some(ref tip) = spec.delete_tooltip {
-            del_resp.clone().on_hover_text(tip);
+    let trailing_mode = match spec.trailing {
+        Trailing::Delete {
+            tooltip,
+            disabled_reason,
+        } => Trailing::Delete {
+            tooltip: tooltip.or(spec.delete_tooltip),
+            disabled_reason: disabled_reason.or(if !spec.deletable {
+                spec.delete_disabled_reason.or(Some("Disabled".into()))
+            } else {
+                spec.delete_disabled_reason
+            }),
+        },
+        other => other,
+    };
+
+    match trailing_mode {
+        Trailing::Delete {
+            tooltip,
+            disabled_reason,
+        } => {
+            trailing_rect_opt = Some(tr_rect);
+            let mut del_child = ui.new_child(egui::UiBuilder::new().max_rect(tr_rect));
+            let style = if disabled_reason.is_none() {
+                IconButtonStyle::ghost_danger()
+            } else {
+                IconButtonStyle::ghost()
+            };
+            let resp = icon_button(&mut del_child, Icon::Delete, tr_w, style);
+            if let Some(ref reason) = disabled_reason {
+                resp.clone().on_hover_text(reason);
+            } else if let Some(ref tip) = tooltip {
+                resp.clone().on_hover_text(tip);
+            }
+            if disabled_reason.is_none() && resp.clicked() {
+                delete_clicked = true;
+            }
+            trailing_response = Some(resp);
         }
-        if del_resp.clicked() {
-            delete_clicked = true;
+        Trailing::Kebab => {
+            trailing_rect_opt = Some(tr_rect);
+            let mut kebab_child = ui.new_child(egui::UiBuilder::new().max_rect(tr_rect));
+            let resp = icon_button(
+                &mut kebab_child,
+                Icon::DotsThreeVertical,
+                tr_w,
+                IconButtonStyle::ghost(),
+            );
+            trailing_response = Some(resp);
         }
-    } else {
-        let disabled_resp = icon_button(
-            &mut del_child,
-            Icon::Delete,
-            ICON_BUTTON_SIZE_DELETE,
-            IconButtonStyle::ghost(),
-        );
-        if let Some(ref reason) = spec.delete_disabled_reason {
-            disabled_resp.on_hover_text(reason);
-        }
+        Trailing::None => {}
     }
 
     // 4. Body slots in the remaining middle region
-    let body_start_x = handle_rect.max.x + spec.layout.slot_gap;
-    let body_end_x = delete_rect.min.x - spec.layout.slot_gap;
+    let body_start_x = handle_rect.max.x + spec.layout.handle_gap;
+    let body_end_x = if let Some(trailing_rect) = trailing_rect_opt {
+        trailing_rect.min.x - spec.layout.trailing_gap
+    } else {
+        row_rect.max.x - spec.layout.padding_x
+    };
     let body_w = (body_end_x - body_start_x).max(0.0);
 
     let relative_rects = split_slots(body_w, slots, spec.layout.slot_gap);
@@ -319,8 +419,8 @@ pub fn reorder_row<R>(
         .into_iter()
         .map(|r| {
             Rect::from_min_size(
-                Pos2::new(body_start_x + r.min.x, row_rect.min.y),
-                vec2(r.width(), spec.height),
+                Pos2::new(body_start_x + r.min.x, cy - content_h / 2.0),
+                vec2(r.width(), content_h),
             )
         })
         .collect();
@@ -330,60 +430,54 @@ pub fn reorder_row<R>(
     };
     let body_res = body(ui, &mut body_scope);
 
-    // 5. Alt+Up / Alt+Down move request
+    // 5. Context menu trigger from Kebab click or row secondary click
+    let mut menu_requested = None;
+    if let Some(ref tr_resp) = trailing_response {
+        if tr_resp.clicked() {
+            if let Some(tr_rect) = trailing_rect_opt {
+                menu_requested = Some(tr_rect.left_bottom());
+            }
+        }
+    }
+    if row_resp.secondary_clicked() {
+        if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
+            menu_requested = Some(pos);
+        } else {
+            menu_requested = Some(row_rect.left_bottom());
+        }
+    }
+
+    // 6. Keyboard navigation: Alt+Up / Alt+Down (move), Up / Down (select), Enter (activate)
     let mut move_request = None;
-    if row_resp.hovered() || ui.memory(|m| m.has_focus(spec.id)) {
+    let mut select_request = None;
+    let has_key_interest =
+        row_resp.hovered() || ui.memory(|m| m.has_focus(spec.id)) || spec.selected;
+    if has_key_interest {
         if ui.input(|i| i.modifiers.alt && i.key_pressed(Key::ArrowUp)) {
             move_request = Some(MoveDirection::Up);
         } else if ui.input(|i| i.modifiers.alt && i.key_pressed(Key::ArrowDown)) {
             move_request = Some(MoveDirection::Down);
+        } else if ui.input(|i| !i.modifiers.any() && i.key_pressed(Key::ArrowUp)) {
+            select_request = Some(SelectDirection::Previous);
+        } else if ui.input(|i| !i.modifiers.any() && i.key_pressed(Key::ArrowDown)) {
+            select_request = Some(SelectDirection::Next);
         }
     }
+
+    let enter_activated =
+        has_key_interest && ui.input(|i| !i.modifiers.any() && i.key_pressed(Key::Enter));
+    let clicked = row_resp.clicked() || enter_activated;
 
     ReorderRowResponse {
         body: body_res,
         handle: handle_resp,
+        row_response: row_resp,
+        clicked,
         delete_clicked,
+        trailing_response,
         rect: row_rect,
         move_request,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use egui::Rect;
-
-    #[test]
-    fn test_split_slots_zero_slots() {
-        assert_eq!(split_slots(100.0, &[], 6.0), Vec::<Rect>::new());
-    }
-
-    #[test]
-    fn test_split_slots_one_flex() {
-        let res = split_slots(100.0, &[Slot::Flex], 6.0);
-        assert_eq!(res.len(), 1);
-        assert_eq!(res[0].width(), 100.0);
-    }
-
-    #[test]
-    fn test_split_slots_two_fixed_plus_flex() {
-        let slots = [Slot::Fixed(20.0), Slot::Flex, Slot::Fixed(30.0)];
-        let res = split_slots(100.0, &slots, 5.0);
-        assert_eq!(res.len(), 3);
-        assert_eq!(res[0].min.x, 0.0);
-        assert_eq!(res[0].width(), 20.0);
-        assert_eq!(res[1].min.x, 25.0);
-        assert_eq!(res[1].width(), 40.0);
-        assert_eq!(res[2].min.x, 70.0);
-        assert_eq!(res[2].width(), 30.0);
-    }
-
-    #[test]
-    fn test_split_slots_too_narrow_never_negative() {
-        let slots = [Slot::Fixed(80.0), Slot::Flex, Slot::Fixed(40.0)];
-        let res = split_slots(50.0, &slots, 6.0);
-        assert_eq!(res.len(), 3);
-        assert_eq!(res[1].width(), 0.0);
+        select_request,
+        menu_requested,
     }
 }

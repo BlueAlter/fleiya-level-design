@@ -29,7 +29,7 @@ use super::drag_list::{
 use super::reorder::final_index;
 use super::reorder_row::{
     reorder_row, GhostPreview, MoveDirection, ReorderRowLayout, ReorderRowSpec, RowBody,
-    Slot as RowSlot,
+    SelectDirection, Slot as RowSlot, Trailing,
 };
 
 /// Item descriptor for a row in a [`reorder_list`].
@@ -45,6 +45,12 @@ pub struct ListItem {
     pub deletable: bool,
     /// Tooltip explaining why deletion is disabled.
     pub delete_disabled_reason: Option<String>,
+    /// Whether the row is selected.
+    pub selected: bool,
+    /// Whether the row is clickable.
+    pub clickable: bool,
+    /// Trailing action button kind (delete, kebab, or none).
+    pub trailing: Trailing,
 }
 
 impl ListItem {
@@ -56,6 +62,12 @@ impl ListItem {
             slots: vec![RowSlot::Flex],
             deletable: true,
             delete_disabled_reason: None,
+            selected: false,
+            clickable: false,
+            trailing: Trailing::Delete {
+                tooltip: Some("Delete".into()),
+                disabled_reason: None,
+            },
         }
     }
 
@@ -64,17 +76,41 @@ impl ListItem {
         self.slots = slots.into_iter().collect();
         self
     }
+
+    /// Sets whether the item is selected.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Sets whether the item is clickable.
+    pub fn clickable(mut self, clickable: bool) -> Self {
+        self.clickable = clickable;
+        self
+    }
+
+    /// Sets the trailing action button kind.
+    pub fn trailing(mut self, trailing: Trailing) -> Self {
+        self.trailing = trailing;
+        self
+    }
 }
 
 /// Events emitted during a [`reorder_list`] frame.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct ListEvents {
     /// An item was dropped to a new position `(from_index, to_index)`.
     pub moved: Option<(usize, usize)>,
+    /// User clicked or pressed Enter on the item at index `usize`.
+    pub selected: Option<usize>,
     /// User clicked delete on the item at index `usize`.
     pub delete_requested: Option<usize>,
     /// User requested reordering via keyboard shortcut `Alt+Up` or `Alt+Down`.
     pub move_requested: Option<(usize, MoveDirection)>,
+    /// User requested selection navigation via `Up` or `Down`.
+    pub select_requested: Option<(usize, SelectDirection)>,
+    /// User requested context menu at position `Pos2` on item at index `usize`.
+    pub context_menu_requested: Option<(usize, Pos2)>,
 }
 
 /// Evaluates the target drop index relative to row bounds.
@@ -100,8 +136,11 @@ where
     ui.spacing_mut().item_spacing.y = 0.0;
 
     let mut slot_rects = Vec::with_capacity(items.len());
+    let mut selected = None;
     let mut delete_requested = None;
     let mut move_requested = None;
+    let mut select_requested = None;
+    let mut context_menu_requested = None;
 
     let available_w = ui.available_width();
     let display_slots = state.layout(items.len());
@@ -126,6 +165,9 @@ where
                 spec.deletable = item.deletable;
                 spec.delete_disabled_reason = item.delete_disabled_reason.clone();
                 spec.ghost = item.ghost.clone();
+                spec.selected = item.selected;
+                spec.clickable = item.clickable;
+                spec.trailing = item.trailing.clone();
 
                 let slots = if item.slots.is_empty() {
                     &[RowSlot::Flex]
@@ -149,6 +191,10 @@ where
                     });
                 }
 
+                if row_resp.clicked && selected.is_none() {
+                    selected = Some(idx);
+                }
+
                 if row_resp.delete_clicked && delete_requested.is_none() {
                     delete_requested = Some(idx);
                 }
@@ -156,6 +202,18 @@ where
                 if let Some(dir) = row_resp.move_request {
                     if move_requested.is_none() {
                         move_requested = Some((idx, dir));
+                    }
+                }
+
+                if let Some(dir) = row_resp.select_request {
+                    if select_requested.is_none() {
+                        select_requested = Some((idx, dir));
+                    }
+                }
+
+                if let Some(pos) = row_resp.menu_requested {
+                    if context_menu_requested.is_none() {
+                        context_menu_requested = Some((idx, pos));
                     }
                 }
 
@@ -191,7 +249,7 @@ where
                         t.ink_strong,
                     );
 
-                    let body_start_x = handle_rect.max.x + layout.slot_gap;
+                    let body_start_x = handle_rect.max.x + layout.handle_gap;
                     let mut cur_x = body_start_x;
 
                     // 2. Ghost preview optional icon
@@ -244,8 +302,11 @@ where
 
     ListEvents {
         moved,
+        selected,
         delete_requested,
         move_requested,
+        select_requested,
+        context_menu_requested,
     }
 }
 
