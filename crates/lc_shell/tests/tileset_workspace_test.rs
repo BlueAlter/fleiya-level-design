@@ -178,3 +178,67 @@ fn test_headless_render_long_names() {
         Some(TilesetDefId(99))
     );
 }
+
+#[test]
+fn test_tileset_workspace_consolidation_guard() {
+    let view_src = include_str!("../src/features/tileset/view.rs");
+    let mod_editor_src = include_str!("../src/features/editor/mod.rs");
+    let shell_app_src = include_str!("../src/features/editor/shell_app.rs");
+    let menu_src = include_str!("../src/features/editor/menu.rs");
+    let mod_tileset_src = include_str!("../src/features/tileset/mod.rs");
+    let left_panel_src = include_str!("../src/features/tileset/left_panel.rs");
+    let right_panel_src = include_str!("../src/features/tileset/right_panel.rs");
+    let attr_card_src = include_str!("../src/features/tileset/attributes_card.rs");
+    let atlas_view_src = include_str!("../src/features/tileset/atlas_view.rs");
+
+    let all_sources = [
+        ("view.rs", view_src),
+        ("editor/mod.rs", mod_editor_src),
+        ("shell_app.rs", shell_app_src),
+        ("menu.rs", menu_src),
+        ("tileset/mod.rs", mod_tileset_src),
+        ("left_panel.rs", left_panel_src),
+        ("right_panel.rs", right_panel_src),
+        ("attributes_card.rs", attr_card_src),
+        ("atlas_view.rs", atlas_view_src),
+    ];
+
+    for (name, src) in all_sources {
+        assert!(
+            !src.to_lowercase().contains("under construction"),
+            "File {} must not contain 'under construction'",
+            name
+        );
+    }
+
+    assert!(
+        !mod_editor_src.contains("tileset_placeholder"),
+        "tileset_placeholder module must not be registered"
+    );
+    assert!(
+        !shell_app_src.contains("render_tileset_placeholder"),
+        "shell_app must not call render_tileset_placeholder"
+    );
+    assert!(
+        !shell_app_src.contains("show_tileset_window"),
+        "shell_app must not reference show_tileset_window"
+    );
+
+    let mut def_count = 0;
+    for (_, src) in all_sources {
+        for line in src.lines() {
+            let trimmed = line.trim();
+            if (trimmed.starts_with("pub fn render_tileset_view")
+                || trimmed.starts_with("fn render_tileset_view"))
+                && trimmed.contains('(')
+            {
+                def_count += 1;
+            }
+        }
+    }
+
+    assert_eq!(
+        def_count, 1,
+        "Exactly one fn render_tileset_view must be defined"
+    );
+}
