@@ -134,7 +134,13 @@ fn test_def_left_panel_metrics_and_outlines_at_1366x768() {
     theme::apply(&ctx, ThemeChoice::Dark);
     let t = Tokens::get(&ctx);
 
-    for item_count in [3, 12] {
+    for (item_count, new_label) in [
+        (3, "+ New Item"),
+        (
+            12,
+            "+ New Super Long Definition Label That Definitely Exceeds Normal Width",
+        ),
+    ] {
         let items: Vec<DefItem<u32>> = (0..item_count)
             .map(|i| DefItem::new(i, format!("Definition {i}")))
             .collect();
@@ -148,11 +154,81 @@ fn test_def_left_panel_metrics_and_outlines_at_1366x768() {
         };
 
         let mut output = ctx.run_ui(raw_input, |ui| {
-            let config = DefLeftPanelConfig::new("+ New Item", "DEFINITIONS").with_menu(true);
+            let config = DefLeftPanelConfig::new(new_label, "DEFINITIONS").with_menu(true);
             let actions =
                 def_left_panel(ui, &t, &config, &mut search, &items, selected_id, &mut drag);
             assert!(actions.is_empty());
         });
+
+        // 0. Panel fill max.x == 260, + New button fill == Tokens.accent, ⋮ rect == 220..248 x 12..40
+        let panel_fill = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                Shape::Rect(r) if (r.rect.min.x - 0.0).abs() < 0.5 && r.fill == t.panel => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .expect("panel fill rect must be present");
+        assert_eq!(panel_fill.min.x, 0.0);
+        assert_eq!(panel_fill.max.x, 260.0, "panel fill max.x == 260");
+
+        let new_btn = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                Shape::Rect(r)
+                    if (r.rect.min.x - 12.0).abs() < 0.5
+                        && (r.rect.max.x - 214.0).abs() < 0.5
+                        && (r.rect.min.y - 12.0).abs() < 0.5
+                        && (r.rect.max.y - 40.0).abs() < 0.5
+                        && r.fill == t.accent =>
+                {
+                    Some(r)
+                }
+                _ => None,
+            })
+            .expect("+ New button must be 12..214 x 12..40 with fill Tokens.accent");
+        assert_eq!(new_btn.fill, t.accent);
+
+        let menu_btn = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                Shape::Rect(r)
+                    if (r.rect.min.x - 220.0).abs() < 0.5
+                        && (r.rect.max.x - 248.0).abs() < 0.5
+                        && (r.rect.min.y - 12.0).abs() < 0.5
+                        && (r.rect.max.y - 40.0).abs() < 0.5 =>
+                {
+                    Some(r)
+                }
+                _ => None,
+            })
+            .expect("⋮ rect == 220..248 x 12..40");
+        assert_eq!(menu_btn.fill, t.sunken);
+
+        // No shape of the panel extends past x=260
+        for s in &output.shapes {
+            match &s.shape {
+                Shape::Rect(r) => {
+                    assert!(
+                        r.rect.max.x <= 260.5,
+                        "no shape of the panel extends past x=260: rect max.x={}",
+                        r.rect.max.x
+                    );
+                }
+                Shape::Text(t) => {
+                    assert!(
+                        t.pos.x <= 260.5,
+                        "no shape of the panel extends past x=260: text pos.x={}",
+                        t.pos.x
+                    );
+                }
+                _ => {}
+            }
+        }
 
         // 1. Every card row spans 12.0..248.0 (width 236.0, height 36.0)
         let card_rect_strokes: Vec<(Rect, egui::Color32)> = output

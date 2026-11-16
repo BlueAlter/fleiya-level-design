@@ -121,7 +121,11 @@ pub fn icon_button(ui: &mut Ui, glyph: Icon, size: f32, style: IconButtonStyle) 
             );
         }
 
-        let icon_glyph_size = (size * 0.45).clamp(11.0, 16.0);
+        let icon_glyph_size = if (size - 28.0).abs() < 0.5 || (size - 32.0).abs() < 0.5 {
+            14.0
+        } else {
+            (size * 0.45).clamp(11.0, 16.0)
+        };
         paint_icon(painter, rect.center(), glyph, icon_glyph_size, icon_color);
     }
 

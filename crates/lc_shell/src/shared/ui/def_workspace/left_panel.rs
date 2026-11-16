@@ -4,10 +4,12 @@ use egui::{
     vec2, Align, CornerRadius, Frame, Layout, Margin, Pos2, RichText, ScrollArea, Stroke, TextEdit,
     Ui,
 };
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 
 use super::{DEF_PANEL_PADDING, DEF_PANEL_WIDTH, DEF_SEARCH_HEIGHT};
 use crate::shared::ui::drag_list::DragListState;
+use crate::shared::ui::icon_button::{icon_button, IconButtonStyle};
 use crate::shared::ui::reorder_list::{reorder_list, ListItem};
 use crate::shared::ui::reorder_row::{
     GhostPreview, MoveDirection, SelectDirection, Trailing, ROW_LAYOUT_CARD,
@@ -103,6 +105,7 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
         Layout::top_down(Align::Min),
         |ui| {
             ui.set_width(panel_w);
+            ui.set_max_width(panel_w);
 
             let inner_w = DEF_PANEL_WIDTH - 2.0 * DEF_PANEL_PADDING;
             Frame::new()
@@ -125,9 +128,10 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
                                 RichText::new(config.new_btn_label)
                                     .size(12.0)
                                     .strong()
-                                    .color(t.ink_strong),
+                                    .color(t.invert_fg),
                             )
-                            .fill(t.sunken)
+                            .truncate()
+                            .fill(t.accent)
                             .stroke(t.hairline())
                             .corner_radius(CornerRadius::same(3)),
                         );
@@ -136,14 +140,11 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
                         }
 
                         if config.has_menu_btn {
-                            let mb = ui.add_sized(
-                                [28.0, 28.0],
-                                egui::Button::new(
-                                    RichText::new("⋮").size(14.0).strong().color(t.muted),
-                                )
-                                .fill(t.sunken)
-                                .stroke(t.hairline())
-                                .corner_radius(CornerRadius::same(3)),
+                            let mb = icon_button(
+                                ui,
+                                Icon::DotsThreeVertical,
+                                28.0,
+                                IconButtonStyle::bordered(),
                             );
                             if mb.clicked() {
                                 actions.push(DefLeftPanelAction::MenuClicked);
