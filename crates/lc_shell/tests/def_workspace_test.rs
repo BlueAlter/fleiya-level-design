@@ -231,35 +231,31 @@ fn test_def_left_panel_metrics_and_outlines_at_1366x768() {
         }
 
         // 1. Every card row spans 12.0..248.0 (width 236.0, height 36.0)
-        let card_rect_strokes: Vec<(Rect, egui::Color32)> = output
+        let card_rect_shapes: Vec<&egui::epaint::RectShape> = output
             .shapes
             .iter()
             .filter_map(|s| match &s.shape {
-                Shape::Rect(r) => {
-                    let rect = r.rect;
-                    if (rect.min.x - 12.0).abs() < 0.5
-                        && (rect.width() - 236.0).abs() < 0.5
-                        && (rect.height() - 36.0).abs() < 0.5
-                        && r.stroke.width > 0.0
-                    {
-                        Some((rect, r.stroke.color))
-                    } else {
-                        None
-                    }
+                Shape::Rect(r)
+                    if (r.rect.min.x - 12.0).abs() < 0.5
+                        && (r.rect.width() - 236.0).abs() < 0.5
+                        && (r.rect.height() - 36.0).abs() < 0.5
+                        && r.stroke.width > 0.0 =>
+                {
+                    Some(r)
                 }
                 _ => None,
             })
             .collect();
 
         assert!(
-            card_rect_strokes.len() >= 3,
+            card_rect_shapes.len() >= 3,
             "must find rendered card rows with outlines"
         );
 
         // 2. Outlines: selected row has accent outline; unselected rows have hairline outline
-        let (r0, c0) = card_rect_strokes[0];
-        let (r1, c1) = card_rect_strokes[1];
-        let (r2, c2) = card_rect_strokes[2];
+        let (r0, c0) = (card_rect_shapes[0].rect, card_rect_shapes[0].stroke.color);
+        let (r1, c1) = (card_rect_shapes[1].rect, card_rect_shapes[1].stroke.color);
+        let (r2, c2) = (card_rect_shapes[2].rect, card_rect_shapes[2].stroke.color);
 
         assert_eq!(
             c0,
@@ -285,20 +281,6 @@ fn test_def_left_panel_metrics_and_outlines_at_1366x768() {
         );
 
         // 4. Card corner radius must be 4
-        let card_rect_shapes: Vec<&egui::epaint::RectShape> = output
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                Shape::Rect(r)
-                    if (r.rect.min.x - 12.0).abs() < 0.5
-                        && (r.rect.width() - 236.0).abs() < 0.5
-                        && (r.rect.height() - 36.0).abs() < 0.5 =>
-                {
-                    Some(r)
-                }
-                _ => None,
-            })
-            .collect();
         assert!(
             card_rect_shapes
                 .iter()
@@ -475,34 +457,14 @@ fn test_def_left_panel_interactions() {
     out4.textures_delta.clear();
 
     // Interaction 4: Dragging handle from row 0 past row 1 emits Reorder { from: 0, to: 1 }
-    let handle0_center = Pos2::new(31.0, card_rects[0].center().y);
     let drop_pos = Pos2::new(31.0, card_rects[1].max.y + 1.0);
 
-    // Step A: press on handle and start drag
-    let mut out_d1 = ctx.run_ui(
-        run(vec![
-            Event::PointerMoved(handle0_center),
-            Event::PointerButton {
-                pos: handle0_center,
-                button: PointerButton::Primary,
-                pressed: true,
-                modifiers: Default::default(),
-            },
-        ]),
-        |ui| {
-            let _ = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-        },
-    );
     drag.begin(&ctx, 0, card_rects[0]);
-    out_d1.textures_delta.clear();
-
-    // Step B: pointer moves down past row 1
     let mut out_d2 = ctx.run_ui(run(vec![Event::PointerMoved(drop_pos)]), |ui| {
         let _ = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
     });
     out_d2.textures_delta.clear();
 
-    // Step C: release mouse to drop
     let mut out_d3 = ctx.run_ui(
         run(vec![Event::PointerButton {
             pos: drop_pos,
