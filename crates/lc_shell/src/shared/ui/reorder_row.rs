@@ -17,12 +17,13 @@
 //! ```
 
 use egui::{
-    vec2, Color32, CornerRadius, CursorIcon, Id, Key, Pos2, Rect, Response, Sense, Stroke,
-    StrokeKind, Ui,
+    vec2, Align, Color32, CornerRadius, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, Sense,
+    Stroke, StrokeKind, Ui,
 };
 use lc_canvas::icons::{paint_icon, Icon};
 use lc_canvas::theme::Tokens;
 
+use super::drag_list::draw_drag_handle;
 use super::icon_button::{icon_button, IconButtonStyle};
 pub use super::workspace_metrics::{
     ReorderRowLayout, CONTROL_HEIGHT_FORM, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_CARD,
@@ -226,7 +227,11 @@ impl RowBody {
     /// Runs a closure inside a child UI strictly clipped and bounded to slot `index`.
     pub fn slot<R>(&self, ui: &mut Ui, index: usize, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
         if let Some(&rect) = self.slot_rects.get(index) {
-            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(rect)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
             child.set_clip_rect(rect);
             child.set_max_width(rect.width());
             Some(add(&mut child))
@@ -295,10 +300,10 @@ pub fn reorder_row<R>(
     };
 
     let painter = ui.painter();
-    painter.rect_filled(row_rect, CornerRadius::same(3), bg);
+    painter.rect_filled(row_rect, CornerRadius::same(4), bg);
     painter.rect_stroke(
         row_rect,
-        CornerRadius::same(3),
+        CornerRadius::same(4),
         Stroke::new(1.0, border_color),
         StrokeKind::Inside,
     );
@@ -332,13 +337,7 @@ pub fn reorder_row<R>(
     } else {
         t.muted
     };
-    paint_icon(
-        painter,
-        handle_rect.center(),
-        Icon::Drag,
-        14.0,
-        handle_color,
-    );
+    draw_drag_handle(painter, handle_rect, handle_color);
 
     // 3. Trailing action slot on the right
     let mut delete_clicked = false;
@@ -393,12 +392,21 @@ pub fn reorder_row<R>(
         }
         Trailing::Kebab => {
             trailing_rect_opt = Some(tr_rect);
-            let mut kebab_child = ui.new_child(egui::UiBuilder::new().max_rect(tr_rect));
-            let resp = icon_button(
-                &mut kebab_child,
+            let resp = ui
+                .interact(tr_rect, spec.id.with("kebab"), Sense::click())
+                .on_hover_cursor(CursorIcon::PointingHand)
+                .on_hover_text("Actions");
+            let kebab_color = if resp.hovered() {
+                t.ink_strong
+            } else {
+                t.muted
+            };
+            paint_icon(
+                painter,
+                tr_rect.center(),
                 Icon::DotsThreeVertical,
-                tr_w,
-                IconButtonStyle::ghost(),
+                13.0,
+                kebab_color,
             );
             trailing_response = Some(resp);
         }

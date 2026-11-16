@@ -19,12 +19,12 @@
 //! ```
 
 use egui::{vec2, CornerRadius, Id, Pos2, Rect, Sense, Stroke, Ui};
-use lc_canvas::icons::{paint_icon, Icon};
+use lc_canvas::icons::paint_icon;
 use lc_canvas::theme::Tokens;
 
 use super::drag_list::{
-    drop_index as shared_drop_index, paint_placeholder, DragListState, DragOutcome, DragTheme,
-    GhostCardStyle, Slot as DragSlot,
+    draw_drag_handle, drop_index as shared_drop_index, paint_placeholder, DragListState,
+    DragOutcome, DragTheme, GhostCardStyle, Slot as DragSlot,
 };
 use super::reorder::final_index;
 use super::reorder_row::{
@@ -241,13 +241,7 @@ where
                     // 1. Drag handle
                     let handle_rect =
                         Rect::from_min_size(rect.min, vec2(layout.handle_w, rect.height()));
-                    paint_icon(
-                        ui.painter(),
-                        handle_rect.center(),
-                        Icon::Drag,
-                        14.0,
-                        t.ink_strong,
-                    );
+                    draw_drag_handle(ui.painter(), handle_rect, t.ink_strong);
 
                     let body_start_x = handle_rect.max.x + layout.handle_gap;
                     let mut cur_x = body_start_x;
@@ -316,6 +310,7 @@ mod tests {
     use super::*;
     use egui::epaint::TextShape;
     use egui::{vec2, Color32, Context, FullOutput, Pos2, RawInput, Shape};
+    use lc_canvas::icons::Icon;
     use lc_canvas::theme::{self, ThemeChoice};
 
     #[test]

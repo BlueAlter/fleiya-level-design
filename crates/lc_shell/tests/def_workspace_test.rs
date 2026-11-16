@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Event, PointerButton, Pos2, RawInput, Rect, Shape};
+use egui::{vec2, Context, CornerRadius, Event, PointerButton, Pos2, RawInput, Rect, Shape};
 use lc_canvas::theme::{self, ThemeChoice, Tokens};
 use lc_shell::shared::ui::def_workspace::{
     def_field_row, def_footer, def_left_panel, def_panel_width, def_right_header, def_row_layout,
@@ -284,26 +284,76 @@ fn test_def_left_panel_metrics_and_outlines_at_1366x768() {
             "row pitch must be 41.0 (36 height + 5 gap)"
         );
 
-        // 4. Kebab button icon is placed inside x: 217..237 (glyph galley pos.x = 221.5, center = 227.0)
-        let has_kebab_icon = output.shapes.iter().any(|s| match &s.shape {
-            Shape::Text(t) => (t.pos.x - 221.5).abs() < 1.0,
-            _ => false,
-        });
-        assert!(has_kebab_icon, "kebab icon must be inside x: 217..237");
+        // 4. Card corner radius must be 4
+        let card_rect_shapes: Vec<&egui::epaint::RectShape> = output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                Shape::Rect(r)
+                    if (r.rect.min.x - 12.0).abs() < 0.5
+                        && (r.rect.width() - 236.0).abs() < 0.5
+                        && (r.rect.height() - 36.0).abs() < 0.5 =>
+                {
+                    Some(r)
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            card_rect_shapes
+                .iter()
+                .all(|r| r.corner_radius == CornerRadius::same(4)),
+            "card corner radius must be 4"
+        );
 
-        // 5. Drag handle is placed inside x: 23..39 (glyph galley pos.x = 24.0, center = 31.0)
-        let has_drag_icon = output.shapes.iter().any(|s| match &s.shape {
-            Shape::Text(t) => (t.pos.x - 24.0).abs() < 1.0,
+        // 5. Kebab button icon is placed inside x: 220.5..233.5, centered at x = 227.0
+        let has_kebab_glyph = output.shapes.iter().any(|s| match &s.shape {
+            Shape::Text(t) => (t.pos.x - 220.5).abs() < 1.0,
             _ => false,
         });
-        assert!(has_drag_icon, "drag handle icon must be inside x: 23..39");
+        assert!(has_kebab_glyph, "kebab glyph box must be x 220.5..233.5");
 
-        // 6. Name body starts at x: 51.0
-        let has_name_body = output.shapes.iter().any(|s| match &s.shape {
-            Shape::Text(t) => (t.pos.x - 51.0).abs() < 1.0,
-            _ => false,
-        });
-        assert!(has_name_body, "definition name body must start at x = 51.0");
+        // 6. Six-dot drag handle on row 0: radius 1.5, fill t.muted, centers at x=28.5 & 33.5, y=cy-5, cy, cy+5
+        let r0_cy = r0.center().y;
+        for expected_pos in [
+            Pos2::new(28.5, r0_cy - 5.0),
+            Pos2::new(33.5, r0_cy - 5.0),
+            Pos2::new(28.5, r0_cy),
+            Pos2::new(33.5, r0_cy),
+            Pos2::new(28.5, r0_cy + 5.0),
+            Pos2::new(33.5, r0_cy + 5.0),
+        ] {
+            let found = output.shapes.iter().any(|s| match &s.shape {
+                Shape::Circle(c) => {
+                    (c.center.x - expected_pos.x).abs() < 0.5
+                        && (c.center.y - expected_pos.y).abs() < 0.5
+                        && (c.radius - 1.5).abs() < 0.1
+                        && c.fill == t.muted
+                }
+                _ => false,
+            });
+            assert!(
+                found,
+                "must find handle dot at ({}, {}) with radius 1.5 and fill t.muted",
+                expected_pos.x, expected_pos.y
+            );
+        }
+
+        // 7. Name body starts at x: 51.0 and is vertically centered within 0.5 px
+        let name_text = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                Shape::Text(t) if (t.pos.x - 51.0).abs() < 1.0 => Some(t),
+                _ => None,
+            })
+            .expect("definition name body must start at x = 51.0");
+        let text_center_y = name_text.pos.y + 8.0;
+        assert!(
+            (text_center_y - r0.center().y).abs() < 0.5,
+            "text vertical center ({text_center_y}) must be within 0.5 px of card center ({})",
+            r0.center().y
+        );
 
         // 5. Controls span 12.0..248.0
         let has_spanning_controls = output.shapes.iter().any(|s| match &s.shape {
@@ -367,86 +417,61 @@ fn test_def_left_panel_interactions() {
     let kebab0_center = Pos2::new(227.0, card_rects[0].center().y);
     out1.textures_delta.clear();
 
-    // Interaction 1: Clicking a row emits Selected(ID) once
-    let raw_input2 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![
-            Event::PointerMoved(row0_center),
+    let click_events = |pos: Pos2, button: PointerButton| {
+        vec![
+            Event::PointerMoved(pos),
             Event::PointerButton {
-                pos: row0_center,
-                button: PointerButton::Primary,
+                pos,
+                button,
                 pressed: true,
                 modifiers: Default::default(),
             },
             Event::PointerButton {
-                pos: row0_center,
-                button: PointerButton::Primary,
+                pos,
+                button,
                 pressed: false,
                 modifiers: Default::default(),
             },
-        ],
+        ]
+    };
+    let run = |events: Vec<Event>| RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        events,
         ..Default::default()
     };
-    let mut out2 = ctx.run_ui(raw_input2, |ui| {
-        let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-        assert_eq!(actions, vec![DefLeftPanelAction::Selected(10)]);
-    });
+
+    // Interaction 1: Clicking a row emits Selected(ID) once
+    let mut out2 = ctx.run_ui(
+        run(click_events(row0_center, PointerButton::Primary)),
+        |ui| {
+            let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
+            assert_eq!(actions, vec![DefLeftPanelAction::Selected(10)]);
+        },
+    );
     out2.textures_delta.clear();
 
     // Interaction 2: Right clicking a row emits ContextMenu
-    let raw_input3 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![
-            Event::PointerMoved(row0_center),
-            Event::PointerButton {
-                pos: row0_center,
-                button: PointerButton::Secondary,
-                pressed: true,
-                modifiers: Default::default(),
-            },
-            Event::PointerButton {
-                pos: row0_center,
-                button: PointerButton::Secondary,
-                pressed: false,
-                modifiers: Default::default(),
-            },
-        ],
-        ..Default::default()
-    };
-    let mut out3 = ctx.run_ui(raw_input3, |ui| {
-        let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-        assert!(actions
-            .iter()
-            .any(|a| matches!(a, DefLeftPanelAction::ContextMenu { id: 10, .. })));
-    });
+    let mut out3 = ctx.run_ui(
+        run(click_events(row0_center, PointerButton::Secondary)),
+        |ui| {
+            let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
+            assert!(actions
+                .iter()
+                .any(|a| matches!(a, DefLeftPanelAction::ContextMenu { id: 10, .. })));
+        },
+    );
     out3.textures_delta.clear();
 
     // Interaction 3: Clicking kebab button emits ContextMenu
-    let raw_input4 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![
-            Event::PointerMoved(kebab0_center),
-            Event::PointerButton {
-                pos: kebab0_center,
-                button: PointerButton::Primary,
-                pressed: true,
-                modifiers: Default::default(),
-            },
-            Event::PointerButton {
-                pos: kebab0_center,
-                button: PointerButton::Primary,
-                pressed: false,
-                modifiers: Default::default(),
-            },
-        ],
-        ..Default::default()
-    };
-    let mut out4 = ctx.run_ui(raw_input4, |ui| {
-        let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-        assert!(actions
-            .iter()
-            .any(|a| matches!(a, DefLeftPanelAction::ContextMenu { id: 10, .. })));
-    });
+    let mut out4 = ctx.run_ui(
+        run(click_events(kebab0_center, PointerButton::Primary)),
+        |ui| {
+            let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
+            assert!(actions
+                .iter()
+                .any(|a| matches!(a, DefLeftPanelAction::ContextMenu { id: 10, .. })));
+        },
+    );
     out4.textures_delta.clear();
 
     // Interaction 4: Dragging handle from row 0 past row 1 emits Reorder { from: 0, to: 1 }
@@ -454,9 +479,8 @@ fn test_def_left_panel_interactions() {
     let drop_pos = Pos2::new(31.0, card_rects[1].max.y + 1.0);
 
     // Step A: press on handle and start drag
-    let raw_input_drag1 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![
+    let mut out_d1 = ctx.run_ui(
+        run(vec![
             Event::PointerMoved(handle0_center),
             Event::PointerButton {
                 pos: handle0_center,
@@ -464,45 +488,37 @@ fn test_def_left_panel_interactions() {
                 pressed: true,
                 modifiers: Default::default(),
             },
-        ],
-        ..Default::default()
-    };
-    let mut out_d1 = ctx.run_ui(raw_input_drag1, |ui| {
-        let _ = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-    });
+        ]),
+        |ui| {
+            let _ = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
+        },
+    );
     drag.begin(&ctx, 0, card_rects[0]);
     out_d1.textures_delta.clear();
 
     // Step B: pointer moves down past row 1
-    let raw_input_drag2 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![Event::PointerMoved(drop_pos)],
-        ..Default::default()
-    };
-    let mut out_d2 = ctx.run_ui(raw_input_drag2, |ui| {
+    let mut out_d2 = ctx.run_ui(run(vec![Event::PointerMoved(drop_pos)]), |ui| {
         let _ = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
     });
     out_d2.textures_delta.clear();
 
     // Step C: release mouse to drop
-    let raw_input_drag3 = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
-        events: vec![Event::PointerButton {
+    let mut out_d3 = ctx.run_ui(
+        run(vec![Event::PointerButton {
             pos: drop_pos,
             button: PointerButton::Primary,
             pressed: false,
             modifiers: Default::default(),
-        }],
-        ..Default::default()
-    };
-    let mut out_d3 = ctx.run_ui(raw_input_drag3, |ui| {
-        let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
-        assert!(
-            actions
-                .iter()
-                .any(|a| matches!(a, DefLeftPanelAction::Reorder { from: 0, to: 1 })),
-            "dragging handle must emit Reorder action, got: {actions:?}"
-        );
-    });
+        }]),
+        |ui| {
+            let actions = def_left_panel(ui, &t, &config, &mut search, &items, None, &mut drag);
+            assert!(
+                actions
+                    .iter()
+                    .any(|a| matches!(a, DefLeftPanelAction::Reorder { from: 0, to: 1 })),
+                "dragging handle must emit Reorder action, got: {actions:?}"
+            );
+        },
+    );
     out_d3.textures_delta.clear();
 }

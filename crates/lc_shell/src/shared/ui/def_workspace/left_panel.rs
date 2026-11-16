@@ -220,8 +220,7 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
                                             egui::Label::new(
                                                 RichText::new(&item.name)
                                                     .strong()
-                                                    .color(text_color)
-                                                    .size(12.0),
+                                                    .color(text_color),
                                             )
                                             .truncate()
                                             .selectable(false),
