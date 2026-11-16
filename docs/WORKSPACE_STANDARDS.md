@@ -139,8 +139,8 @@ Komponen daftar yang dapat diurutkan ulang (*reorderable lists*) dan kartu baris
 | **Jenis Trailing** | `Trailing::Delete` (ikon Trash 32x32) | `Trailing::Kebab` (ikon Kebab "⋮" 20x20) | Opsi `Trailing::None` juga didukung |
 
 ### Ketentuan Rendering Baris & Kartu
-- **Outline dan Status Seleksi Digambar oleh Komponen Bersama**:
-  Garis tepi (*outline stroke*) dan latar belakang kartu digambar secara otomatis oleh `reorder_row`. Kartu yang tidak dipilih (*unselected*) memiliki garis tepi `t.hairline().color` (1.0 px). Kartu yang sedang dipilih (*selected*) digambar dengan garis tepi aksen `t.accent` (1.0 px).
+- **RowFrame (Bingkai Baris)**: the Card preset always draws its outline; the Values preset has no row frame by design (each widget draws its own).
+  Pada preset Card, kartu digambar dengan sudut melengkung 4 px (`CornerRadius::same(4)`). Kartu yang tidak dipilih (*unselected*) memiliki garis tepi `t.hairline().color` (1.0 px) dan kartu yang sedang dipilih (*selected*) digambar dengan garis tepi aksen `t.accent` (1.0 px). Pada preset Values, tidak ada pengisian latar atau garis tepi tingkat baris; setiap widget/kontrol menggambar bingkainya sendiri. Tombol hapus (`Trailing::Delete`) selalu berbingkai (`icon_button` 32x32 dengan fill sunken, stroke 1 hairline, dan radius 3).
 - **Interaktivitas & Aksesibilitas**:
   Kartu yang dapat diklik (`clickable: true`) menampilkan kursor tangan pointer (`CursorIcon::PointingHand`) saat di-hover. Komponen mendukung navigasi keyboard penuh (Arrow Up/Down untuk memilih item, Enter untuk klik/aktivasi, dan Alt + Arrow Up/Down untuk memindahkan urutan).
 - **Larangan Menggambar Manual**:

@@ -280,6 +280,7 @@ impl DragListState {
 
         let area_resp = Area::new(area_id)
             .order(Order::Tooltip)
+            .fade_in(false)
             .fixed_pos(ghost_pos)
             .interactable(false)
             .show(ui.ctx(), |ui| {

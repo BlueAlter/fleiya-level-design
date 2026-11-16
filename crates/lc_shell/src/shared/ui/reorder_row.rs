@@ -26,7 +26,7 @@ use lc_canvas::theme::Tokens;
 use super::drag_list::draw_drag_handle;
 use super::icon_button::{icon_button, IconButtonStyle};
 pub use super::workspace_metrics::{
-    ReorderRowLayout, CONTROL_HEIGHT_FORM, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_CARD,
+    ReorderRowLayout, RowFrame, CONTROL_HEIGHT_FORM, ICON_BUTTON_SIZE_DELETE, ROW_LAYOUT_CARD,
     ROW_LAYOUT_VALUES,
 };
 
@@ -281,32 +281,35 @@ pub fn reorder_row<R>(
         row_resp = row_resp.on_hover_cursor(CursorIcon::PointingHand);
     }
 
-    // 1. Paint row background and 1px outline
-    let is_hovered = row_resp.hovered();
-    let bg = if spec.selected || is_hovered {
-        t.sunken
-    } else {
-        t.panel
-    };
-
-    let border_color = if spec.selected {
-        t.accent
-    } else if is_hovered {
-        t.line_strong
-    } else if let Some(outline_c) = spec.outline {
-        outline_c
-    } else {
-        t.hairline().color
-    };
-
     let painter = ui.painter();
-    painter.rect_filled(row_rect, CornerRadius::same(4), bg);
-    painter.rect_stroke(
-        row_rect,
-        CornerRadius::same(4),
-        Stroke::new(1.0, border_color),
-        StrokeKind::Inside,
-    );
+
+    // 1. Paint row background and 1px outline (Card preset only)
+    if spec.layout.frame == RowFrame::Card {
+        let is_hovered = row_resp.hovered();
+        let bg = if spec.selected || is_hovered {
+            t.sunken
+        } else {
+            t.panel
+        };
+
+        let border_color = if spec.selected {
+            t.accent
+        } else if is_hovered {
+            t.line_strong
+        } else if let Some(outline_c) = spec.outline {
+            outline_c
+        } else {
+            t.hairline().color
+        };
+
+        painter.rect_filled(row_rect, CornerRadius::same(4), bg);
+        painter.rect_stroke(
+            row_rect,
+            CornerRadius::same(4),
+            Stroke::new(1.0, border_color),
+            StrokeKind::Inside,
+        );
+    }
 
     // 2. Drag handle slot on the left
     let content_h = (row_h - 2.0 * spec.layout.padding_y).max(1.0);
@@ -374,11 +377,7 @@ pub fn reorder_row<R>(
         } => {
             trailing_rect_opt = Some(tr_rect);
             let mut del_child = ui.new_child(egui::UiBuilder::new().max_rect(tr_rect));
-            let style = if disabled_reason.is_none() {
-                IconButtonStyle::ghost_danger()
-            } else {
-                IconButtonStyle::ghost()
-            };
+            let style = IconButtonStyle::bordered();
             let resp = icon_button(&mut del_child, Icon::Delete, tr_w, style);
             if let Some(ref reason) = disabled_reason {
                 resp.clone().on_hover_text(reason);

@@ -400,6 +400,19 @@ mod tests {
             ..Default::default()
         };
 
+        let mut output2_pass1: FullOutput = ctx.run_ui(raw_input2.clone(), |ui| {
+            reorder_list(
+                ui,
+                &mut drag_state,
+                &items,
+                ROW_LAYOUT_VALUES,
+                |ui, idx, body| {
+                    body.slot(ui, 0, |ui| ui.label(&items[idx].ghost.label));
+                },
+            );
+        });
+        output2_pass1.textures_delta.clear();
+
         let mut output2: FullOutput = ctx.run_ui(raw_input2, |ui| {
             let events = reorder_list(
                 ui,

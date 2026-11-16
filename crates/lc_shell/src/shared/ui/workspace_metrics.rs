@@ -41,6 +41,15 @@ pub const ICON_BUTTON_SIZE_FORM: f32 = CONTROL_HEIGHT_FORM;
 /// Size of row delete buttons (matches standard form control size).
 pub const ICON_BUTTON_SIZE_DELETE: f32 = ICON_BUTTON_SIZE_FORM;
 
+/// Framing style of a reorderable row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowFrame {
+    /// Framed card with background fill, 1px outline, corner radius 4, and hover/selected styling.
+    Card,
+    /// Transparent row with no row fill, no outline, and no hover/selected row styling.
+    None,
+}
+
 /// Layout metrics configuration for reorderable rows and cards.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ReorderRowLayout {
@@ -62,6 +71,8 @@ pub struct ReorderRowLayout {
     pub trailing_gap: f32,
     /// Vertical space between consecutive rows.
     pub row_gap: f32,
+    /// Row framing style (Card or None).
+    pub frame: RowFrame,
 }
 
 /// Standard row layout preset for enum values and form items.
@@ -75,6 +86,7 @@ pub const ROW_LAYOUT_VALUES: ReorderRowLayout = ReorderRowLayout {
     trailing_w: ICON_BUTTON_SIZE_DELETE,
     trailing_gap: 8.0,
     row_gap: 8.0,
+    frame: RowFrame::None,
 };
 
 /// Standard row layout preset for left list definition cards.
@@ -88,6 +100,7 @@ pub const ROW_LAYOUT_CARD: ReorderRowLayout = ReorderRowLayout {
     trailing_w: 20.0,
     trailing_gap: 8.0,
     row_gap: 5.0,
+    frame: RowFrame::Card,
 };
 
 /// Renders a fixed-width form label column (110px) ensuring consistent control alignment.

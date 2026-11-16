@@ -385,6 +385,7 @@ fn test_row_outline_normal_hairline_and_selected_accent() {
     };
     let mut out1 = ctx.run_ui(raw_input1, |ui| {
         let mut spec = ReorderRowSpec::new("row_normal", "Normal");
+        spec.layout = ROW_LAYOUT_CARD;
         spec.selected = false;
         reorder_row(ui, spec, &[Slot::Flex], |_, _| {});
     });
@@ -413,6 +414,7 @@ fn test_row_outline_normal_hairline_and_selected_accent() {
     };
     let mut out2 = ctx.run_ui(raw_input2, |ui| {
         let mut spec = ReorderRowSpec::new("row_selected", "Selected");
+        spec.layout = ROW_LAYOUT_CARD;
         spec.selected = true;
         reorder_row(ui, spec, &[Slot::Flex], |_, _| {});
     });
