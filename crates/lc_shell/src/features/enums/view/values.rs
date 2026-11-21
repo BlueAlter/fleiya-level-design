@@ -222,13 +222,13 @@ pub fn render_values(app: &mut ShellApp, ui: &mut Ui, state: &mut EnumViewState,
                 body.slot(ui, 2, |ui| {
                     let style = FieldStyle::default()
                         .with_hint("Value Identifier")
-                        .with_outline(true);
+                        .with_outline(false);
                     let resp = text_field(ui, &mut new_name, style);
                     if resp.changed {
                         name_changed = true;
                     }
                     ui.painter().rect_stroke(
-                        ui.max_rect(),
+                        resp.response.rect,
                         CornerRadius::same(3),
                         Stroke::new(1.5, val_color),
                         StrokeKind::Inside,

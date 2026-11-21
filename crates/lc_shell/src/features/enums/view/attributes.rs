@@ -82,14 +82,10 @@ pub fn render_attributes(
 
                 let style = FieldStyle::default()
                     .with_hint("Identifier")
-                    .with_outline(true);
+                    .with_outline(true)
+                    .with_width(text_w);
 
-                let resp = ui
-                    .scope(|ui| {
-                        ui.set_width(text_w);
-                        text_field(ui, &mut name_text, style)
-                    })
-                    .inner;
+                let resp = text_field(ui, &mut name_text, style);
 
                 if resp.changed {
                     if name_text.chars().count() > 48 {

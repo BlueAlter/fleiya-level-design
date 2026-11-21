@@ -14,7 +14,7 @@
 //! }
 //! ```
 
-use egui::{vec2, CornerRadius, Key, Response, Stroke, StrokeKind, TextEdit, Ui};
+use egui::{vec2, Align, CornerRadius, Key, Margin, Response, Stroke, StrokeKind, TextEdit, Ui};
 use lc_canvas::theme::Tokens;
 
 use super::workspace_metrics::CONTROL_HEIGHT_FORM;
@@ -30,6 +30,8 @@ pub struct FieldStyle<'a> {
     pub error: Option<&'a str>,
     /// Whether to render text in monospace font.
     pub monospace: bool,
+    /// Desired width override. If `None`, fills full available width (`f32::INFINITY`).
+    pub width: Option<f32>,
 }
 
 impl<'a> FieldStyle<'a> {
@@ -54,6 +56,12 @@ impl<'a> FieldStyle<'a> {
     /// Sets whether to draw an outline border.
     pub fn with_outline(mut self, outline: bool) -> Self {
         self.outline = outline;
+        self
+    }
+
+    /// Sets an explicit width for the text field. If unset, it fills the full available width.
+    pub fn with_width(mut self, width: f32) -> Self {
+        self.width = Some(width);
         self
     }
 }
@@ -156,7 +164,16 @@ pub fn validate_identifier(
 /// Renders a single-line text input field styled with project tokens and explicit event tracking.
 pub fn text_field(ui: &mut Ui, text: &mut String, style: FieldStyle<'_>) -> FieldResponse {
     let t = Tokens::get(ui.ctx());
-    let mut edit = TextEdit::singleline(text).min_size(vec2(0.0, CONTROL_HEIGHT_FORM));
+    let mut edit = TextEdit::singleline(text)
+        .min_size(vec2(0.0, CONTROL_HEIGHT_FORM))
+        .vertical_align(Align::Center)
+        .margin(Margin::symmetric(8, 0));
+
+    if let Some(w) = style.width {
+        edit = edit.desired_width(w);
+    } else {
+        edit = edit.desired_width(f32::INFINITY);
+    }
 
     if style.monospace {
         edit = edit.font(egui::TextStyle::Monospace);
@@ -318,5 +335,30 @@ mod tests {
             !output.shapes.is_empty(),
             "text_field should produce render shapes"
         );
+    }
+
+    #[test]
+    fn test_text_field_full_width_and_custom_width() {
+        let ctx = Context::default();
+        theme::install_fonts(&ctx);
+        theme::apply(&ctx, ThemeChoice::Dark);
+
+        let mut val = "TestVal".to_string();
+        let raw_input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+            ..Default::default()
+        };
+
+        let mut output = ctx.run_ui(raw_input, |ui| {
+            ui.scope(|ui| {
+                ui.set_max_width(500.0);
+                let res_full = text_field(ui, &mut val, FieldStyle::default());
+                assert_eq!(res_full.response.rect.width(), 500.0);
+            });
+
+            let res_custom = text_field(ui, &mut val, FieldStyle::default().with_width(250.0));
+            assert_eq!(res_custom.response.rect.width(), 250.0);
+        });
+        output.textures_delta.clear();
     }
 }
