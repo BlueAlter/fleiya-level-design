@@ -19,11 +19,31 @@
 
 use egui::emath::GuiRounding;
 use egui::{
-    Color32, Context, CursorIcon, Key, Modifiers, Painter, Rect, Shape, Stroke, StrokeKind, Ui,
-    Vec2,
+    Area, Color32, Context, CornerRadius, CursorIcon, Id, Key, Modifiers, Order, Painter, Pos2,
+    Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2,
 };
 
-use super::reorder::{auto_scroll_delta, preview_layout, relative_to_top, snapshot_target, Slot};
+use super::reorder::{auto_scroll_delta, preview_layout, relative_to_top, snapshot_target};
+pub use super::reorder::{reorder_item, Slot};
+
+/// Styling parameters for [`DragListState::show_ghost_card`].
+#[derive(Debug, Clone, Copy)]
+pub struct GhostCardStyle {
+    pub bg: Color32,
+    pub stroke: Stroke,
+    pub corner_radius: CornerRadius,
+}
+
+impl GhostCardStyle {
+    /// Creates a ghost card style with the given background, stroke, and corner radius.
+    pub fn new(bg: Color32, stroke: Stroke, corner_radius: impl Into<CornerRadius>) -> Self {
+        Self {
+            bg,
+            stroke,
+            corner_radius: corner_radius.into(),
+        }
+    }
+}
 
 /// Outline style of the ghost drop slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -240,10 +260,93 @@ impl DragListState {
         DragOutcome::None
     }
 
+    /// Shows a floating ghost row under the pointer while an item is being dragged.
+    ///
+    /// The ghost appears on [`Order::Tooltip`] offset from the pointer by [`DragListState::grab_offset`],
+    /// matching the row's relative grab position.
+    pub fn show_ghost<R>(
+        &self,
+        ui: &Ui,
+        area_id: Id,
+        card_width: f32,
+        render_body: impl FnOnce(&mut Ui, usize, Rect) -> R,
+    ) -> Option<R> {
+        let active = self.active.as_ref()?;
+        let pointer = ui
+            .ctx()
+            .input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()))?;
+        let ghost_pos = pointer - active.grab_offset;
+        let size = Vec2::new(card_width, active.row_size.y);
+
+        let area_resp = Area::new(area_id)
+            .order(Order::Tooltip)
+            .fade_in(false)
+            .fixed_pos(ghost_pos)
+            .interactable(false)
+            .show(ui.ctx(), |ui| {
+                ui.set_min_size(size);
+                ui.set_max_size(size);
+                let rect = Rect::from_min_size(ui.cursor().min, size);
+                ui.allocate_rect(rect, Sense::hover());
+                render_body(ui, active.from, rect)
+            });
+        Some(area_resp.inner)
+    }
+
+    /// Shows a standard styled ghost card (background, border, and inner content) under the pointer.
+    pub fn show_ghost_card(
+        &self,
+        ui: &Ui,
+        area_id: Id,
+        card_width: f32,
+        style: GhostCardStyle,
+        render_content: impl FnOnce(&mut Ui, usize, Rect),
+    ) {
+        self.show_ghost(ui, area_id, card_width, |ui, from, rect| {
+            ui.painter()
+                .rect_filled(rect, style.corner_radius, style.bg);
+            ui.painter()
+                .rect_stroke(rect, style.corner_radius, style.stroke, StrokeKind::Inside);
+            render_content(ui, from, rect);
+        });
+    }
+
     /// Aborts any running drag without producing a result.
     pub fn cancel(&mut self, ctx: &Context) {
         if self.active.take().is_some() {
             egui::DragAndDrop::clear_payload(ctx);
+        }
+    }
+}
+
+/// Computes the final target drop index in a reorderable list.
+///
+/// Evaluates the pointer position relative to `row_rects` and computes the target
+/// index for the item currently at `dragged_index`.
+///
+/// # Returns
+/// - `0` if the pointer is before the first row.
+/// - The row index between rows where the item will be inserted.
+/// - `row_rects.len() - 1` if the pointer is after the last row.
+/// - `dragged_index` if dropping at this position would not change the item's order (no-op).
+pub fn drop_index(row_rects: &[Rect], pointer_y: f32, dragged_index: usize) -> usize {
+    if row_rects.is_empty() {
+        return 0;
+    }
+    let raw_target = super::reorder::drop_index(pointer_y, row_rects);
+    super::reorder::final_index(dragged_index, raw_target).min(row_rects.len().saturating_sub(1))
+}
+
+/// Draws a standard 6-dot drag handle (2 columns x 3 rows).
+pub fn draw_drag_handle(painter: &Painter, rect: Rect, color: Color32) {
+    let dot_radius = 1.5;
+    let col_spacing = 5.0;
+    let row_spacing = 5.0;
+    let center = rect.center();
+    for col in [-0.5, 0.5] {
+        for row in [-1.0, 0.0, 1.0] {
+            let pos = Pos2::new(center.x + col * col_spacing, center.y + row * row_spacing);
+            painter.circle_filled(pos, dot_radius, color);
         }
     }
 }
@@ -277,5 +380,65 @@ pub fn paint_placeholder(painter: &Painter, rect: Rect, theme: &DragTheme) {
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{pos2, vec2};
+
+    fn make_rows(n: usize, h: f32, gap: f32) -> Vec<Rect> {
+        (0..n)
+            .map(|i| Rect::from_min_size(pos2(0.0, i as f32 * (h + gap)), vec2(100.0, h)))
+            .collect()
+    }
+
+    #[test]
+    fn test_drop_index_before_first() {
+        let rows = make_rows(3, 40.0, 4.0);
+        assert_eq!(drop_index(&rows, -20.0, 1), 0);
+        assert_eq!(drop_index(&rows, -20.0, 2), 0);
+    }
+
+    #[test]
+    fn test_drop_index_between_rows() {
+        let rows = make_rows(3, 40.0, 4.0);
+        // Drag row 0 down between row 1 and row 2 (pointer y = 70.0) -> index 1
+        assert_eq!(drop_index(&rows, 70.0, 0), 1);
+        // Drag row 2 up between row 0 and row 1 (pointer y = 30.0) -> index 1
+        assert_eq!(drop_index(&rows, 30.0, 2), 1);
+    }
+
+    #[test]
+    fn test_drop_index_after_last() {
+        let rows = make_rows(3, 40.0, 4.0);
+        assert_eq!(drop_index(&rows, 200.0, 0), 2);
+        assert_eq!(drop_index(&rows, 200.0, 1), 2);
+    }
+
+    #[test]
+    fn test_drop_index_unchanged_position_noop() {
+        let rows = make_rows(3, 40.0, 4.0);
+        assert_eq!(drop_index(&rows, 20.0, 0), 0);
+        assert_eq!(drop_index(&rows, 64.0, 1), 1);
+        assert_eq!(drop_index(&rows, 108.0, 2), 2);
+    }
+
+    #[test]
+    fn test_headless_drag_row_0_below_row_2() {
+        let mut list = vec!["Alpha", "Beta", "Gamma"];
+        let rows = make_rows(list.len(), 40.0, 4.0);
+
+        // Drag row 0 below row 2 (pointer_y = 200.0)
+        let target_idx = drop_index(&rows, 200.0, 0);
+        assert_eq!(target_idx, 2);
+
+        let raw_insertion = crate::shared::ui::reorder::drop_index(200.0, &rows);
+        assert_eq!(raw_insertion, 3);
+
+        let changed = reorder_item(&mut list, 0, raw_insertion);
+        assert!(changed);
+        assert_eq!(list, vec!["Beta", "Gamma", "Alpha"]);
     }
 }

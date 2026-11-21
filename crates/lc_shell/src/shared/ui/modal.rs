@@ -1,0 +1,277 @@
+//! Universal confirmation & dialog modal component with scrim and keyboard shortcuts.
+//!
+//! Provides a standardized modal dialog supporting custom body closures,
+//! keyboard focus management (Esc cancels, Enter triggers primary/danger),
+//! background scrim overlay, and structured buttons.
+//!
+//! # Usage Example
+//! ```ignore
+//! use lc_shell::shared::ui::modal::{modal, ModalButton, ModalButtonKind, ModalSpec};
+//!
+//! let buttons = [
+//!     ModalButton::new(1, "Discard", ModalButtonKind::Danger),
+//!     ModalButton::new(2, "Cancel", ModalButtonKind::Normal),
+//! ];
+//! let result = modal(ctx, "discard_dialog", ModalSpec {
+//!     title: "Discard Changes?".into(),
+//!     body: |ui| { ui.label("Discard unsaved changes?"); },
+//!     buttons: &buttons,
+//!     width: 320.0,
+//!     default_button: None,
+//! });
+//! ```
+//!
+//! # Safety & Focus Contract
+//! Destructive dialogs (`ModalButtonKind::Danger`) **never** execute on a stray `Enter` key.
+//! When a Danger button is present and no explicit `default_button` is configured, initial
+//! focus safely goes to the Cancel/Normal button. A Danger action requires an explicit mouse click
+//! or deliberate keyboard navigation (Tab to focus it, then Space/Enter).
+//! Enum modals must set `default_button` when they must reproduce legacy behavior;
+//! the enum refactor will verify this with its characterization tests.
+
+use egui::{
+    vec2, Align2, Color32, Context, CornerRadius, Frame, Id, Key, Margin, Order, RichText, Sense,
+    Stroke, Ui,
+};
+use lc_canvas::theme::Tokens;
+
+use super::workspace_metrics::CONTROL_HEIGHT_COMPACT;
+
+/// Visual classification of a modal button determining its emphasis and colour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModalButtonKind {
+    /// Accent-filled primary action.
+    Primary,
+    /// Destructive/danger action (red fill).
+    Danger,
+    /// Subtle/secondary action (e.g. Cancel or Close).
+    Normal,
+}
+
+/// Description of a single modal action button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModalButton<ButtonId> {
+    /// Unique identifier returned when this button is clicked or triggered.
+    pub id: ButtonId,
+    /// Display label for the button.
+    pub label: String,
+    /// Emphasis tier of the button.
+    pub kind: ModalButtonKind,
+}
+
+impl<ButtonId> ModalButton<ButtonId> {
+    /// Constructs a new [`ModalButton`].
+    pub fn new(id: ButtonId, label: impl Into<String>, kind: ModalButtonKind) -> Self {
+        Self {
+            id,
+            label: label.into(),
+            kind,
+        }
+    }
+}
+
+/// Specification for presenting a modal dialog.
+pub struct ModalSpec<'a, ButtonId, F>
+where
+    F: FnOnce(&mut Ui),
+{
+    /// Dialog heading.
+    pub title: String,
+    /// Closure rendering custom body content.
+    pub body: F,
+    /// List of interactive action buttons at the bottom.
+    pub buttons: &'a [ModalButton<ButtonId>],
+    /// Preferred width of the dialog frame in pixels.
+    pub width: f32,
+    /// Explicit button to receive initial keyboard focus.
+    ///
+    /// When `None` and a [`ModalButtonKind::Danger`] button exists, initial focus
+    /// safely defaults to the [`ModalButtonKind::Normal`] button (Cancel).
+    /// Enum modals must set `default_button` when they must reproduce legacy behavior.
+    pub default_button: Option<ButtonId>,
+}
+
+/// Action determined from keyboard events during modal presentation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModalKeyAction {
+    /// Enter key was pressed to trigger the primary or destructive action.
+    TriggerPrimary,
+    /// Escape key was pressed to cancel the dialog.
+    Cancel,
+    /// No modal navigation key was pressed.
+    None,
+}
+
+/// Pure function to evaluate modal keyboard shortcuts.
+pub fn handle_modal_keys(esc_pressed: bool, enter_pressed: bool) -> ModalKeyAction {
+    if esc_pressed {
+        ModalKeyAction::Cancel
+    } else if enter_pressed {
+        ModalKeyAction::TriggerPrimary
+    } else {
+        ModalKeyAction::None
+    }
+}
+
+/// Determines which modal button receives initial keyboard focus.
+///
+/// When an explicit `default_button` is supplied, that button is focused.
+/// If any button has [`ModalButtonKind::Danger`] and no default is set,
+/// initial focus safely defaults to the [`ModalButtonKind::Normal`] button (Cancel).
+/// Otherwise, focus defaults to the [`ModalButtonKind::Primary`] button.
+pub fn determine_initial_focus_button<ButtonId: PartialEq + Clone>(
+    default_button: Option<&ButtonId>,
+    buttons: &[ModalButton<ButtonId>],
+) -> Option<ButtonId> {
+    if let Some(id) = default_button {
+        return Some(id.clone());
+    }
+    let has_danger = buttons.iter().any(|b| b.kind == ModalButtonKind::Danger);
+    if has_danger {
+        buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Normal)
+            .map(|b| b.id.clone())
+    } else {
+        buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Primary)
+            .or_else(|| buttons.first())
+            .map(|b| b.id.clone())
+    }
+}
+
+/// Resolves a [`ModalKeyAction`] to a specific button ID from the available buttons.
+///
+/// Enter (`TriggerPrimary`) triggers only a [`ModalButtonKind::Primary`] button,
+/// **NEVER** a [`ModalButtonKind::Danger`] button. A destructive action requires an explicit
+/// click or tabbing to focus it first.
+pub fn resolve_modal_action<ButtonId: Clone>(
+    action: ModalKeyAction,
+    buttons: &[ModalButton<ButtonId>],
+) -> Option<ButtonId> {
+    match action {
+        ModalKeyAction::TriggerPrimary => buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Primary)
+            .map(|b| b.id.clone()),
+        ModalKeyAction::Cancel => buttons
+            .iter()
+            .find(|b| b.kind == ModalButtonKind::Normal)
+            .or_else(|| buttons.last())
+            .map(|b| b.id.clone()),
+        ModalKeyAction::None => None,
+    }
+}
+
+/// Renders a modal dialog over a scrim covering the whole window.
+///
+/// Returns `Some(ButtonId)` if a button was clicked or triggered via keyboard.
+/// Outside clicks are absorbed and do NOT close the modal.
+pub fn modal<ButtonId, F>(
+    ctx: &Context,
+    id: impl egui::AsId,
+    spec: ModalSpec<'_, ButtonId, F>,
+) -> Option<ButtonId>
+where
+    ButtonId: Clone + PartialEq + 'static,
+    F: FnOnce(&mut Ui),
+{
+    let base_id = Id::new(id);
+    let mut clicked_button = None;
+
+    // 1. Scrim overlay: covers the entire screen, blocks clicks underneath.
+    let screen_rect = ctx.viewport_rect();
+    egui::Area::new(base_id.with("scrim_area"))
+        .order(Order::Middle)
+        .fixed_pos(screen_rect.min)
+        .show(ctx, |ui| {
+            let (rect, _resp) = ui.allocate_exact_size(screen_rect.size(), Sense::click_and_drag());
+            ui.painter()
+                .rect_filled(rect, CornerRadius::ZERO, Color32::from_black_alpha(160));
+        });
+
+    let initial_focus_id =
+        determine_initial_focus_button(spec.default_button.as_ref(), spec.buttons);
+
+    // 2. Dialog window centered in foreground
+    egui::Area::new(base_id.with("dialog_area"))
+        .order(Order::Foreground)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            let t = Tokens::get(ctx);
+            Frame::new()
+                .fill(t.panel)
+                .stroke(Stroke::new(1.0, t.line_strong))
+                .corner_radius(CornerRadius::same(6))
+                .inner_margin(Margin::same(16))
+                .show(ui, |ui| {
+                    ui.set_width(spec.width);
+
+                    // Heading
+                    ui.heading(RichText::new(&spec.title).strong().color(t.ink_strong));
+                    ui.add_space(8.0);
+
+                    // Body
+                    (spec.body)(ui);
+                    ui.add_space(16.0);
+
+                    // Action buttons
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        for btn in spec.buttons {
+                            let mut button_widget = egui::Button::new(match btn.kind {
+                                ModalButtonKind::Danger => {
+                                    RichText::new(&btn.label).color(Color32::WHITE)
+                                }
+                                ModalButtonKind::Primary => {
+                                    RichText::new(&btn.label).color(t.invert_fg)
+                                }
+                                ModalButtonKind::Normal => RichText::new(&btn.label).color(t.ink),
+                            })
+                            .min_size(vec2(0.0, CONTROL_HEIGHT_COMPACT));
+
+                            match btn.kind {
+                                ModalButtonKind::Danger => {
+                                    button_widget =
+                                        button_widget.fill(Color32::from_rgb(220, 38, 38));
+                                }
+                                ModalButtonKind::Primary => {
+                                    button_widget = button_widget.fill(t.accent);
+                                }
+                                ModalButtonKind::Normal => {
+                                    button_widget =
+                                        button_widget.fill(t.sunken).stroke(t.hairline());
+                                }
+                            }
+
+                            let resp = ui.add(button_widget);
+                            if Some(&btn.id) == initial_focus_id.as_ref()
+                                && ui.memory(|m| m.focused().is_none())
+                            {
+                                resp.request_focus();
+                            }
+
+                            if resp.clicked() {
+                                clicked_button = Some(btn.id.clone());
+                            }
+                        }
+                    });
+                });
+        });
+
+    // 3. Keyboard shortcut processing (Enter triggers Primary only; never Danger without focus)
+    if clicked_button.is_none() {
+        let esc = ctx.input(|i| i.key_pressed(Key::Escape));
+        let enter = ctx.input(|i| i.key_pressed(Key::Enter));
+        let key_action = handle_modal_keys(esc, enter);
+        if let Some(btn_id) = resolve_modal_action(key_action, spec.buttons) {
+            clicked_button = Some(btn_id);
+        }
+    }
+
+    clicked_button
+}
+
+#[cfg(test)]
+mod tests;

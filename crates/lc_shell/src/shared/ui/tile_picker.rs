@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use egui::{
-    vec2, Color32, ColorImage, CornerRadius, CursorIcon, Frame, Id, Margin, Modifiers, Order,
-    PointerButton, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureHandle, TextureOptions,
+    vec2, Color32, ColorImage, CornerRadius, Frame, Id, Margin, Modifiers, Order, PointerButton,
+    Pos2, Rect, RichText, Stroke, TextureHandle, TextureOptions,
 };
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
@@ -27,23 +27,9 @@ const PAGE_BG_BYTES: &[u8] =
 /// Page-space edge length of one repetition of the page background pattern.
 ///
 /// Expressed in tileset (page) pixels, so on screen one cell measures
-/// `PAGE_BG_CELL * zoom`: the pattern keeps its size relative to the artwork
-/// and never shrinks when the user zooms in.
-pub const PAGE_BG_CELL: f32 = 16.0;
-
-/// UV rectangle that repeats the page background across a page-space `rect`.
-///
-/// The texture is uploaded with [`TextureOptions::NEAREST_REPEAT`], so texture
-/// coordinates beyond `1.0` simply start the pattern over again.
-pub fn page_bg_uv(rect: Rect) -> Rect {
-    Rect::from_min_size(
-        Pos2::ZERO,
-        vec2(
-            (rect.width() / PAGE_BG_CELL).max(0.0),
-            (rect.height() / PAGE_BG_CELL).max(0.0),
-        ),
-    )
-}
+pub use super::atlas_canvas::{
+    page_bg_uv, render_atlas_canvas, AtlasCanvasState, AtlasEvent, PickerView, PAGE_BG_CELL,
+};
 
 /// Event emitted by the [`TilePicker`] component after user interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,55 +102,6 @@ pub struct CachedTextureInfo {
     pub real_size: (u32, u32),
     pub texture_size: (u32, u32),
     pub scale: f32,
-}
-
-/// View transformation between unscaled page coordinates and screen pixels.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PickerView {
-    /// Zoom scale factor from page pixels to screen pixels.
-    pub zoom: f32,
-    /// Screen pixel position where page (0, 0) is drawn.
-    pub offset: egui::Vec2,
-}
-
-impl Default for PickerView {
-    fn default() -> Self {
-        Self {
-            zoom: 1.0,
-            offset: egui::Vec2::ZERO,
-        }
-    }
-}
-
-impl PickerView {
-    /// Creates a new `PickerView`.
-    pub fn new(zoom: f32, offset: egui::Vec2) -> Self {
-        Self { zoom, offset }
-    }
-
-    /// Converts a point in page coordinates to screen pixels (snapped to whole pixels).
-    pub fn page_to_screen(&self, page_pos: Pos2) -> Pos2 {
-        Pos2::new(
-            (page_pos.x * self.zoom + self.offset.x).round(),
-            (page_pos.y * self.zoom + self.offset.y).round(),
-        )
-    }
-
-    /// Converts a screen pixel position to page coordinates.
-    pub fn screen_to_page(&self, screen_pos: Pos2) -> Pos2 {
-        Pos2::new(
-            (screen_pos.x - self.offset.x) / self.zoom,
-            (screen_pos.y - self.offset.y) / self.zoom,
-        )
-    }
-
-    /// Converts a page rectangle to a screen pixel rectangle.
-    pub fn page_to_screen_rect(&self, page_rect: Rect) -> Rect {
-        Rect::from_min_max(
-            self.page_to_screen(page_rect.min),
-            self.page_to_screen(page_rect.max),
-        )
-    }
 }
 
 /// Target identifying which enum and value opened the tile picker.
@@ -490,7 +427,7 @@ impl TilePicker {
         ui: &mut egui::Ui,
         t: &Tokens,
         tileset: &TilesetData,
-        popup_rect: Rect,
+        _popup_rect: Rect,
         event: &mut TilePickerEvent,
     ) {
         // Detect tileset switch to trigger auto-fit
@@ -555,430 +492,57 @@ impl TilePicker {
         let rows = (eff_h + spacing).checked_div(stride_y).unwrap_or(0);
         let grid = TileGrid::new(tile_w, tile_h, spacing, padding, cols, rows);
 
-        // 1. Allocate exact viewport rect (Canvas)
-        let (viewport_rect, response) =
-            ui.allocate_exact_size(popup_rect.size(), Sense::click_and_drag());
-        let viewport_w = viewport_rect.width();
-        let viewport_h = viewport_rect.height();
-
-        // 2. Initial zoom & Centering on open (Section 1)
-        if self.needs_initial_fit {
-            let avail_w = (viewport_w - 48.0).max(10.0);
-            let avail_h = (viewport_h - 48.0).max(10.0);
-            let fit_zoom = if img_w > 0 && img_h > 0 {
-                (avail_w / img_w as f32)
-                    .min(avail_h / img_h as f32)
-                    .clamp(0.25, 32.0)
-            } else {
-                1.0
-            };
-            self.view.zoom = fit_zoom;
-            let zoomed_w = img_w as f32 * fit_zoom;
-            let zoomed_h = img_h as f32 * fit_zoom;
-            let center_x = viewport_rect.min.x + (viewport_w - zoomed_w) / 2.0;
-            let center_y = viewport_rect.min.y + (viewport_h - zoomed_h) / 2.0;
-            self.view.offset = vec2(center_x.round(), center_y.round());
-            self.needs_initial_fit = false;
-        }
-
-        // 3. Navigation Controls (Section 1)
-        // Space + left-drag or middle-drag to pan
-        let space_down = ui.ctx().input(|i| i.key_down(egui::Key::Space));
-        if space_down {
-            ui.ctx().set_cursor_icon(CursorIcon::Grab);
-        }
-
-        if response.dragged_by(PointerButton::Middle)
-            || (space_down && response.dragged_by(PointerButton::Primary))
-        {
-            if space_down {
-                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
-            }
-            self.view.offset += response.drag_delta();
-        }
-
-        // Mouse wheel: scroll for vertical, Shift+scroll for horizontal
-        let (modifiers, scroll_delta) = ui.ctx().input(|i| (i.modifiers, i.smooth_scroll_delta));
-        if !modifiers.ctrl
-            && !modifiers.command
-            && (scroll_delta.x.abs() > 0.0 || scroll_delta.y.abs() > 0.0)
-        {
-            if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                if viewport_rect.contains(cursor) {
-                    if modifiers.shift {
-                        let dx = if scroll_delta.x.abs() > 0.0 {
-                            scroll_delta.x
-                        } else {
-                            scroll_delta.y
-                        };
-                        self.view.offset.x += dx;
-                    } else {
-                        self.view.offset.y += scroll_delta.y;
-                        if scroll_delta.x.abs() > 0.0 {
-                            self.view.offset.x += scroll_delta.x;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Ctrl+scroll (zoom_delta) to zoom toward the cursor
-        let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
-        if (zoom_delta - 1.0).abs() > 0.001 {
-            if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                if viewport_rect.contains(cursor) {
-                    let page_cursor = self.view.screen_to_page(cursor);
-                    let old_zoom = self.view.zoom;
-                    let new_zoom = (old_zoom * zoom_delta).clamp(0.25, 32.0);
-                    if (new_zoom - old_zoom).abs() > 0.0001 {
-                        self.view.offset.x = (cursor.x - page_cursor.x * new_zoom).round();
-                        self.view.offset.y = (cursor.y - page_cursor.y * new_zoom).round();
-                        self.view.zoom = new_zoom;
-                    }
-                }
-            }
-        }
-
-        // Workspace size = zoomed page size + margin on all 4 sides (Section 1)
-        let zoomed_w = img_w as f32 * self.view.zoom;
-        let zoomed_h = img_h as f32 * self.view.zoom;
-        self.view.offset.x = self.view.offset.x.clamp(
-            viewport_rect.min.x + 24.0 - zoomed_w,
-            viewport_rect.max.x - 24.0,
-        );
-        self.view.offset.y = self.view.offset.y.clamp(
-            viewport_rect.min.y + 24.0 - zoomed_h,
-            viewport_rect.max.y - 24.0,
-        );
-
-        // 4. Multi-select with Right Click Drag (Section 3)
-        let right_pressed = ui
-            .ctx()
-            .input(|i| i.pointer.button_pressed(PointerButton::Secondary));
-        let right_down = ui
-            .ctx()
-            .input(|i| i.pointer.button_down(PointerButton::Secondary));
-        let right_released = ui
-            .ctx()
-            .input(|i| i.pointer.button_released(PointerButton::Secondary));
-
-        if right_pressed {
-            if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
-                if viewport_rect.contains(pos) && cols > 0 && rows > 0 {
-                    let page_pos = self.view.screen_to_page(pos);
-                    let stride_xf = stride_x.max(1) as f32;
-                    let stride_yf = stride_y.max(1) as f32;
-                    let rel_x = page_pos.x - padding as f32;
-                    let rel_y = page_pos.y - padding as f32;
-                    let col = (rel_x / stride_xf)
-                        .floor()
-                        .clamp(0.0, cols.saturating_sub(1) as f32)
-                        as u32;
-                    let row = (rel_y / stride_yf)
-                        .floor()
-                        .clamp(0.0, rows.saturating_sub(1) as f32)
-                        as u32;
-
-                    self.drag_start_cell = Some((col, row));
-                    self.is_right_dragging = true;
-                    let single_rect = TileRect::single(col, row);
-                    self.live_drag_rect = Some(single_rect);
-                    self.selected_tile_rect = Some(single_rect);
-                }
-            }
-        }
-
-        if self.is_right_dragging && right_down {
-            if let Some(start_cell) = self.drag_start_cell {
-                if let Some(curr_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                    // Auto-scroll when nearing viewport edge (24 px)
-                    let edge_margin = 24.0;
-                    let scroll_step = 6.0;
-                    let mut auto_scroll = vec2(0.0, 0.0);
-                    if curr_pos.x < viewport_rect.min.x + edge_margin {
-                        auto_scroll.x += scroll_step;
-                    }
-                    if curr_pos.x > viewport_rect.max.x - edge_margin {
-                        auto_scroll.x -= scroll_step;
-                    }
-                    if curr_pos.y < viewport_rect.min.y + edge_margin {
-                        auto_scroll.y += scroll_step;
-                    }
-                    if curr_pos.y > viewport_rect.max.y - edge_margin {
-                        auto_scroll.y -= scroll_step;
-                    }
-                    if auto_scroll != vec2(0.0, 0.0) {
-                        self.view.offset += auto_scroll;
-                        ui.ctx().request_repaint();
-                    }
-
-                    let curr_page = self.view.screen_to_page(curr_pos);
-                    let stride_xf = stride_x.max(1) as f32;
-                    let stride_yf = stride_y.max(1) as f32;
-                    let rel_x = curr_page.x - padding as f32;
-                    let rel_y = curr_page.y - padding as f32;
-                    let end_col = (rel_x / stride_xf)
-                        .floor()
-                        .clamp(0.0, cols.saturating_sub(1) as f32)
-                        as u32;
-                    let end_row = (rel_y / stride_yf)
-                        .floor()
-                        .clamp(0.0, rows.saturating_sub(1) as f32)
-                        as u32;
-
-                    let sel =
-                        TileRect::from_cells(start_cell, (end_col, end_row)).clamp(cols, rows);
-                    self.live_drag_rect = Some(sel);
-                    self.selected_tile_rect = Some(sel);
-                }
-            }
-        }
-
-        if self.is_right_dragging && right_released {
-            self.is_right_dragging = false;
-            self.drag_start_cell = None;
-            if let Some(sel) = self.live_drag_rect.take().or(self.selected_tile_rect) {
-                self.selected_tile_rect = Some(sel);
-                self.is_open = false;
-                *event = TilePickerEvent::Selected(sel);
-            }
-        }
-
-        // 5. Hover Detection & Left Click (Section 3 & 5)
-        let mut hovered_c_r = None;
-        let mut hovered_tid = None;
-        if !self.is_right_dragging && !space_down {
-            if let Some(mpos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                if viewport_rect.contains(mpos) {
-                    let page_pos = self.view.screen_to_page(mpos);
-                    if let Some(cell) = grid.cell_at(page_pos) {
-                        hovered_c_r = Some(cell);
-                        hovered_tid = Some(grid.tile_id(cell.0, cell.1));
-                        ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-                    }
-                }
-            }
-        }
-        self.hovered_tile = hovered_tid;
-
-        // Left click selects 1x1 TileRect and closes (Section 5)
-        if !self.is_right_dragging && !space_down && response.clicked() {
-            if let Some(cell) = hovered_c_r {
-                let sel = TileRect::single(cell.0, cell.1);
-                self.selected_tile_rect = Some(sel);
-                self.is_open = false;
-                *event = TilePickerEvent::Selected(sel);
-            }
-        }
-
-        // 6. Rendering (Painter with viewport clip)
-        let painter = ui.painter().with_clip_rect(viewport_rect);
-
-        // Workspace background (Section 1)
-        painter.rect_filled(viewport_rect, CornerRadius::ZERO, t.canvas);
-
-        // Page panel bounds
-        let page_rect = Rect::from_min_size(Pos2::ZERO, vec2(img_w as f32, img_h as f32));
-        let screen_page_rect = self.view.page_to_screen_rect(page_rect);
-
-        // Drop shadow behind the page — fixed in screen pixels so it never
-        // grows or shrinks when the user zooms in or out.
-        painter.add(
-            egui::epaint::Shadow {
-                offset: [4, 6],
-                blur: 14,
-                spread: 0,
-                color: Color32::from_black_alpha(130),
-            }
-            .as_shape(screen_page_rect, CornerRadius::ZERO),
-        );
-
-        // Opaque page: flat fallback first, then the neutral tiled background.
-        // This replaces the transparency checkerboard, so alpha tiles sit on a
-        // readable, non-transparent surface that covers the whole tileset.
-        // The pattern is tiled in page space, so it zooms together with the
-        // tileset and keeps its size relative to the artwork.
-        painter.rect_filled(screen_page_rect, CornerRadius::ZERO, t.panel);
-        if let Some(bg) = self.page_background(ui.ctx()) {
-            painter.image(
-                bg.id(),
-                screen_page_rect,
-                page_bg_uv(page_rect),
-                Color32::WHITE,
-            );
-        }
-
-        // Render tileset texture with NEAREST filtering
-        painter.image(
-            tex_info.handle.id(),
-            screen_page_rect,
-            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-            Color32::WHITE,
-        );
-
-        // Page outline — always 2 screen pixels regardless of zoom level.
-        // Using StrokeKind::Outside so it frames the tileset without
-        // covering edge tiles at any zoom.
-        painter.rect_stroke(
-            screen_page_rect,
-            CornerRadius::ZERO,
-            Stroke::new(2.0, Color32::BLACK),
-            StrokeKind::Outside,
-        );
-
-        // 7. Grid Lines (Section 2: drawn strictly inside page bounds, culled)
-        if self.show_grid && cols > 0 && rows > 0 {
-            let grid_clip = screen_page_rect.intersect(viewport_rect);
-            let grid_painter = painter.with_clip_rect(grid_clip);
-            let step_x = (stride_x as f32 * self.view.zoom).round();
-            let step_y = (stride_y as f32 * self.view.zoom).round();
-
-            if step_x >= 4.0 && step_y >= 4.0 {
-                let grid_stroke = Stroke::new(1.0, Color32::from_white_alpha(35));
-                let mut shapes = Vec::new();
-
-                for c in 0..=cols {
-                    let page_x = if c < cols {
-                        grid.cell_rect(c, 0).min.x
-                    } else {
-                        grid.cell_rect(cols - 1, 0).max.x
-                    };
-                    let screen_x = (page_x * self.view.zoom + self.view.offset.x).round();
-                    if screen_x >= grid_clip.min.x && screen_x <= grid_clip.max.x {
-                        shapes.push(egui::Shape::line_segment(
-                            [
-                                Pos2::new(screen_x, grid_clip.min.y),
-                                Pos2::new(screen_x, grid_clip.max.y),
-                            ],
-                            grid_stroke,
-                        ));
-                    }
-                }
-
-                for r in 0..=rows {
-                    let page_y = if r < rows {
-                        grid.cell_rect(0, r).min.y
-                    } else {
-                        grid.cell_rect(0, rows - 1).max.y
-                    };
-                    let screen_y = (page_y * self.view.zoom + self.view.offset.y).round();
-                    if screen_y >= grid_clip.min.y && screen_y <= grid_clip.max.y {
-                        shapes.push(egui::Shape::line_segment(
-                            [
-                                Pos2::new(grid_clip.min.x, screen_y),
-                                Pos2::new(grid_clip.max.x, screen_y),
-                            ],
-                            grid_stroke,
-                        ));
-                    }
-                }
-
-                grid_painter.extend(shapes);
-            }
-        }
-
-        // 8. Selection Highlight (Section 3: live drag cyan or committed amber)
-        let active_sel = self.live_drag_rect.or(self.selected_tile_rect);
-        if let Some(sel) = active_sel {
-            if cols > 0 && rows > 0 {
-                let clamped = sel.clamp(cols, rows);
-                let page_union = clamped.union_rect(&grid);
-                let screen_box = self.view.page_to_screen_rect(page_union);
-
-                if self.is_right_dragging {
-                    // While dragging: cyan stroke 2px, subtle transparent cyan fill
-                    painter.rect_filled(
-                        screen_box,
-                        CornerRadius::ZERO,
-                        Color32::from_rgba_unmultiplied(61, 214, 184, 45),
-                    );
-                    painter.rect_stroke(
-                        screen_box,
-                        CornerRadius::ZERO,
-                        Stroke::new(2.0, t.accent),
-                        StrokeKind::Inside,
-                    );
-                } else {
-                    // Committed selection: amber/gold 2.5px
-                    painter.rect_filled(
-                        screen_box,
-                        CornerRadius::ZERO,
-                        Color32::from_rgba_unmultiplied(255, 193, 77, 60),
-                    );
-                    painter.rect_stroke(
-                        screen_box,
-                        CornerRadius::ZERO,
-                        Stroke::new(2.5, Color32::from_rgb(255, 193, 77)),
-                        StrokeKind::Inside,
-                    );
-                }
-            }
-        }
-
-        // 9. Single Tile Hover Highlight Box (when not dragging)
-        if !self.is_right_dragging {
-            if let Some(cell) = hovered_c_r {
-                let cell_page = grid.cell_rect(cell.0, cell.1);
-                let cell_screen = self.view.page_to_screen_rect(cell_page);
-                painter.rect_filled(
-                    cell_screen,
-                    CornerRadius::ZERO,
-                    Color32::from_rgba_unmultiplied(61, 214, 184, 45),
-                );
-                painter.rect_stroke(
-                    cell_screen,
-                    CornerRadius::ZERO,
-                    Stroke::new(1.5, t.accent),
-                    StrokeKind::Inside,
-                );
-            }
-        }
-
-        // 10. Tile ID / Dimensions Badge (Section 3: "#742 (3x2)" or "#742")
-        let active_rect = self.live_drag_rect.or(self.selected_tile_rect);
-        let badge_info = if let Some(r) = active_rect {
-            if cols > 0 && rows > 0 {
-                let c = r.clamp(cols, rows);
-                let id = c.top_left_id(&grid);
-                if c.w > 1 || c.h > 1 {
-                    Some(format!("#{id} ({}x{})", c.w, c.h))
-                } else {
-                    Some(format!("#{id}"))
-                }
-            } else {
-                None
-            }
-        } else {
-            self.hovered_tile.map(|id| format!("#{id}"))
+        let mut canvas_state = AtlasCanvasState {
+            view: self.view,
+            hovered_tile: self.hovered_tile,
+            selected_tile_rect: self.selected_tile_rect,
+            live_drag_rect: self.live_drag_rect,
+            drag_start_cell: self.drag_start_cell,
+            is_right_dragging: self.is_right_dragging,
+            show_grid: self.show_grid,
+            needs_initial_fit: self.needs_initial_fit,
         };
 
-        if let Some(badge_text) = badge_info {
-            let font_id = egui::FontId::monospace(12.0);
-            let galley = ui
-                .painter()
-                .layout_no_wrap(badge_text, font_id, t.ink_strong);
-            let badge_padding = vec2(8.0, 5.0);
-            let badge_size = galley.size() + badge_padding * 2.0;
+        let bg_handle = self.page_background(ui.ctx());
+        let (_, events) = render_atlas_canvas(
+            ui,
+            t,
+            &mut canvas_state,
+            &tex_info.handle,
+            bg_handle.as_ref(),
+            &grid,
+            vec2(img_w as f32, img_h as f32),
+            None,
+            None,
+        );
 
-            let badge_pos = Pos2::new(
-                popup_rect.right() - badge_size.x - 12.0,
-                popup_rect.top() + 12.0,
-            );
-            let badge_rect = Rect::from_min_size(badge_pos, badge_size);
+        self.view = canvas_state.view;
+        self.hovered_tile = canvas_state.hovered_tile;
+        self.selected_tile_rect = canvas_state.selected_tile_rect;
+        self.live_drag_rect = canvas_state.live_drag_rect;
+        self.drag_start_cell = canvas_state.drag_start_cell;
+        self.is_right_dragging = canvas_state.is_right_dragging;
+        self.needs_initial_fit = canvas_state.needs_initial_fit;
 
-            let badge_painter = ui.painter().with_clip_rect(popup_rect);
-            badge_painter.rect_filled(
-                badge_rect,
-                CornerRadius::ZERO,
-                Color32::from_black_alpha(220),
-            );
-            badge_painter.rect_stroke(
-                badge_rect,
-                CornerRadius::ZERO,
-                Stroke::new(1.0, t.line_strong),
-                StrokeKind::Inside,
-            );
-            badge_painter.galley(badge_pos + badge_padding, galley, t.ink_strong);
+        for ev in events {
+            match ev {
+                AtlasEvent::DragRectEnd(sel) => {
+                    self.selected_tile_rect = Some(sel);
+                    self.is_open = false;
+                    *event = TilePickerEvent::Selected(sel);
+                }
+                AtlasEvent::Clicked {
+                    cell,
+                    button: PointerButton::Primary,
+                    ..
+                } => {
+                    let sel = TileRect::single(cell.0, cell.1);
+                    self.selected_tile_rect = Some(sel);
+                    self.is_open = false;
+                    *event = TilePickerEvent::Selected(sel);
+                }
+                _ => {}
+            }
         }
     }
 
