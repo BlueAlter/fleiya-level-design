@@ -93,6 +93,23 @@ Setiap workspace harus menggunakan nilai metrik yang konsisten:
 
 ---
 
+### E. Standar Input Teks (text_field: Slot Filling, Padding 8, Outline Preset)
+* **Masalah**: Standar `TextEdit::singleline` di egui memiliki lebar bawaan 280 px (`text_edit_width`) dan perataan teks atas (`Align::TOP`). Hal ini menyebabkan text field tidak memenuhi lebar slot body/form, menyisakan celah kosong yang tidak rapi, teks tidak berada di tengah vertikal kontrol, serta memicu penggambaran garis batas ganda jika pemanggil menggambar bingkai sendiri.
+* **Solusi**:
+  1. **Lebar Penuh & Tinggi 32 px**: `text_field` selalu mengisi seluruh lebar yang tersedia (`width = ui.available_width()`) menggunakan `.desired_width(f32::INFINITY)` dan `.min_size(vec2(width, CONTROL_HEIGHT_FORM))`, kemudian dialokasikan dengan `ui.add_sized([width, CONTROL_HEIGHT_FORM], edit)`. Teks panjang (300+ karakter) di-clip dan tidak mengubah ukuran rect kontrol.
+  2. **Padding 8 px & Vertikal Tengah**: Margin horizontal 8 px dan vertikal 0 px diletakkan langsung di dalam `egui::Frame` (`inner_margin(Margin::symmetric(8, 0))`) dipadukan dengan `.vertical_align(Align::Center)` sehingga titik tengah vertikal teks persis sama dengan titik tengah field (toleransi 0.5 px).
+  3. **Preset Outline (FieldOutline)**: Garis tepi dikonfigurasi melalui preset `FieldOutline`:
+     - `FieldOutline::None`: Tidak ada garis tepi saat normal.
+     - `FieldOutline::Hairline`: Garis tepi 1.0 px (`t.hairline()`).
+     - `FieldOutline::Color(Color32)`: Garis tepi warna 1.5 px (contohnya badge warna enum).
+  4. **Tepat Satu Outline per Field**:
+     - Status Error (`style.error` terisi): Menampilkan garis stroke `t.bad` (1.0 px) dan tooltip hover.
+     - Status Fokus (`response.has_focus()`): Menampilkan garis stroke aksen `t.accent` (1.0 px).
+     - Status Normal: Mengikuti preset `FieldOutline`.
+     - Seluruh garis digambar di `response.rect` dengan radius sudut 3 px (`CornerRadius::same(3)`) dan `StrokeKind::Inside`. Pemanggil dilarang menggambar stroke tambahan di luar kontrol.
+
+---
+
 ## 4. Pengujian Geometri / Rect Test (*Pixel Locking*)
 
 Setiap workspace baru wajib dilengkapi tes integrasi headless (misalnya `tests/<workspace>_workspace_rects_test.rs`) untuk mengunci tata letak:
