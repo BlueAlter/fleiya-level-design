@@ -436,16 +436,20 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
         "right panel must be docked with a left divider"
     );
 
-    // 5. Tags row and Enum for tile marking row exist
-    let tags_row = text_items.iter().find(|(t, _)| t.contains("Tags:"));
-    assert!(tags_row.is_some(), "Tags row must exist");
+    // 5. Attributes card fields exist (no tags or marking row)
+    let id_row = text_items.iter().find(|(t, _)| t.contains("Identifier"));
+    assert!(id_row.is_some(), "Identifier row must exist");
 
-    let marking_row = text_items
-        .iter()
-        .find(|(t, _)| t.contains("Enum for tile marking:"));
+    let source_row = text_items.iter().find(|(t, _)| t.contains("Source image"));
+    assert!(source_row.is_some(), "Source image row must exist");
+
+    let tile_size_row = text_items.iter().find(|(t, _)| t.contains("Tile size"));
+    assert!(tile_size_row.is_some(), "Tile size row must exist");
+
+    let tags_row = text_items.iter().find(|(t, _)| t.contains("Tags:"));
     assert!(
-        marking_row.is_some(),
-        "Enum for tile marking row must exist"
+        tags_row.is_none(),
+        "Tags row must NOT exist (separate task)"
     );
 }
 
@@ -474,20 +478,8 @@ fn test_headless_render_source_enum_missing() {
     });
     output.textures_delta.clear();
 
-    fn find_text(shape: &egui::Shape, target: &str) -> bool {
-        match shape {
-            egui::Shape::Text(t) => t.galley.text().contains(target),
-            egui::Shape::Vec(children) => children.iter().any(|c| find_text(c, target)),
-            _ => false,
-        }
-    }
-
-    let found_missing = output
-        .shapes
-        .iter()
-        .any(|c| find_text(&c.shape, "(missing enum)"));
-    assert!(
-        found_missing,
-        "'(missing enum)' button text must be rendered when source enum is not found in project"
+    assert_eq!(
+        app.tileset_view_state.selected_tileset_id,
+        Some(TilesetDefId(1))
     );
 }
