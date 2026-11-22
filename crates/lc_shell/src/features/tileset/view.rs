@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{vec2, Button, CornerRadius, Id, RichText, Ui};
+use egui::{vec2, Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText, Sense, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -21,10 +21,11 @@ use super::left_panel::render_left_panel;
 use super::right_panel::render_right_panel;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
-use crate::shared::ui::def_workspace::{def_footer, def_panel_width};
+use crate::shared::ui::def_workspace::{def_footer, def_panel_width, DEF_FOOTER_HEIGHT};
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::render_document_page;
 use crate::shared::ui::sub_tabs::sub_tabs;
+use crate::shared::ui::workspace_metrics::{CONTROL_HEIGHT_COMPACT, WORKSPACE_PADDING};
 
 /// Sub-tab index for the tileset definition editor.
 pub const TILESET_DEF_SUB_TAB: usize = 0;
@@ -195,24 +196,61 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
     });
 
     let left_w = def_panel_width();
-
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-
-        // Left Panel
-        ui.allocate_ui(vec2(left_w, full_rect.height()), |ui| {
-            render_left_panel(app, ui, &t, dialog_mgr.as_ref(), &mut drag_state);
-        });
-
-        // Detail / Workspace Area
-        let detail_w = ui.available_width().max(0.0);
-        ui.allocate_ui(vec2(detail_w, full_rect.height()), |ui| {
-            render_detail_area(app, ui, &t, &dialog_mgr);
-        });
+    let left_rect = Rect::from_min_max(
+        full_rect.min,
+        Pos2::new(full_rect.min.x + left_w, full_rect.max.y),
+    );
+    ui.scope_builder(egui::UiBuilder::new().max_rect(left_rect), |ui| {
+        render_left_panel(app, ui, &t, dialog_mgr.as_ref(), &mut drag_state);
     });
 
     ui.ctx()
         .data_mut(|d| d.insert_temp(drag_state_id, drag_state));
+
+    let tileset = app
+        .tileset_view_state
+        .selected_tileset_id
+        .and_then(|id| app.project.defs.tileset(id).cloned());
+
+    let sections = sections_for(app.tileset_view_state.active_sub_tab);
+
+    let content_bottom = if tileset.is_some() && sections.footer {
+        let footer_top = full_rect.max.y - DEF_FOOTER_HEIGHT;
+        let footer_rect = Rect::from_min_max(Pos2::new(left_rect.max.x, footer_top), full_rect.max);
+        ui.scope_builder(egui::UiBuilder::new().max_rect(footer_rect), |ui| {
+            if let Some(ref ts) = tileset {
+                let (layers_count, enums_count) = tileset_usage_counts(&app.project, ts.id);
+                let left_text = format!(
+                    "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
+                    ts.id.0, layers_count, enums_count
+                );
+                def_footer(ui, &t, &left_text, |_| {});
+            }
+        });
+        footer_top - WORKSPACE_PADDING
+    } else {
+        full_rect.max.y - WORKSPACE_PADDING
+    };
+
+    let content_rect = Rect::from_min_max(
+        Pos2::new(
+            left_rect.max.x + WORKSPACE_PADDING,
+            full_rect.min.y + WORKSPACE_PADDING,
+        ),
+        Pos2::new(full_rect.max.x - WORKSPACE_PADDING, content_bottom),
+    );
+
+    ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
+        render_detail_area(
+            app,
+            ui,
+            &t,
+            &dialog_mgr,
+            tileset.as_ref(),
+            sections,
+            content_rect,
+        );
+    });
 }
 
 /// Renders the main content area to the right of the tileset list.
@@ -221,13 +259,11 @@ fn render_detail_area(
     ui: &mut Ui,
     t: &Tokens,
     dialogs: &Arc<TilesetDialogManager>,
+    tileset: Option<&TilesetDef>,
+    sections: DetailSections,
+    content_rect: Rect,
 ) {
-    let tileset = app
-        .tileset_view_state
-        .selected_tileset_id
-        .and_then(|id| app.project.defs.tileset(id).cloned());
-
-    if tileset.is_none() {
+    let Some(tileset) = tileset else {
         // Empty State: No tilesets
         ui.centered_and_justified(|ui| {
             ui.vertical_centered(|ui| {
@@ -250,48 +286,22 @@ fn render_detail_area(
             });
         });
         return;
-    }
-
-    let tileset = tileset.unwrap();
-    let sections = sections_for(app.tileset_view_state.active_sub_tab);
+    };
 
     ui.vertical(|ui| {
-        // Sub-tabs on the very top: [TILESET DEF | DOCUMENT]
         ui.spacing_mut().item_spacing.y = 0.0;
-        ui.add_space(12.0);
-        ui.allocate_ui(vec2(ui.available_width(), 28.0), |ui| {
-            ui.horizontal_centered(|ui| {
-                ui.add_space(12.0);
-                let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
-                sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
-            });
+
+        // Sub-tabs at top: [TILESET DEF | DOCUMENT]
+        Frame::new().fill(Color32::TRANSPARENT).show(ui, |ui| {
+            ui.set_min_height(CONTROL_HEIGHT_COMPACT);
+            ui.set_max_height(CONTROL_HEIGHT_COMPACT);
+            let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
+            sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
         });
-
-        ui.add_space(6.0);
-
-        // Header title row & description (only for TILESET DEF tab, below sub-tabs)
-        if sections.title {
-            ui.horizontal(|ui| {
-                ui.add_space(12.0);
-                ui.label(
-                    RichText::new(format!("{} (Tileset)", tileset.name))
-                        .font(egui::FontId::proportional(18.0))
-                        .color(t.ink_strong),
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.add_space(12.0);
-                ui.label(
-                    RichText::new(tr(keys::DESCRIPTION))
-                        .font(egui::FontId::proportional(12.0))
-                        .color(t.muted),
-                );
-            });
-            ui.add_space(6.0);
-        }
 
         // Content dispatch based on sub-tab
         if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {
+            ui.add_space(12.0);
             render_document_page(
                 ui,
                 t,
@@ -301,64 +311,110 @@ fn render_detail_area(
                 doc("tileset", "overview"),
             );
         } else {
+            // Header title row & description (only for TILESET DEF tab, below sub-tabs)
+            if sections.title {
+                ui.add_space(12.0);
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{} (Tileset)", tileset.name))
+                            .size(20.0)
+                            .strong()
+                            .color(t.ink_strong),
+                    )
+                    .truncate(),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(tr(keys::DESCRIPTION))
+                        .size(11.5)
+                        .color(t.muted),
+                );
+                ui.add_space(10.0);
+            }
+
             // TILESET DEF Tab
             let tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
 
             // Attribute Card + Image info
-            ui.scope(|ui| {
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(12.0);
-                    ui.vertical(|ui| {
-                        render_attributes_card(app, ui, t, &tileset, dialogs, tex.as_ref());
-                    });
-                    ui.add_space(12.0);
-                });
-            });
+            render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_ref());
 
-            ui.add_space(6.0);
+            ui.add_space(10.0);
 
-            // Center area: Atlas view on left, Right panel shell on right
-            let footer_height = if sections.footer { 32.0 } else { 0.0 };
-            let center_h = (ui.available_height() - footer_height - 4.0).max(120.0);
-            let right_panel_w = 240.0;
-            let atlas_w = (ui.available_width() - right_panel_w).max(100.0);
+            // Center area: Atlas card on left (flex width), Tools card on right (240px)
+            let mode_card_w = 240.0;
+            let gap = WORKSPACE_PADDING; // 12.0
+            let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
 
-            ui.allocate_ui(vec2(ui.available_width(), center_h), |ui| {
-                ui.horizontal(|ui| {
-                    // Atlas View (fills space between card/info line and footer)
-                    ui.allocate_ui(vec2(atlas_w, center_h), |ui| {
-                        render_atlas_view(
-                            ui,
-                            t,
-                            &tileset,
-                            tex.as_ref(),
-                            &mut app.tileset_view_state,
-                        );
-                    });
-
-                    // Right Panel Shell (docked with divider line on left)
-                    ui.allocate_ui(vec2(right_panel_w, center_h), |ui| {
-                        render_right_panel(
-                            ui,
-                            t,
-                            &tileset,
-                            &app.project,
-                            &mut app.tileset_view_state,
-                        );
-                    });
-                });
-            });
-
-            // Pinned Footer Bar
-            if sections.footer {
-                let (layers_count, enums_count) = tileset_usage_counts(&app.project, tileset.id);
-                let left_text = format!(
-                    "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
-                    tileset.id.0, layers_count, enums_count
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                let (atlas_label_rect, _) =
+                    ui.allocate_exact_size(vec2(atlas_card_w, 18.0), Sense::hover());
+                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
+                child.label(
+                    RichText::new("TILE ATLAS")
+                        .size(11.0)
+                        .strong()
+                        .color(t.accent_ink),
                 );
-                def_footer(ui, t, &left_text, |_| {});
-            }
+
+                ui.add_space(gap);
+
+                let (tools_label_rect, _) =
+                    ui.allocate_exact_size(vec2(mode_card_w, 18.0), Sense::hover());
+                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(tools_label_rect));
+                child.label(
+                    RichText::new("TOOLS")
+                        .size(11.0)
+                        .strong()
+                        .color(t.accent_ink),
+                );
+            });
+
+            ui.add_space(4.0);
+
+            let card_top = ui.cursor().min.y;
+            let card_bottom = content_rect.max.y;
+            let card_h = (card_bottom - card_top).max(60.0);
+
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+
+                // Bordered Atlas Card
+                ui.allocate_ui(vec2(atlas_card_w, card_h), |ui| {
+                    Frame::new()
+                        .fill(t.canvas)
+                        .stroke(t.hairline())
+                        .corner_radius(CornerRadius::same(4))
+                        .show(ui, |ui| {
+                            render_atlas_view(
+                                ui,
+                                t,
+                                tileset,
+                                tex.as_ref(),
+                                &mut app.tileset_view_state,
+                            );
+                        });
+                });
+
+                ui.add_space(gap);
+
+                // Bordered Tools / Mode Card
+                ui.allocate_ui(vec2(mode_card_w, card_h), |ui| {
+                    Frame::new()
+                        .fill(t.panel)
+                        .stroke(t.hairline())
+                        .corner_radius(CornerRadius::same(4))
+                        .show(ui, |ui| {
+                            render_right_panel(
+                                ui,
+                                t,
+                                tileset,
+                                &app.project,
+                                &mut app.tileset_view_state,
+                            );
+                        });
+                });
+            });
         }
     });
 }

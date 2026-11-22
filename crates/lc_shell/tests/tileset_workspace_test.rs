@@ -428,13 +428,13 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
         "atlas rect must fill area between card and footer"
     );
 
-    // 4. right panel is docked with a left divider
-    let divider = lines
-        .iter()
-        .find(|[p1, p2]| (p1.x - p2.x).abs() < 1.0 && p1.x > 1000.0 && (p1.y - p2.y).abs() > 100.0);
+    // 4. right panel is a bordered tools card (240px wide)
+    let tools_card = stroke_rects.iter().find(|r| {
+        r.min.x > 1100.0 && (r.width() - 240.0).abs() < 1.0 && (r.max.x - 1354.0).abs() < 1.0
+    });
     assert!(
-        divider.is_some(),
-        "right panel must be docked with a left divider"
+        tools_card.is_some(),
+        "right panel must be a 240px bordered tools card"
     );
 
     // 5. Attributes card fields exist (no tags or marking row)

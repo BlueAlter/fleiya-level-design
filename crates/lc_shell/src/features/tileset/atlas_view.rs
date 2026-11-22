@@ -115,33 +115,6 @@ pub fn render_atlas_view(
         )
     };
 
-    // Overlay "Fit" button in top-right of canvas viewport
-    let fit_btn_w = 40.0;
-    let fit_btn_h = 24.0;
-    let fit_rect = egui::Rect::from_min_size(
-        egui::pos2(
-            response.rect.max.x - fit_btn_w - 8.0,
-            response.rect.min.y + 8.0,
-        ),
-        vec2(fit_btn_w, fit_btn_h),
-    );
-    let fit_btn = egui::Button::new(RichText::new("Fit").size(11.0).color(t.ink_strong))
-        .fill(t.panel)
-        .stroke(t.hairline())
-        .corner_radius(egui::CornerRadius::same(3));
-
-    if ui
-        .put(fit_rect, fit_btn)
-        .on_hover_text("Fit atlas to view (F / Home)")
-        .clicked()
-    {
-        state.canvas_state_mut(tileset.id).fit_to_viewport(
-            response.rect,
-            img_w as f32,
-            img_h as f32,
-        );
-    }
-
     // Hover tooltip: "Tile N (col, row)"
     if let Some(hovered_id) = state.canvas_state_mut(tileset.id).hovered_tile {
         if grid.cols > 0 {
