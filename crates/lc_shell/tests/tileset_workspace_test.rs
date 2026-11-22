@@ -1,5 +1,6 @@
 use egui::{Context, Shape};
 use glam::UVec2;
+use lc_canvas::theme::{self, ThemeChoice};
 use lc_core::defs::{TileMarking, TilesetDef};
 use lc_core::id::TilesetDefId;
 use lc_core::project::Project;
@@ -612,4 +613,36 @@ fn test_atlas_view_missing_and_empty_image_labels() {
         text_items2.iter().any(|t| t == "No image loaded"),
         "clean label 'No image loaded' must be shown for empty path"
     );
+}
+
+#[test]
+fn test_atlas_view_multi_frame_render_no_deadlock() {
+    let mut app = ShellApp::new(Project::new("Sample"));
+    let mut sample = std::path::PathBuf::from("examples/sample_project/project.lcproj");
+    if !sample.exists() {
+        sample = std::path::PathBuf::from("../../examples/sample_project/project.lcproj");
+    }
+    if sample.exists() {
+        app.open_project_from_path(&sample).unwrap();
+    }
+
+    app.active_mode = AppMode::Tilesets;
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    for _ in 0..5 {
+        let raw_input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(raw_input, |ui| {
+            app.ui(ui);
+        });
+        output.textures_delta.clear();
+    }
 }

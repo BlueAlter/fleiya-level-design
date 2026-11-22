@@ -25,7 +25,7 @@ impl Default for TilesetPanZoom {
 }
 
 /// View state for the Tilesets workspace page.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TilesetViewState {
     /// Active sub-tab (0 = TILESET DEF, 1 = DOCUMENT).
     pub active_sub_tab: usize,
@@ -69,6 +69,21 @@ pub struct TilesetViewState {
     pub tag_editing_text: String,
     /// Context menu anchor (item ID and pos) if open.
     pub context_menu: Option<(TilesetDefId, Pos2)>,
+    /// Cached neutral repeating page background texture handle.
+    pub page_bg: Option<egui::TextureHandle>,
+}
+
+impl std::fmt::Debug for TilesetViewState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TilesetViewState")
+            .field("active_sub_tab", &self.active_sub_tab)
+            .field("selected_tileset_id", &self.selected_tileset_id)
+            .field("selected_tile", &self.selected_tile)
+            .field("active_mode", &self.active_mode)
+            .field("search_query", &self.search_query)
+            .field("has_page_bg", &self.page_bg.is_some())
+            .finish()
+    }
 }
 
 impl Default for TilesetViewState {
@@ -95,6 +110,7 @@ impl Default for TilesetViewState {
             tag_editing_name: None,
             tag_editing_text: String::new(),
             context_menu: None,
+            page_bg: None,
         }
     }
 }

@@ -80,26 +80,25 @@ pub fn render_atlas_view(
         metrics.rows,
     );
 
-    let page_bg_id = egui::Id::new("tileset_atlas_page_bg_texture");
-    let page_bg = ui.ctx().data_mut(|d| {
-        d.get_temp::<TextureHandle>(page_bg_id).or_else(|| {
-            image::load_from_memory(PAGE_BG_BYTES).ok().map(|img| {
-                let rgba = img.to_rgba8();
-                let (w, h) = rgba.dimensions();
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                    [w as usize, h as usize],
-                    &rgba.into_raw(),
-                );
-                let handle = ui.ctx().load_texture(
-                    "tileset_atlas_page_bg",
-                    color_image,
-                    egui::TextureOptions::NEAREST_REPEAT,
-                );
-                d.insert_temp(page_bg_id, handle.clone());
-                handle
-            })
+    let page_bg = if let Some(ref bg) = state.page_bg {
+        Some(bg.clone())
+    } else {
+        image::load_from_memory(PAGE_BG_BYTES).ok().map(|img| {
+            let rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                [w as usize, h as usize],
+                &rgba.into_raw(),
+            );
+            let handle = ui.ctx().load_texture(
+                "tileset_atlas_page_bg",
+                color_image,
+                egui::TextureOptions::NEAREST_REPEAT,
+            );
+            state.page_bg = Some(handle.clone());
+            handle
         })
-    });
+    };
 
     let (response, events) = {
         let canvas_state = state.canvas_state_mut(tileset.id);
