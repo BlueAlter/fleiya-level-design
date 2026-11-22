@@ -1,20 +1,19 @@
 //! Left panel component for definition workspaces.
 
 use egui::{
-    vec2, Align, CornerRadius, FontId, Frame, Id, Layout, Margin, Pos2, Rect, RichText, ScrollArea,
-    Sense, Stroke, StrokeKind, TextEdit, Ui,
+    vec2, Align, CornerRadius, Frame, Layout, Margin, Pos2, RichText, ScrollArea, Stroke, TextEdit,
+    Ui,
 };
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 
-use super::{
-    def_row_layout, DEF_CARD_GAP, DEF_CARD_HEIGHT, DEF_CARD_STROKE_NORMAL,
-    DEF_CARD_STROKE_SELECTED, DEF_CONTROL_HEIGHT, DEF_PANEL_PADDING, DEF_PANEL_WIDTH,
-    DEF_SEARCH_HEIGHT,
+use super::{DEF_PANEL_PADDING, DEF_PANEL_WIDTH, DEF_SEARCH_HEIGHT};
+use crate::shared::ui::drag_list::DragListState;
+use crate::shared::ui::icon_button::{icon_button, IconButtonStyle};
+use crate::shared::ui::reorder_list::{reorder_list, ListItem};
+use crate::shared::ui::reorder_row::{
+    GhostPreview, MoveDirection, SelectDirection, Trailing, ROW_LAYOUT_CARD,
 };
-use crate::shared::ui::drag_list::{
-    draw_drag_handle, paint_placeholder, DragListState, DragOutcome, DragTheme,
-};
-use crate::shared::ui::reorder::Slot;
 
 /// Configuration for the definition workspace left panel header and buttons.
 #[derive(Debug, Clone, Copy)]
@@ -88,106 +87,6 @@ impl<ID> DefItem<ID> {
     }
 }
 
-/// Renders a single definition row card.
-fn render_card_row<ID: Copy>(
-    ui: &mut Ui,
-    t: &Tokens,
-    item: &DefItem<ID>,
-    is_selected: bool,
-    indices: (usize, usize),
-    drag_state: &mut DragListState,
-    actions: &mut Vec<DefLeftPanelAction<ID>>,
-) -> Rect {
-    let (order_idx, real_idx) = indices;
-    let card_w = ui.available_width();
-    let (row_rect, row_resp) =
-        ui.allocate_exact_size(vec2(card_w, DEF_CARD_HEIGHT), Sense::click_and_drag());
-    let layout = def_row_layout(row_rect);
-
-    let handle_resp = ui.interact(layout.handle, Id::new(("def_h", real_idx)), Sense::drag());
-    if handle_resp.drag_started() {
-        drag_state.begin(ui.ctx(), order_idx, row_rect);
-    }
-
-    let kebab_resp = ui.interact(layout.kebab, Id::new(("def_k", real_idx)), Sense::click());
-    if kebab_resp.clicked() {
-        actions.push(DefLeftPanelAction::ContextMenu {
-            id: item.id,
-            pos: layout.kebab.left_bottom(),
-        });
-    }
-
-    if row_resp.secondary_clicked() {
-        if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
-            actions.push(DefLeftPanelAction::ContextMenu { id: item.id, pos });
-        }
-    }
-
-    if row_resp.clicked() && !kebab_resp.clicked() && !handle_resp.dragged() {
-        actions.push(DefLeftPanelAction::Selected(item.id));
-    }
-
-    let bg_color = if is_selected || row_resp.hovered() {
-        t.sunken
-    } else {
-        t.panel
-    };
-    ui.painter().rect_filled(
-        row_rect,
-        CornerRadius::same(super::DEF_CARD_CORNER_RADIUS),
-        bg_color,
-    );
-
-    let stroke = if is_selected {
-        Stroke::new(DEF_CARD_STROKE_SELECTED, t.accent)
-    } else {
-        Stroke::new(DEF_CARD_STROKE_NORMAL, t.line_strong)
-    };
-    ui.painter().rect_stroke(
-        row_rect,
-        CornerRadius::same(super::DEF_CARD_CORNER_RADIUS),
-        stroke,
-        StrokeKind::Inside,
-    );
-
-    let handle_col = if handle_resp.hovered() || handle_resp.dragged() {
-        t.accent
-    } else {
-        t.muted
-    };
-    draw_drag_handle(ui.painter(), layout.handle, handle_col);
-
-    let text_col = if is_selected {
-        t.accent_ink
-    } else {
-        t.ink_strong
-    };
-    let galley =
-        ui.painter()
-            .layout_no_wrap(item.name.clone(), FontId::proportional(12.0), text_col);
-    let text_pos = Pos2::new(
-        layout.name.min.x,
-        layout.name.center().y - galley.size().y / 2.0,
-    );
-    ui.painter().galley(text_pos, galley, text_col);
-
-    let kebab_col = if kebab_resp.hovered() {
-        t.ink_strong
-    } else {
-        t.muted
-    };
-    let kg = ui
-        .painter()
-        .layout_no_wrap("⋮".to_owned(), FontId::proportional(13.0), kebab_col);
-    let kp = Pos2::new(
-        layout.kebab.center().x - kg.size().x / 2.0,
-        layout.kebab.center().y - kg.size().y / 2.0,
-    );
-    ui.painter().galley(kp, kg, kebab_col);
-
-    row_rect
-}
-
 /// Renders the definition workspace left panel.
 pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
     ui: &mut Ui,
@@ -206,30 +105,33 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
         Layout::top_down(Align::Min),
         |ui| {
             ui.set_width(panel_w);
+            ui.set_max_width(panel_w);
 
+            let inner_w = DEF_PANEL_WIDTH - 2.0 * DEF_PANEL_PADDING;
             Frame::new()
                 .fill(t.panel)
                 .inner_margin(Margin::same(DEF_PANEL_PADDING as i8))
                 .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
+                    ui.set_min_width(inner_w);
+                    ui.set_max_width(inner_w);
 
                     // Top row
                     ui.horizontal(|ui| {
-                        let menu_space = if config.has_menu_btn {
-                            DEF_CONTROL_HEIGHT + 6.0
-                        } else {
-                            0.0
-                        };
-                        let new_w = (ui.available_width() - menu_space).max(40.0);
+                        let gap = 6.0;
+                        ui.spacing_mut().item_spacing.x = gap;
+
+                        let menu_space = if config.has_menu_btn { 28.0 + gap } else { 0.0 };
+                        let new_w = (inner_w - menu_space).max(40.0);
                         let new_btn = ui.add_sized(
-                            [new_w, DEF_CONTROL_HEIGHT],
+                            [new_w, 28.0],
                             egui::Button::new(
                                 RichText::new(config.new_btn_label)
                                     .size(12.0)
                                     .strong()
-                                    .color(t.ink_strong),
+                                    .color(t.invert_fg),
                             )
-                            .fill(t.sunken)
+                            .truncate()
+                            .fill(t.accent)
                             .stroke(t.hairline())
                             .corner_radius(CornerRadius::same(3)),
                         );
@@ -238,14 +140,11 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
                         }
 
                         if config.has_menu_btn {
-                            let mb = ui.add_sized(
-                                [DEF_CONTROL_HEIGHT, DEF_CONTROL_HEIGHT],
-                                egui::Button::new(
-                                    RichText::new("⋮").size(14.0).strong().color(t.muted),
-                                )
-                                .fill(t.sunken)
-                                .stroke(t.hairline())
-                                .corner_radius(CornerRadius::same(3)),
+                            let mb = icon_button(
+                                ui,
+                                Icon::DotsThreeVertical,
+                                28.0,
+                                IconButtonStyle::bordered(),
                             );
                             if mb.clicked() {
                                 actions.push(DefLeftPanelAction::MenuClicked);
@@ -257,7 +156,7 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
 
                     // Search box
                     ui.add_sized(
-                        [ui.available_width(), DEF_SEARCH_HEIGHT],
+                        [inner_w, DEF_SEARCH_HEIGHT],
                         TextEdit::singleline(search_query)
                             .hint_text("Search definitions...")
                             .vertical_align(Align::Center)
@@ -287,59 +186,106 @@ pub fn def_left_panel<ID: Copy + PartialEq + std::fmt::Debug>(
                         .map(|(i, _)| i)
                         .collect();
 
-                    let drag_theme = DragTheme::from_accent(t.accent);
-                    let mut card_rects = Vec::with_capacity(filtered.len());
+                    let list_items: Vec<ListItem> = filtered
+                        .iter()
+                        .map(|&idx| {
+                            let it = &items[idx];
+                            let is_selected = selected_id == Some(it.id);
+                            ListItem::new(("def_item", idx), GhostPreview::new(&it.name))
+                                .selected(is_selected)
+                                .clickable(true)
+                                .trailing(Trailing::Kebab)
+                        })
+                        .collect();
 
                     ScrollArea::vertical()
                         .id_salt("def_left_panel_scroll")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            for slot in drag_state.layout(filtered.len()) {
-                                let order_idx = match slot {
-                                    Slot::Item(i) => i,
-                                    Slot::Placeholder => {
-                                        let ph_h =
-                                            drag_state.row_size().map_or(DEF_CARD_HEIGHT, |s| s.y);
-                                        let (ph_rect, _) = ui.allocate_exact_size(
-                                            vec2(ui.available_width(), ph_h),
-                                            Sense::hover(),
+                            ui.set_min_width(inner_w);
+                            ui.set_max_width(inner_w);
+                            let list_events = reorder_list(
+                                ui,
+                                drag_state,
+                                &list_items,
+                                ROW_LAYOUT_CARD,
+                                |ui, slot_idx, body| {
+                                    let real_idx = filtered[slot_idx];
+                                    let item = &items[real_idx];
+                                    let is_selected = selected_id == Some(item.id);
+                                    body.slot(ui, 0, |ui| {
+                                        let text_color =
+                                            if is_selected { t.ink_strong } else { t.ink };
+                                        ui.add(
+                                            egui::Label::new(
+                                                RichText::new(&item.name)
+                                                    .strong()
+                                                    .color(text_color),
+                                            )
+                                            .truncate()
+                                            .selectable(false),
                                         );
-                                        paint_placeholder(ui.painter(), ph_rect, &drag_theme);
-                                        card_rects.push(ph_rect);
-                                        ui.add_space(DEF_CARD_GAP);
-                                        continue;
-                                    }
-                                };
+                                    });
+                                },
+                            );
 
-                                let Some(&real_idx) = filtered.get(order_idx) else {
-                                    continue;
-                                };
-                                let Some(item) = items.get(real_idx) else {
-                                    continue;
-                                };
-
-                                let is_selected = selected_id == Some(item.id);
-                                let rect = render_card_row(
-                                    ui,
-                                    t,
-                                    item,
-                                    is_selected,
-                                    (order_idx, real_idx),
-                                    drag_state,
-                                    &mut actions,
-                                );
-                                card_rects.push(rect);
-                                ui.add_space(DEF_CARD_GAP);
+                            if let Some(slot_idx) = list_events.selected {
+                                if let Some(&real_idx) = filtered.get(slot_idx) {
+                                    actions.push(DefLeftPanelAction::Selected(items[real_idx].id));
+                                }
                             }
 
-                            drag_state.update(ui, &card_rects, &drag_theme);
-                        });
+                            if let Some((slot_idx, pos)) = list_events.context_menu_requested {
+                                if let Some(&real_idx) = filtered.get(slot_idx) {
+                                    actions.push(DefLeftPanelAction::ContextMenu {
+                                        id: items[real_idx].id,
+                                        pos,
+                                    });
+                                }
+                            }
 
-                    if let DragOutcome::Dropped { from, to } = drag_state.finish(ui) {
-                        if let (Some(&rf), Some(&rt)) = (filtered.get(from), filtered.get(to)) {
-                            actions.push(DefLeftPanelAction::Reorder { from: rf, to: rt });
-                        }
-                    }
+                            if let Some((from_slot, to_slot)) = list_events.moved {
+                                if let (Some(&rf), Some(&rt)) =
+                                    (filtered.get(from_slot), filtered.get(to_slot))
+                                {
+                                    actions.push(DefLeftPanelAction::Reorder { from: rf, to: rt });
+                                }
+                            }
+
+                            if let Some((slot_idx, dir)) = list_events.move_requested {
+                                match dir {
+                                    MoveDirection::Up if slot_idx > 0 => {
+                                        actions.push(DefLeftPanelAction::Reorder {
+                                            from: filtered[slot_idx],
+                                            to: filtered[slot_idx - 1],
+                                        });
+                                    }
+                                    MoveDirection::Down if slot_idx + 1 < filtered.len() => {
+                                        actions.push(DefLeftPanelAction::Reorder {
+                                            from: filtered[slot_idx],
+                                            to: filtered[slot_idx + 1],
+                                        });
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if let Some((slot_idx, dir)) = list_events.select_requested {
+                                match dir {
+                                    SelectDirection::Previous if slot_idx > 0 => {
+                                        actions.push(DefLeftPanelAction::Selected(
+                                            items[filtered[slot_idx - 1]].id,
+                                        ));
+                                    }
+                                    SelectDirection::Next if slot_idx + 1 < filtered.len() => {
+                                        actions.push(DefLeftPanelAction::Selected(
+                                            items[filtered[slot_idx + 1]].id,
+                                        ));
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        });
                 });
 
             // Vertical divider line
