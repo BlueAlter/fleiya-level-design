@@ -154,7 +154,43 @@ fn test_headless_render_document_tab() {
     });
     output.textures_delta.clear();
 
+    let mut texts = Vec::new();
+    fn extract_text(s: &egui::Shape, out: &mut Vec<String>) {
+        match s {
+            egui::Shape::Text(t) => out.push(t.galley.text().to_string()),
+            egui::Shape::Vec(children) => {
+                for c in children {
+                    extract_text(c, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    for s in &output.shapes {
+        extract_text(&s.shape, &mut texts);
+    }
+
     assert_eq!(app.tileset_view_state.active_sub_tab, DOCUMENT_SUB_TAB);
+    assert!(
+        !texts.iter().any(|t| t.contains("(Tileset)")),
+        "DOCUMENT tab must not render tileset title"
+    );
+    assert!(
+        !texts.iter().any(|t| t.contains("Used by")),
+        "DOCUMENT tab must not render footer"
+    );
+    assert!(
+        !texts
+            .iter()
+            .any(|t| t.contains("TILESET IDENTIFIER & ATTRIBUTES")),
+        "DOCUMENT tab must not render attribute card"
+    );
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.contains("Tilesets") || t.contains("tileset")),
+        "DOCUMENT tab must render overview markdown document"
+    );
 }
 
 #[test]
