@@ -104,6 +104,13 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 menu_button(ui, "WINDOWS", |ui| {
                     if ui.button("Tilesets Workspace  Ctrl+3").clicked() {
                         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
+                        if app.selected_tileset_def.is_none() {
+                            app.selected_tileset_def =
+                                app.project.defs.tilesets.first().map(|t| t.id);
+                        }
+                        if let Some(id) = app.selected_tileset_def {
+                            app.tileset_view_state.select_tileset(id);
+                        }
                         ui.close();
                     }
                     if ui
@@ -182,6 +189,12 @@ pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
     let ctrl_3 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num3);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_3)) {
         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
+        if app.selected_tileset_def.is_none() {
+            app.selected_tileset_def = app.project.defs.tilesets.first().map(|t| t.id);
+        }
+        if let Some(id) = app.selected_tileset_def {
+            app.tileset_view_state.select_tileset(id);
+        }
     }
 
     ctx.input(|i| {
