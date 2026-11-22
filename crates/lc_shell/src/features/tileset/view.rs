@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{vec2, Button, CornerRadius, Id, RichText, Stroke, Ui};
+use egui::{vec2, Button, CornerRadius, Id, RichText, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -168,8 +168,14 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
                 .selected_tileset_def
                 .filter(|id| app.project.defs.tileset(*id).is_some())
                 .unwrap_or_else(|| app.project.defs.tilesets[0].id);
-            app.tileset_view_state.selected_tileset_id = Some(fallback_id);
+            app.tileset_view_state.select_tileset(fallback_id);
             app.selected_tileset_def = Some(fallback_id);
+        } else if let Some(ext_id) = app.selected_tileset_def {
+            if ext_id != app.tileset_view_state.selected_tileset_id.unwrap()
+                && app.project.defs.tileset(ext_id).is_some()
+            {
+                app.tileset_view_state.select_tileset(ext_id);
+            }
         }
     } else {
         app.tileset_view_state.selected_tileset_id = None;
@@ -311,11 +317,11 @@ fn render_detail_area(
             let footer_height = if sections.footer { 32.0 } else { 0.0 };
             let center_h = (ui.available_height() - footer_height - 4.0).max(120.0);
             let right_panel_w = 240.0;
-            let atlas_w = (ui.available_width() - right_panel_w - 4.0).max(100.0);
+            let atlas_w = (ui.available_width() - right_panel_w).max(100.0);
 
             ui.allocate_ui(vec2(ui.available_width(), center_h), |ui| {
                 ui.horizontal(|ui| {
-                    // Atlas View (fills space)
+                    // Atlas View (fills space between card/info line and footer)
                     ui.allocate_ui(vec2(atlas_w, center_h), |ui| {
                         render_atlas_view(
                             ui,
@@ -326,15 +332,7 @@ fn render_detail_area(
                         );
                     });
 
-                    // Divider stroke between atlas and right panel
-                    let divider_x = ui.cursor().min.x;
-                    ui.painter().vline(
-                        divider_x,
-                        egui::Rangef::new(ui.min_rect().min.y, ui.min_rect().min.y + center_h),
-                        Stroke::new(1.0, t.line),
-                    );
-
-                    // Right Panel Shell (docked)
+                    // Right Panel Shell (docked with divider line on left)
                     ui.allocate_ui(vec2(right_panel_w, center_h), |ui| {
                         render_right_panel(
                             ui,
