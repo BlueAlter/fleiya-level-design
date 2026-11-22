@@ -232,7 +232,7 @@ fn render_detail_area(
                 let btn = Button::new(
                     RichText::new(tr(keys::EMPTY_CREATE_BUTTON))
                         .font(egui::FontId::proportional(13.0))
-                        .color(t.ink_strong),
+                        .color(t.invert_fg),
                 )
                 .fill(t.accent)
                 .corner_radius(CornerRadius::same(4));

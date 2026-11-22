@@ -51,7 +51,7 @@ impl CombinedTilesetPanel {
             entities_panel: EntitiesPanel::new(),
             show_add_tileset_form: false,
             new_tileset_name: "Tileset_1".to_string(),
-            new_tileset_path: "assets/tilesets/dungeon.png".to_string(),
+            new_tileset_path: String::new(),
             new_tileset_w: 16,
             new_tileset_h: 16,
         }

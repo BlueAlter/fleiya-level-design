@@ -1,6 +1,6 @@
 //! Left panel list of tileset definitions with search, drag-reorder, and context actions.
 
-use egui::{vec2, Button, Color32, RichText, Ui};
+use egui::Ui;
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
@@ -19,6 +19,7 @@ use crate::shared::ui::def_workspace::{
     def_left_panel, DefItem, DefLeftPanelAction, DefLeftPanelConfig,
 };
 use crate::shared::ui::drag_list::DragListState;
+use crate::shared::ui::modal::{modal, ModalButton, ModalButtonKind, ModalSpec};
 
 /// Renders the left sidebar list of tilesets using the shared definition workspace kit.
 pub fn render_left_panel(
@@ -168,32 +169,79 @@ pub fn render_left_panel(
 
     // Delete confirmation modal when referenced
     if let Some(del_id) = app.tileset_view_state.pending_delete_id {
-        egui::Window::new(tr(keys::DELETE_CONFIRM_TITLE))
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, vec2(0.0, 0.0))
-            .show(ui.ctx(), |ui| {
-                ui.vertical(|ui| {
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum DeleteModalAction {
+            Cancel,
+            Delete,
+        }
+
+        let (layers_count, enums_count) =
+            lc_feature_tileset::tileset_usage_counts(&app.project, del_id);
+        let mut level_tiles_count = 0;
+        for world in &app.project.worlds {
+            for level in &world.levels {
+                for layer in &level.layers {
+                    if let lc_core::layer::LayerData::Tiles(grid) = &layer.data {
+                        level_tiles_count += grid
+                            .cells()
+                            .iter()
+                            .filter(|cell| cell.as_ref().map(|t| t.tileset_id) == Some(del_id))
+                            .count();
+                    }
+                }
+            }
+        }
+
+        let buttons = [
+            ModalButton::new(
+                DeleteModalAction::Cancel,
+                tr(keys::DELETE_CANCEL_BUTTON),
+                ModalButtonKind::Normal,
+            ),
+            ModalButton::new(
+                DeleteModalAction::Delete,
+                tr(keys::DELETE_CONFIRM_BUTTON),
+                ModalButtonKind::Danger,
+            ),
+        ];
+
+        let result = modal(
+            ui.ctx(),
+            "tileset_delete_confirm_modal",
+            ModalSpec {
+                title: tr(keys::DELETE_CONFIRM_TITLE).to_string(),
+                body: |ui| {
                     ui.label(tr(keys::DELETE_CONFIRM_MESSAGE));
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        if ui.button(tr(keys::DELETE_CANCEL_BUTTON)).clicked() {
-                            app.tileset_view_state.pending_delete_id = None;
-                        }
-                        let del_btn = Button::new(
-                            RichText::new(tr(keys::DELETE_CONFIRM_BUTTON)).color(Color32::WHITE),
-                        )
-                        .fill(Color32::from_rgb(220, 38, 38));
-                        if ui.add(del_btn).clicked() {
-                            app.execute_command(Box::new(RemoveTilesetDefCommand::new(del_id)));
-                            if app.tileset_view_state.selected_tileset_id == Some(del_id) {
-                                app.tileset_view_state.selected_tileset_id = None;
-                                app.tileset_view_state.selected_tile = None;
-                            }
-                            app.tileset_view_state.pending_delete_id = None;
-                        }
-                    });
-                });
-            });
+                    ui.add_space(8.0);
+                    if layers_count > 0 {
+                        ui.label(format!("• {layers_count} Layer definition(s)"));
+                    }
+                    if enums_count > 0 {
+                        ui.label(format!("• {enums_count} Enum value icon(s)"));
+                    }
+                    if level_tiles_count > 0 {
+                        ui.label(format!("• {level_tiles_count} Level tile cell(s)"));
+                    }
+                },
+                buttons: &buttons,
+                width: 380.0,
+                default_button: Some(DeleteModalAction::Cancel),
+            },
+        );
+
+        match result {
+            Some(DeleteModalAction::Delete) => {
+                app.execute_command(Box::new(RemoveTilesetDefCommand::new(del_id)));
+                if app.tileset_view_state.selected_tileset_id == Some(del_id) {
+                    app.tileset_view_state.selected_tileset_id = None;
+                    app.tileset_view_state.selected_tile = None;
+                }
+                app.tileset_view_state.pending_delete_id = None;
+            }
+            Some(DeleteModalAction::Cancel) => {
+                app.tileset_view_state.pending_delete_id = None;
+            }
+            None => {}
+        }
     }
 }
