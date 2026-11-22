@@ -6,6 +6,9 @@ fn test_core_model_serde_round_trip() {
     let mut gen = IdGenerator::with_seed(1);
 
     let tileset_id = gen.next_tileset_def_id();
+    let mut marking = TileMarking::new();
+    marking.set_tag("Potion", 5, true);
+
     let tileset = TilesetDef {
         id: tileset_id,
         name: "OverworldTiles".to_string(),
@@ -13,6 +16,8 @@ fn test_core_model_serde_round_trip() {
         tile_size: UVec2::new(16, 16),
         spacing: 1,
         padding: 2,
+        tags: vec!["overworld".to_string()],
+        marking,
     };
 
     let enum_id = gen.next_enum_def_id();

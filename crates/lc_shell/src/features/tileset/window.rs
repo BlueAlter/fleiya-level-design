@@ -65,6 +65,8 @@ fn render_tileset_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
                     tile_size: UVec2::splat(16),
                     spacing: 0,
                     padding: 0,
+                    tags: Vec::new(),
+                    marking: lc_core::TileMarking::new(),
                 };
                 app.execute_command(Box::new(AddTilesetDefCommand::new(def)));
                 app.selected_tileset_def = Some(next_id);

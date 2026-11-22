@@ -53,6 +53,8 @@ fn create_test_project_with_tileset() -> (Project, TilesetDefId) {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::TileMarking::new(),
     };
 
     let mut project = Project::new("Test Project");
@@ -312,6 +314,8 @@ fn test_tileset_commands_undo_redo_round_trip() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::TileMarking::new(),
     };
 
     // 1. Add

@@ -57,6 +57,8 @@ fn test_definition_tabs_and_windows_behavior() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::TileMarking::new(),
     });
     shell.project.defs.enums.push(lc_core::defs::EnumDef {
         id: EnumDefId(1),
@@ -104,6 +106,8 @@ fn test_add_tileset_command_and_persistence() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::TileMarking::new(),
     };
 
     shell
@@ -150,6 +154,8 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: lc_core::TileMarking::new(),
     });
 
     // Add a Tiles layer def

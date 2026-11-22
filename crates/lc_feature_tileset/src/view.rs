@@ -92,6 +92,8 @@ impl TilesetDocumentView {
             tile_size: UVec2::new(self.tile_w.max(1), self.tile_h.max(1)),
             spacing: self.spacing,
             padding: self.padding,
+            tags: def.tags.clone(),
+            marking: def.marking.clone(),
         };
 
         if *def != updated {

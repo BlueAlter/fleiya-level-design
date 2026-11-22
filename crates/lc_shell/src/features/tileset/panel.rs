@@ -187,6 +187,8 @@ impl PanelView for CombinedTilesetPanel {
                                 ),
                                 spacing: 0,
                                 padding: 0,
+                                tags: Vec::new(),
+                                marking: lc_core::TileMarking::new(),
                             };
                             cx.exec(AddTilesetDefCommand::new(def));
                             cx.emit(EditorEvent::OpenDocument(DocKind::TilesetDef(next_id)));

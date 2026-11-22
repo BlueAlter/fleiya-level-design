@@ -17,6 +17,7 @@ pub mod grid;
 pub mod id;
 pub mod layer;
 pub mod level;
+pub mod marking;
 pub mod project;
 pub mod world;
 
@@ -37,6 +38,7 @@ pub use id::{
 };
 pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;
+pub use marking::{known_tags, normalize_tag, tags_eq, TileMarking};
 pub use project::{Project, ProjectSettings};
 pub use world::{World, WorldLayout};
 
