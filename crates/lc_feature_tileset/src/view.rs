@@ -478,7 +478,6 @@ impl DocumentView for TilesetDocumentView {
                             .color(t.muted)
                             .size(11.5),
                         );
-
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if button(ui, "Save Tileset Def", ButtonKind::Primary, true).clicked() {
                                 self.commit_changes(&def, cx);
