@@ -7,6 +7,7 @@ pub mod clipboard;
 pub mod commands;
 mod fill_tools;
 pub mod handler;
+pub mod marking_commands;
 pub mod paint_commands;
 pub mod palette;
 mod select;
@@ -14,8 +15,13 @@ pub mod tools;
 pub mod view;
 
 pub use clipboard::TileClipboard;
-pub use commands::{AddTilesetDefCommand, RemoveTilesetDefCommand, UpdateTilesetDefCommand};
+pub use commands::{
+    AddTilesetDefCommand, AddTilesetTagCommand, PaintTileTagsCommand, RemoveTilesetDefCommand,
+    RemoveTilesetTagCommand, RenameTilesetTagCommand, SetMarkingSourceCommand,
+    UpdateTilesetDefCommand,
+};
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
+pub use marking_commands::compute_tile_count;
 pub use paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
