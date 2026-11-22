@@ -14,16 +14,28 @@
 //! }
 //! ```
 
-use egui::{vec2, CornerRadius, Key, Response, Stroke, StrokeKind, TextEdit, Ui};
+use egui::{vec2, Color32, CornerRadius, Key, Response, Stroke, StrokeKind, TextEdit, Ui};
 use lc_canvas::theme::Tokens;
 
 use super::workspace_metrics::CONTROL_HEIGHT_FORM;
 
+/// Outline style presets for [`text_field`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum FieldOutline {
+    /// No outline border drawn in normal state.
+    #[default]
+    None,
+    /// 1px hairline border in normal state.
+    Hairline,
+    /// 1.5px colored border in normal state (e.g. for color-coded enum badges/rows).
+    Color(Color32),
+}
+
 /// Visual and formatting configuration for a [`text_field`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FieldStyle<'a> {
-    /// Whether to draw an explicit 1px hairline border around the field.
-    pub outline: bool,
+    /// Outline border preset in normal state.
+    pub outline: FieldOutline,
     /// Placeholder hint displayed when the field is empty.
     pub hint: Option<&'a str>,
     /// Optional error message; draws a red border and attaches a hover tooltip.
@@ -51,8 +63,24 @@ impl<'a> FieldStyle<'a> {
         self
     }
 
-    /// Sets whether to draw an outline border.
+    /// Sets whether to draw an outline border (backward compatibility: true = Hairline, false = None).
     pub fn with_outline(mut self, outline: bool) -> Self {
+        self.outline = if outline {
+            FieldOutline::Hairline
+        } else {
+            FieldOutline::None
+        };
+        self
+    }
+
+    /// Sets a colored outline border (1.5 px).
+    pub fn with_outline_color(mut self, color: Color32) -> Self {
+        self.outline = FieldOutline::Color(color);
+        self
+    }
+
+    /// Sets the outline preset.
+    pub fn with_outline_preset(mut self, outline: FieldOutline) -> Self {
         self.outline = outline;
         self
     }
@@ -156,7 +184,17 @@ pub fn validate_identifier(
 /// Renders a single-line text input field styled with project tokens and explicit event tracking.
 pub fn text_field(ui: &mut Ui, text: &mut String, style: FieldStyle<'_>) -> FieldResponse {
     let t = Tokens::get(ui.ctx());
-    let mut edit = TextEdit::singleline(text).min_size(vec2(0.0, CONTROL_HEIGHT_FORM));
+    let width = ui.available_width();
+    let mut edit = TextEdit::singleline(text)
+        .desired_width(f32::INFINITY)
+        .vertical_align(egui::Align::Center)
+        .frame(
+            egui::Frame::new()
+                .fill(t.sunken)
+                .corner_radius(CornerRadius::same(3))
+                .inner_margin(egui::Margin::symmetric(8, 0)),
+        )
+        .min_size(vec2(width, CONTROL_HEIGHT_FORM));
 
     if style.monospace {
         edit = edit.font(egui::TextStyle::Monospace);
@@ -165,7 +203,7 @@ pub fn text_field(ui: &mut Ui, text: &mut String, style: FieldStyle<'_>) -> Fiel
         edit = edit.hint_text(hint);
     }
 
-    let response = ui.add(edit);
+    let response = ui.add_sized([width, CONTROL_HEIGHT_FORM], edit);
 
     let changed = response.changed();
     let esc_pressed = response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape));
@@ -179,21 +217,29 @@ pub fn text_field(ui: &mut Ui, text: &mut String, style: FieldStyle<'_>) -> Fiel
         response.surrender_focus();
     }
 
+    let stroke = if style.error.is_some() {
+        Some(Stroke::new(1.0, t.bad))
+    } else if response.has_focus() {
+        Some(Stroke::new(1.0, t.accent))
+    } else {
+        match style.outline {
+            FieldOutline::None => None,
+            FieldOutline::Hairline => Some(t.hairline()),
+            FieldOutline::Color(color) => Some(Stroke::new(1.5, color)),
+        }
+    };
+
+    if let Some(stroke) = stroke {
+        ui.painter().rect_stroke(
+            response.rect,
+            CornerRadius::same(3),
+            stroke,
+            StrokeKind::Inside,
+        );
+    }
+
     if let Some(err_msg) = style.error {
-        ui.painter().rect_stroke(
-            response.rect,
-            CornerRadius::same(3),
-            Stroke::new(1.0, t.bad),
-            StrokeKind::Inside,
-        );
         response.clone().on_hover_text(err_msg);
-    } else if style.outline {
-        ui.painter().rect_stroke(
-            response.rect,
-            CornerRadius::same(3),
-            t.hairline(),
-            StrokeKind::Inside,
-        );
     }
 
     FieldResponse {
