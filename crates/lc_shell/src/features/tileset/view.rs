@@ -197,6 +197,8 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
     let left_w = def_panel_width();
 
     ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+
         // Left Panel
         ui.allocate_ui(vec2(left_w, full_rect.height()), |ui| {
             render_left_panel(app, ui, &t, dialog_mgr.as_ref(), &mut drag_state);
@@ -255,11 +257,14 @@ fn render_detail_area(
 
     ui.vertical(|ui| {
         // Sub-tabs on the very top: [TILESET DEF | DOCUMENT]
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            ui.add_space(16.0);
-            let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
-            sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
+        ui.spacing_mut().item_spacing.y = 0.0;
+        ui.add_space(12.0);
+        ui.allocate_ui(vec2(ui.available_width(), 28.0), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(12.0);
+                let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
+                sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
+            });
         });
 
         ui.add_space(6.0);
@@ -267,7 +272,7 @@ fn render_detail_area(
         // Header title row & description (only for TILESET DEF tab, below sub-tabs)
         if sections.title {
             ui.horizontal(|ui| {
-                ui.add_space(16.0);
+                ui.add_space(12.0);
                 ui.label(
                     RichText::new(format!("{} (Tileset)", tileset.name))
                         .font(egui::FontId::proportional(18.0))
@@ -275,7 +280,7 @@ fn render_detail_area(
                 );
             });
             ui.horizontal(|ui| {
-                ui.add_space(16.0);
+                ui.add_space(12.0);
                 ui.label(
                     RichText::new(tr(keys::DESCRIPTION))
                         .font(egui::FontId::proportional(12.0))
@@ -303,11 +308,11 @@ fn render_detail_area(
             ui.scope(|ui| {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.add_space(16.0);
+                    ui.add_space(12.0);
                     ui.vertical(|ui| {
                         render_attributes_card(app, ui, t, &tileset, dialogs, tex.as_ref());
                     });
-                    ui.add_space(16.0);
+                    ui.add_space(12.0);
                 });
             });
 
