@@ -6,11 +6,67 @@ use egui::{
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
+use lc_core::layer::TileRef;
 use lc_core::project::Project;
 use lc_feature_tileset::mode_availability;
+use lc_ui_api::AssetService;
 
-use crate::features::tileset::state::TilesetViewState;
+use crate::features::tileset::state::{TilesetViewState, CUSTOM_DATA_VALUE_ID};
 use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
+
+/// Paints a tile graphic thumbnail inside the given rect.
+fn paint_tile_thumbnail(
+    painter: &egui::Painter,
+    ctx: &egui::Context,
+    icon_rect: Rect,
+    project: &Project,
+    assets: &dyn AssetService,
+    tile_ref: &TileRef,
+) -> bool {
+    if let Some(target_tileset) = project.defs.tileset(tile_ref.tileset_id) {
+        if let Ok(texture) = assets.load_texture(ctx, &target_tileset.path) {
+            let img_size = texture.size_vec2();
+            let tile_w = target_tileset.tile_size.x.max(1);
+            let tile_h = target_tileset.tile_size.y.max(1);
+            let padding = target_tileset.padding;
+            let spacing = target_tileset.spacing;
+
+            let img_w = img_size.x as u32;
+            let img_h = img_size.y as u32;
+            let eff_w = img_w.saturating_sub(padding * 2);
+            let stride_x = tile_w + spacing;
+            let stride_y = tile_h + spacing;
+            let cols = (eff_w + spacing).checked_div(stride_x).unwrap_or(1).max(1);
+
+            let col = tile_ref.tile_id % cols;
+            let row = tile_ref.tile_id / cols;
+
+            let px = padding + col * stride_x;
+            let py = padding + row * stride_y;
+
+            let mut u0 = px as f32 / img_w as f32;
+            let mut v0 = py as f32 / img_h as f32;
+            let mut u1 = (px + tile_w) as f32 / img_w as f32;
+            let mut v1 = (py + tile_h) as f32 / img_h as f32;
+
+            if tile_ref.flip_x {
+                std::mem::swap(&mut u0, &mut u1);
+            }
+            if tile_ref.flip_y {
+                std::mem::swap(&mut v0, &mut v1);
+            }
+
+            painter.image(
+                texture.id(),
+                icon_rect.shrink(1.0),
+                Rect::from_min_max(Pos2::new(u0, v0), Pos2::new(u1, v1)),
+                Color32::WHITE,
+            );
+            return true;
+        }
+    }
+    false
+}
 
 /// Renders the right panel shell (mode dropdown and tool content area).
 pub fn render_right_panel(
@@ -18,6 +74,7 @@ pub fn render_right_panel(
     t: &Tokens,
     tileset: &TilesetDef,
     project: &Project,
+    assets: &dyn AssetService,
     state: &mut TilesetViewState,
 ) {
     ui.vertical(|ui| {
@@ -89,24 +146,105 @@ pub fn render_right_panel(
                             state.selected_marking_value =
                                 enum_def.values.first().map(|v| v.id.clone());
                         } else if let Some(ref sel) = state.selected_marking_value {
-                            if enum_def.value(sel).is_none() {
+                            if sel != CUSTOM_DATA_VALUE_ID && enum_def.value(sel).is_none() {
                                 state.selected_marking_value =
                                     enum_def.values.first().map(|v| v.id.clone());
                             }
                         }
 
-                        ui.add_space(8.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(8.0);
-                            ui.label(
-                                RichText::new(format!("Values ({})", enum_def.values.len()))
-                                    .size(11.0)
-                                    .strong()
-                                    .color(t.accent_ink),
-                            );
-                        });
-                        ui.add_space(6.0);
+                        // Determine active tile index for #badge
+                        let active_tile_id = state
+                            .canvas_states
+                            .get(&tileset.id)
+                            .and_then(|cs| cs.hovered_tile)
+                            .or(state.selected_tile);
+                        let badge_text = active_tile_id
+                            .map(|id| format!("#{id}"))
+                            .unwrap_or_else(|| "#--".to_string());
 
+                        // Top item: "Custom data" with tile ID badge
+                        let custom_data_h = 30.0;
+                        let (cd_rect, cd_resp) = ui.allocate_exact_size(
+                            vec2(ui.available_width(), custom_data_h),
+                            Sense::click(),
+                        );
+
+                        let is_cd_selected =
+                            state.selected_marking_value.as_deref() == Some(CUSTOM_DATA_VALUE_ID);
+
+                        let cd_fill = if is_cd_selected {
+                            Color32::from_rgb(34, 40, 48)
+                        } else if cd_resp.hovered() {
+                            Color32::from_rgb(38, 44, 52)
+                        } else {
+                            Color32::from_rgb(26, 30, 36)
+                        };
+
+                        ui.painter()
+                            .rect_filled(cd_rect, CornerRadius::same(3), cd_fill);
+
+                        if is_cd_selected {
+                            ui.painter().rect_stroke(
+                                cd_rect,
+                                CornerRadius::same(3),
+                                Stroke::new(2.0, Color32::WHITE),
+                                StrokeKind::Inside,
+                            );
+                        } else {
+                            ui.painter().rect_stroke(
+                                cd_rect,
+                                CornerRadius::same(3),
+                                Stroke::new(1.0, Color32::from_rgb(50, 58, 68)),
+                                StrokeKind::Inside,
+                            );
+                        }
+
+                        if cd_resp.clicked() {
+                            state.selected_marking_value = Some(CUSTOM_DATA_VALUE_ID.to_string());
+                        }
+
+                        // "Custom data" label
+                        let cd_text_pos = Pos2::new(cd_rect.min.x + 8.0, cd_rect.center().y);
+                        ui.painter().text(
+                            cd_text_pos,
+                            egui::Align2::LEFT_CENTER,
+                            "Custom data",
+                            egui::FontId::proportional(12.0),
+                            Color32::from_rgb(150, 170, 190),
+                        );
+
+                        // #badge on top right
+                        let badge_w = 32.0;
+                        let badge_h = 16.0;
+                        let badge_rect = Rect::from_min_size(
+                            Pos2::new(
+                                cd_rect.max.x - badge_w - 4.0,
+                                cd_rect.center().y - badge_h / 2.0,
+                            ),
+                            vec2(badge_w, badge_h),
+                        );
+                        ui.painter().rect_filled(
+                            badge_rect,
+                            CornerRadius::same(2),
+                            Color32::from_rgb(20, 24, 28),
+                        );
+                        ui.painter().rect_stroke(
+                            badge_rect,
+                            CornerRadius::same(2),
+                            Stroke::new(1.0, Color32::from_rgb(70, 78, 88)),
+                            StrokeKind::Inside,
+                        );
+                        ui.painter().text(
+                            badge_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            badge_text,
+                            egui::FontId::monospace(10.0),
+                            Color32::WHITE,
+                        );
+
+                        ui.add_space(2.0);
+
+                        // Enum value items list
                         ScrollArea::vertical()
                             .id_salt("tileset_marking_values_scroll")
                             .auto_shrink([false, false])
@@ -114,90 +252,122 @@ pub fn render_right_panel(
                                 for val in &enum_def.values {
                                     let is_selected =
                                         state.selected_marking_value.as_deref() == Some(&val.id);
-                                    let marked_count =
-                                        tileset.marking.tags.get(&val.id).map_or(0, |s| s.len());
 
-                                    let row_height = 26.0;
+                                    let row_height = 28.0;
                                     let (row_rect, row_resp) = ui.allocate_exact_size(
                                         vec2(ui.available_width(), row_height),
                                         Sense::click(),
                                     );
 
-                                    if is_selected {
-                                        ui.painter().rect_filled(
-                                            row_rect,
-                                            CornerRadius::same(3),
-                                            t.selection_fill,
-                                        );
-                                        ui.painter().rect_stroke(
-                                            row_rect,
-                                            CornerRadius::same(3),
-                                            Stroke::new(1.0, t.selection_stroke),
-                                            StrokeKind::Inside,
-                                        );
-                                    } else if row_resp.hovered() {
-                                        ui.painter().rect_filled(
-                                            row_rect,
-                                            CornerRadius::same(3),
-                                            t.sunken,
-                                        );
-                                    }
-
                                     if row_resp.clicked() {
                                         state.selected_marking_value = Some(val.id.clone());
                                     }
 
-                                    let chip_size = 14.0;
-                                    let chip_y = row_rect.center().y - chip_size / 2.0;
-                                    let chip_rect = Rect::from_min_size(
-                                        Pos2::new(row_rect.min.x + 8.0, chip_y),
-                                        vec2(chip_size, chip_size),
+                                    let base_r = val.color[0];
+                                    let base_g = val.color[1];
+                                    let base_b = val.color[2];
+
+                                    // Solid background fill matching enum color (slightly deepened)
+                                    let fill_color = Color32::from_rgb(
+                                        (base_r as f32 * 0.8) as u8,
+                                        (base_g as f32 * 0.8) as u8,
+                                        (base_b as f32 * 0.8) as u8,
                                     );
-                                    let color = Color32::from_rgba_unmultiplied(
-                                        val.color[0],
-                                        val.color[1],
-                                        val.color[2],
-                                        val.color[3],
+                                    let accent_color = Color32::from_rgb(base_r, base_g, base_b);
+
+                                    ui.painter().rect_filled(
+                                        row_rect,
+                                        CornerRadius::same(3),
+                                        fill_color,
+                                    );
+
+                                    // Left vertical accent stripe (4px wide)
+                                    let stripe_rect = Rect::from_min_size(
+                                        row_rect.min,
+                                        vec2(4.0, row_rect.height()),
                                     );
                                     ui.painter().rect_filled(
-                                        chip_rect,
+                                        stripe_rect,
                                         CornerRadius::same(2),
-                                        color,
+                                        accent_color,
+                                    );
+
+                                    // Selection outline (2px white border)
+                                    if is_selected {
+                                        ui.painter().rect_stroke(
+                                            row_rect,
+                                            CornerRadius::same(3),
+                                            Stroke::new(2.0, Color32::WHITE),
+                                            StrokeKind::Inside,
+                                        );
+                                    } else if row_resp.hovered() {
+                                        ui.painter().rect_stroke(
+                                            row_rect,
+                                            CornerRadius::same(3),
+                                            Stroke::new(1.0, Color32::from_white_alpha(70)),
+                                            StrokeKind::Inside,
+                                        );
+                                    }
+
+                                    // Dark square icon container
+                                    let icon_box_size = 22.0;
+                                    let icon_box_rect = Rect::from_min_size(
+                                        Pos2::new(
+                                            row_rect.min.x + 8.0,
+                                            row_rect.center().y - icon_box_size / 2.0,
+                                        ),
+                                        vec2(icon_box_size, icon_box_size),
+                                    );
+                                    ui.painter().rect_filled(
+                                        icon_box_rect,
+                                        CornerRadius::same(2),
+                                        Color32::from_rgb(22, 26, 32),
                                     );
                                     ui.painter().rect_stroke(
-                                        chip_rect,
+                                        icon_box_rect,
                                         CornerRadius::same(2),
-                                        t.hairline(),
+                                        Stroke::new(1.0, Color32::from_rgb(45, 52, 60)),
                                         StrokeKind::Inside,
                                     );
 
-                                    // Value name
+                                    // Icon: bound tile if present, color chip fallback if not
+                                    let mut drew_tile = false;
+                                    if let Some(ref tile_ref) = val.tile {
+                                        drew_tile = paint_tile_thumbnail(
+                                            ui.painter(),
+                                            ui.ctx(),
+                                            icon_box_rect,
+                                            project,
+                                            assets,
+                                            tile_ref,
+                                        );
+                                    }
+                                    if !drew_tile {
+                                        let dot_size = 10.0;
+                                        let dot_rect = Rect::from_min_size(
+                                            Pos2::new(
+                                                icon_box_rect.center().x - dot_size / 2.0,
+                                                icon_box_rect.center().y - dot_size / 2.0,
+                                            ),
+                                            vec2(dot_size, dot_size),
+                                        );
+                                        ui.painter().rect_filled(
+                                            dot_rect,
+                                            CornerRadius::same(2),
+                                            accent_color,
+                                        );
+                                    }
+
+                                    // Label text in bold white
                                     let text_pos =
-                                        Pos2::new(chip_rect.max.x + 8.0, row_rect.center().y);
+                                        Pos2::new(icon_box_rect.max.x + 8.0, row_rect.center().y);
                                     ui.painter().text(
                                         text_pos,
                                         egui::Align2::LEFT_CENTER,
                                         &val.name,
                                         egui::FontId::proportional(12.0),
-                                        if is_selected {
-                                            t.accent_ink
-                                        } else {
-                                            t.ink_strong
-                                        },
+                                        Color32::WHITE,
                                     );
-
-                                    // Count on right
-                                    if marked_count > 0 {
-                                        let count_pos =
-                                            Pos2::new(row_rect.max.x - 8.0, row_rect.center().y);
-                                        ui.painter().text(
-                                            count_pos,
-                                            egui::Align2::RIGHT_CENTER,
-                                            format!("{marked_count}"),
-                                            egui::FontId::proportional(11.0),
-                                            t.muted,
-                                        );
-                                    }
 
                                     ui.add_space(2.0);
                                 }

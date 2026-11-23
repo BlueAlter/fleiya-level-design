@@ -5,8 +5,12 @@ use lc_core::id::TilesetDefId;
 use std::collections::HashMap;
 
 use crate::shared::ui::atlas_canvas::AtlasCanvasState;
+use crate::shared::ui::custom_data_dialog::CustomDataDialogState;
 use crate::shared::ui::markdown_document::{new_document_cache, DocumentCache};
 use crate::shared::ui::search_picker::SearchPickerState;
+
+/// Special value ID used when the "Custom data" item is selected in marking mode.
+pub const CUSTOM_DATA_VALUE_ID: &str = "__custom_data__";
 
 /// Stored pan and zoom per tileset for the editing session.
 #[derive(Debug, Clone)]
@@ -77,6 +81,8 @@ pub struct TilesetViewState {
     pub pending_outside_copy: Option<std::path::PathBuf>,
     /// Cached neutral repeating page background texture handle.
     pub page_bg: Option<egui::TextureHandle>,
+    /// Modal dialog state for editing tile custom data.
+    pub custom_data_dialog: CustomDataDialogState,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -120,6 +126,7 @@ impl Default for TilesetViewState {
             is_attributes_collapsed: false,
             pending_outside_copy: None,
             page_bg: None,
+            custom_data_dialog: CustomDataDialogState::default(),
         }
     }
 }

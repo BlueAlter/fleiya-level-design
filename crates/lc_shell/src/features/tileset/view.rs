@@ -446,6 +446,7 @@ fn render_detail_area(
                                         t,
                                         tileset,
                                         &app.project,
+                                        app.assets.as_ref(),
                                         &mut app.tileset_view_state,
                                     );
                                 });
