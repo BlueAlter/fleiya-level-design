@@ -21,6 +21,8 @@ pub mod keys {
     pub const FIELD_IDENTIFIER: &str = "tileset.field.identifier";
     pub const FIELD_SOURCE_IMAGE: &str = "tileset.field.source_image";
     pub const FIELD_TILES_LAYOUT: &str = "tileset.field.tiles_layout";
+    pub const FIELD_TAGS: &str = "tileset.field.tags";
+    pub const FIELD_MARKING_ENUM: &str = "tileset.field.marking_enum";
     pub const CHOOSE_IMAGE: &str = "tileset.button.choose_image";
     pub const BUTTON_BROWSE: &str = "tileset.button.browse";
     pub const BUTTON_CLEAR: &str = "tileset.button.clear";
@@ -54,6 +56,8 @@ pub mod keys {
         FIELD_IDENTIFIER,
         FIELD_SOURCE_IMAGE,
         FIELD_TILES_LAYOUT,
+        FIELD_TAGS,
+        FIELD_MARKING_ENUM,
         CHOOSE_IMAGE,
         BUTTON_BROWSE,
         BUTTON_CLEAR,

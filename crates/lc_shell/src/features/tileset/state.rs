@@ -33,6 +33,8 @@ pub struct TilesetViewState {
     pub selected_tileset_id: Option<TilesetDefId>,
     /// Currently selected tile index in the atlas (None if no tile is selected).
     pub selected_tile: Option<u32>,
+    /// Currently selected enum value ID for tile marking mode.
+    pub selected_marking_value: Option<String>,
     /// Active tool/mode in the right panel shell (e.g. "None", "Marking", "Animation").
     pub active_mode: String,
     /// Search query string in the left panel list.
@@ -96,6 +98,7 @@ impl Default for TilesetViewState {
             active_sub_tab: 0,
             selected_tileset_id: None,
             selected_tile: None,
+            selected_marking_value: None,
             active_mode: "None".to_string(),
             search_query: String::new(),
             pan_zoom: HashMap::new(),

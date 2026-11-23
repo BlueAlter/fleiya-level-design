@@ -436,11 +436,11 @@ fn render_detail_area(
                                 .corner_radius(CornerRadius::same(4))
                                 .show(ui, |ui| {
                                     render_atlas_view(
+                                        app,
                                         ui,
                                         t,
                                         tileset,
                                         tex.as_ref(),
-                                        &mut app.tileset_view_state,
                                     );
                                 });
                         });

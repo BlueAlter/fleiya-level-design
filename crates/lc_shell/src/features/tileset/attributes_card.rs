@@ -12,6 +12,7 @@ use lc_feature_tileset::{compute_tileset_grid, GridMetrics, UpdateTilesetDefComm
 use super::file_dialog::TilesetDialogManager;
 pub use super::file_picker::file_picker_button;
 use super::i18n::keys;
+use super::tags_row::{render_marking_enum_row, render_tags_row};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::tr;
 use crate::shared::ui::icon_button::{icon_button, IconButtonStyle};
@@ -396,6 +397,16 @@ pub fn render_attributes_card(
                         render_sp_pd(app, ui, t, tileset);
                     });
                 }
+
+                ui.add_space(8.0);
+
+                // Row 4: Tags
+                render_tags_row(app, ui, t, tileset);
+
+                ui.add_space(8.0);
+
+                // Row 5: Enum for tile marking
+                render_marking_enum_row(app, ui, t, tileset);
             });
         });
 

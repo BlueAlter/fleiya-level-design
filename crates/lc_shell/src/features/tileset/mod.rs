@@ -11,6 +11,7 @@ pub mod left_panel;
 pub mod panel;
 pub mod right_panel;
 pub mod state;
+pub mod tags_row;
 pub mod view;
 
 pub use view::render_tileset_view;
