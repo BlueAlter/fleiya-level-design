@@ -14,6 +14,7 @@ pub mod paint_commands;
 pub mod palette;
 pub mod reorder_command;
 mod select;
+pub mod tag_commands;
 pub mod tools;
 pub mod view;
 
