@@ -470,6 +470,7 @@ mod tests {
             padding: 0,
             tags: Vec::new(),
             marking: lc_core::defs::TileMarking::EMPTY,
+            custom_data: Default::default(),
         });
         project.defs.enums.push(EnumDef {
             id: EnumDefId(1),

@@ -17,6 +17,7 @@ pub struct TilesetDef {
     pub padding: u32,
     pub tags: Vec<String>,
     pub marking: TileMarking,
+    pub custom_data: BTreeMap<u32, String>,
 }
 
 pub struct TileMarking {

@@ -94,6 +94,7 @@ impl TilesetDocumentView {
             padding: self.padding,
             tags: def.tags.clone(),
             marking: def.marking.clone(),
+            custom_data: def.custom_data.clone(),
         };
 
         if *def != updated {

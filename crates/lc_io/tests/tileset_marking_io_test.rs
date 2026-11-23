@@ -83,6 +83,7 @@ fn test_tileset_tags_and_marking_json_round_trip() {
         padding: 2,
         tags: vec!["Dungeon".to_string(), "Nature".to_string()],
         marking,
+        custom_data: Default::default(),
     };
 
     let mut defs = Definitions::new();
@@ -161,6 +162,7 @@ fn test_tileset_marking_multi_file_disk_round_trip() {
         padding: 0,
         tags: vec!["Interior".to_string(), "Castle".to_string()],
         marking,
+        custom_data: Default::default(),
     };
 
     let enum_def = EnumDef {

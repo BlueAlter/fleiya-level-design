@@ -120,6 +120,7 @@ fn test_b5_tab_switch_glitch_and_stability() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
 
     let mut app = ShellApp::new(project);

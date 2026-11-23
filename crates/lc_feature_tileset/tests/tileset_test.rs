@@ -55,6 +55,7 @@ fn create_test_project_with_tileset() -> (Project, TilesetDefId) {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     };
 
     let mut project = Project::new("Test Project");
@@ -316,6 +317,7 @@ fn test_tileset_commands_undo_redo_round_trip() {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     };
 
     // 1. Add

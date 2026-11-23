@@ -21,6 +21,7 @@ fn create_sample_enums() -> (Vec<EnumDef>, Vec<TilesetDef>) {
             spacing: 0,
             tags: Vec::new(),
             marking: TileMarking::EMPTY,
+            custom_data: Default::default(),
         },
         TilesetDef {
             id: TilesetDefId(2),
@@ -31,6 +32,7 @@ fn create_sample_enums() -> (Vec<EnumDef>, Vec<TilesetDef>) {
             spacing: 0,
             tags: Vec::new(),
             marking: TileMarking::EMPTY,
+            custom_data: Default::default(),
         },
     ];
 
@@ -142,6 +144,7 @@ fn test_tile_id_to_rect_and_back() {
         spacing: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     };
     let img_size = (256, 256);
 
@@ -177,6 +180,7 @@ fn test_bound_tile_cleared_conditions() {
         spacing: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     }];
     let resolver = |_| Some((64, 64)); // 4x4 tiles, max x=48, max y=48
 

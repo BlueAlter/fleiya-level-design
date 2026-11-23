@@ -5,6 +5,7 @@
 mod brush;
 pub mod clipboard;
 pub mod commands;
+pub mod custom_data_commands;
 mod fill_tools;
 pub mod handler;
 pub mod helpers;
@@ -21,7 +22,7 @@ pub mod view;
 pub use clipboard::TileClipboard;
 pub use commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
-    UpdateTilesetDefCommand,
+    SetTileCustomDataCommand, UpdateTilesetDefCommand,
 };
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
 pub use helpers::{

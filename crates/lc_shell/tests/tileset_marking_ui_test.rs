@@ -29,6 +29,7 @@ fn setup_test_project() -> Project {
             source_enum: Some(EnumDefId(1)),
             ..Default::default()
         },
+        custom_data: Default::default(),
     });
 
     project.defs.enums.push(EnumDef {

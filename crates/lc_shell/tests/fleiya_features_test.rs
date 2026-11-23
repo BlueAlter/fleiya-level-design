@@ -59,6 +59,7 @@ fn test_definition_tabs_and_windows_behavior() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
     shell.project.defs.enums.push(lc_core::defs::EnumDef {
         id: EnumDefId(1),
@@ -111,6 +112,7 @@ fn test_add_tileset_command_and_persistence() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     };
 
     shell
@@ -159,6 +161,7 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
 
     // Add a Tiles layer def

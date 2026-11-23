@@ -178,6 +178,7 @@ mod tests {
             padding: 0,
             tags: tags.iter().map(|s| s.to_string()).collect(),
             marking: TileMarking::new(),
+            custom_data: Default::default(),
         }
     }
 

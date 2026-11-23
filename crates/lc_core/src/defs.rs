@@ -6,6 +6,7 @@ use crate::layer::{LayerKind, TileRef};
 pub use crate::marking::TileMarking;
 use glam::{UVec2, Vec2};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Definition of an external tileset asset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +29,25 @@ pub struct TilesetDef {
     /// Tile marking configuration (e.g. source enum).
     #[serde(default, skip_serializing_if = "TileMarking::is_empty")]
     pub marking: TileMarking,
+    /// Custom string data associated per tile (e.g. JSON, XML, strings).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub custom_data: BTreeMap<u32, String>,
+}
+
+impl Default for TilesetDef {
+    fn default() -> Self {
+        Self {
+            id: TilesetDefId(0),
+            name: String::new(),
+            path: String::new(),
+            tile_size: UVec2::new(16, 16),
+            spacing: 0,
+            padding: 0,
+            tags: Vec::new(),
+            marking: TileMarking::new(),
+            custom_data: BTreeMap::new(),
+        }
+    }
 }
 
 impl TilesetDef {
@@ -47,6 +67,7 @@ impl TilesetDef {
             padding: 0,
             tags: Vec::new(),
             marking: TileMarking::new(),
+            custom_data: BTreeMap::new(),
         }
     }
 }

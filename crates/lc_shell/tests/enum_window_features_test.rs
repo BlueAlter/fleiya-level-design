@@ -78,6 +78,7 @@ fn test_enum_window_renders_when_opened() {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
     app.project.defs.enums.push(EnumDef {
         id: EnumDefId(1),

@@ -22,6 +22,7 @@ fn test_reorder_tileset_def_command_apply_revert() {
             padding: 0,
             tags: Vec::new(),
             marking: lc_core::defs::TileMarking::EMPTY,
+            custom_data: Default::default(),
         });
     }
 
@@ -72,6 +73,7 @@ fn test_reorder_tileset_def_command_out_of_range() {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
 
     let mut cmd_out_of_range = ReorderTilesetDefCommand::new(TilesetDefId(1), 5);
@@ -192,6 +194,7 @@ fn test_mode_availability() {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     };
     let modes = mode_availability(&ts);
     assert_eq!(modes.len(), 3);
@@ -214,6 +217,7 @@ fn test_mode_availability() {
             source_enum: Some(lc_core::id::EnumDefId(1)),
             ..Default::default()
         },
+        custom_data: Default::default(),
     };
     let modes2 = mode_availability(&ts_with_marking);
     assert!(modes2[1].available);

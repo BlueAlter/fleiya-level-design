@@ -58,6 +58,7 @@ fn sample_project() -> Project {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     }];
     p
 }

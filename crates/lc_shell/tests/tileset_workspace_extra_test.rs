@@ -25,6 +25,7 @@ fn test_headless_render_source_enum_missing() {
             source_enum: Some(lc_core::id::EnumDefId(999)),
             ..Default::default()
         },
+        custom_data: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -111,6 +112,7 @@ fn test_atlas_view_missing_and_empty_image_labels() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
     p.defs.tilesets.push(TilesetDef {
         id: TilesetDefId(2),
@@ -121,6 +123,7 @@ fn test_atlas_view_missing_and_empty_image_labels() {
         padding: 0,
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
 
     let mut app = ShellApp::new(p);

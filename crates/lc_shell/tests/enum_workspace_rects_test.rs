@@ -57,6 +57,7 @@ fn setup_app(enum_count: usize) -> ShellApp {
         padding: 0,
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
+        custom_data: Default::default(),
     });
 
     app.tag_registry.push(TagDef {
