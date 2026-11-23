@@ -143,7 +143,9 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
                             ),
                         ],
                     );
-                    ui.add_space(8.0);
+                    // CommonMarkViewer prepends a 15 px newline before the first heading.
+                    // Compensate so the first heading lands at y = 52.0, matching the ENUM DEF title.
+                    ui.add_space(8.0 - 15.0);
                     render_enum_document(ui, &t, &state.doc_cache, &mut state.doc_scroll);
                 }
             } else {
