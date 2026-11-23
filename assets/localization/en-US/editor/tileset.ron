@@ -8,6 +8,8 @@
     "tileset.card.identifier_attributes": "TILESET IDENTIFIER & ATTRIBUTES",
     "tileset.field.identifier": "Identifier",
     "tileset.field.source_image": "Source image",
+    "tileset.field.tiles_layout": "Tiles layout",
+    "tileset.button.choose_image": "Choose image...",
     "tileset.button.browse": "Browse",
     "tileset.button.clear": "Clear",
     "tileset.field.tile_size": "Tile size",

@@ -333,10 +333,10 @@ fn render_detail_area(
             }
 
             // TILESET DEF Tab
-            let tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
+            let mut tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
 
             // Attribute Card + Image info
-            render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_ref());
+            render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_mut());
 
             ui.add_space(10.0);
 

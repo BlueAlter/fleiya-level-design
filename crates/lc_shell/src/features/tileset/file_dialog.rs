@@ -51,13 +51,14 @@ impl TilesetDialogManager {
     }
 
     /// Spawns a background thread to pick a PNG file for an existing tileset definition.
-    pub fn request_browse_image(&self, tileset_id: TilesetDefId) {
+    pub fn request_browse_image(&self, tileset_id: TilesetDefId, start_dir: Option<PathBuf>) {
         let sender = self.sender.clone();
         std::thread::spawn(move || {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("Image", &["png"])
-                .pick_file()
-            {
+            let mut builder = rfd::FileDialog::new().add_filter("Image", &["png"]);
+            if let Some(dir) = start_dir {
+                builder = builder.set_directory(dir);
+            }
+            if let Some(path) = builder.pick_file() {
                 let _ = sender.send(TilesetDialogMessage::BrowseSourceImage(tileset_id, path));
             }
         });

@@ -20,6 +20,8 @@ pub mod keys {
     pub const CARD_IDENTIFIER_ATTRIBUTES: &str = "tileset.card.identifier_attributes";
     pub const FIELD_IDENTIFIER: &str = "tileset.field.identifier";
     pub const FIELD_SOURCE_IMAGE: &str = "tileset.field.source_image";
+    pub const FIELD_TILES_LAYOUT: &str = "tileset.field.tiles_layout";
+    pub const CHOOSE_IMAGE: &str = "tileset.button.choose_image";
     pub const BUTTON_BROWSE: &str = "tileset.button.browse";
     pub const BUTTON_CLEAR: &str = "tileset.button.clear";
     pub const FIELD_TILE_SIZE: &str = "tileset.field.tile_size";
@@ -51,6 +53,8 @@ pub mod keys {
         CARD_IDENTIFIER_ATTRIBUTES,
         FIELD_IDENTIFIER,
         FIELD_SOURCE_IMAGE,
+        FIELD_TILES_LAYOUT,
+        CHOOSE_IMAGE,
         BUTTON_BROWSE,
         BUTTON_CLEAR,
         FIELD_TILE_SIZE,
