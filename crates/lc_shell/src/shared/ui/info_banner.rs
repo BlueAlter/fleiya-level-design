@@ -1,6 +1,6 @@
 //! Standardized informative callout / banner component.
 //!
-//! Renders an info callout card with a prominent circular question/help badge
+//! Renders an info callout card with a prominent question/help badge
 //! on the left, multi-line guidance text in the middle, and an optional custom
 //! preview slot on the right.
 
@@ -22,30 +22,25 @@ where
     F: FnOnce(&mut Ui),
 {
     let frame = Frame::new()
-        .fill(Color32::from_rgba_unmultiplied(26, 44, 38, 230))
-        .stroke(Stroke::new(1.0, Color32::from_rgb(50, 110, 80)))
-        .corner_radius(CornerRadius::same(6))
+        .fill(Color32::from_rgba_unmultiplied(20, 34, 28, 230))
+        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 95, 65)))
+        .corner_radius(CornerRadius::ZERO)
         .inner_margin(Margin::symmetric(12, 10));
 
     frame
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                // 1. Left circular help icon
-                let icon_size = vec2(26.0, 26.0);
+                // 1. Left help icon (rectangular badge matching project theme)
+                let icon_size = vec2(24.0, 24.0);
                 let (rect, _) = ui.allocate_exact_size(icon_size, Sense::hover());
-                let circle_center = rect.center();
-                let circle_radius = icon_size.x * 0.5;
 
-                ui.painter().circle_filled(
-                    circle_center,
-                    circle_radius,
-                    Color32::from_rgb(52, 148, 76),
-                );
+                ui.painter()
+                    .rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(40, 120, 65));
                 ui.painter().text(
-                    circle_center,
+                    rect.center(),
                     Align2::CENTER_CENTER,
                     "?",
-                    FontId::monospace(15.0),
+                    FontId::monospace(14.0),
                     Color32::WHITE,
                 );
 
@@ -77,12 +72,12 @@ where
                         ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
                     ui.painter().rect_filled(
                         preview_rect,
-                        CornerRadius::same(3),
+                        CornerRadius::ZERO,
                         Color32::from_rgba_unmultiplied(10, 18, 24, 200),
                     );
                     ui.painter().rect_stroke(
                         preview_rect,
-                        CornerRadius::same(3),
+                        CornerRadius::ZERO,
                         t.hairline(),
                         egui::StrokeKind::Inside,
                     );

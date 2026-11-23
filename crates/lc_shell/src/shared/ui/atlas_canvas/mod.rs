@@ -47,212 +47,215 @@ pub fn render_atlas_canvas(
         state.needs_initial_fit = false;
     }
 
-    // 2. Navigation: Fit on double-click or F / Home key
-    let double_clicked = response.double_clicked();
-    let fit_key = ui.ctx().input_mut(|i| {
-        i.consume_key(Modifiers::NONE, Key::F) || i.consume_key(Modifiers::NONE, Key::Home)
-    });
-    if double_clicked || fit_key {
-        state.fit_to_viewport(viewport_rect, img_w, img_h);
-    }
+    let mut hovered_c_r = None;
 
-    // 3. Navigation: Pan (Middle-drag or Space+drag)
-    let space_down = ui.ctx().input(|i| i.key_down(Key::Space));
-    if space_down {
-        ui.ctx().set_cursor_icon(CursorIcon::Grab);
-    }
-    if response.dragged_by(PointerButton::Middle)
-        || (space_down && response.dragged_by(PointerButton::Primary))
-    {
-        if space_down {
-            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+    if ui.is_enabled() {
+        // 2. Navigation: Fit on double-click or F / Home key
+        let double_clicked = response.double_clicked();
+        let fit_key = ui.ctx().input_mut(|i| {
+            i.consume_key(Modifiers::NONE, Key::F) || i.consume_key(Modifiers::NONE, Key::Home)
+        });
+        if double_clicked || fit_key {
+            state.fit_to_viewport(viewport_rect, img_w, img_h);
         }
-        state.view.offset += response.drag_delta();
-    }
 
-    // Mouse wheel pan
-    let (modifiers, scroll_delta) = ui.ctx().input(|i| (i.modifiers, i.smooth_scroll_delta));
-    if !modifiers.ctrl
-        && !modifiers.command
-        && (scroll_delta.x.abs() > 0.0 || scroll_delta.y.abs() > 0.0)
-    {
-        if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-            if viewport_rect.contains(cursor) {
-                if modifiers.shift {
-                    let dx = if scroll_delta.x.abs() > 0.0 {
-                        scroll_delta.x
+        // 3. Navigation: Pan (Middle-drag or Space+drag)
+        let space_down = ui.ctx().input(|i| i.key_down(Key::Space));
+        if space_down {
+            ui.ctx().set_cursor_icon(CursorIcon::Grab);
+        }
+        if response.dragged_by(PointerButton::Middle)
+            || (space_down && response.dragged_by(PointerButton::Primary))
+        {
+            if space_down {
+                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+            }
+            state.view.offset += response.drag_delta();
+        }
+
+        // Mouse wheel pan
+        let (modifiers, scroll_delta) = ui.ctx().input(|i| (i.modifiers, i.smooth_scroll_delta));
+        if !modifiers.ctrl
+            && !modifiers.command
+            && (scroll_delta.x.abs() > 0.0 || scroll_delta.y.abs() > 0.0)
+        {
+            if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+                if viewport_rect.contains(cursor) {
+                    if modifiers.shift {
+                        let dx = if scroll_delta.x.abs() > 0.0 {
+                            scroll_delta.x
+                        } else {
+                            scroll_delta.y
+                        };
+                        state.view.offset.x += dx;
                     } else {
-                        scroll_delta.y
-                    };
-                    state.view.offset.x += dx;
-                } else {
-                    state.view.offset.y += scroll_delta.y;
-                    if scroll_delta.x.abs() > 0.0 {
-                        state.view.offset.x += scroll_delta.x;
+                        state.view.offset.y += scroll_delta.y;
+                        if scroll_delta.x.abs() > 0.0 {
+                            state.view.offset.x += scroll_delta.x;
+                        }
                     }
                 }
             }
         }
-    }
 
-    // Ctrl+scroll zoom towards cursor
-    let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
-    if (zoom_delta - 1.0).abs() > 0.001 {
-        if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-            if viewport_rect.contains(cursor) {
-                let (new_zoom, new_offset) =
-                    zoom_towards_cursor(cursor, state.view.zoom, state.view.offset, zoom_delta);
-                state.view.zoom = new_zoom;
-                state.view.offset = new_offset;
+        // Ctrl+scroll zoom towards cursor
+        let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
+        if (zoom_delta - 1.0).abs() > 0.001 {
+            if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+                if viewport_rect.contains(cursor) {
+                    let (new_zoom, new_offset) =
+                        zoom_towards_cursor(cursor, state.view.zoom, state.view.offset, zoom_delta);
+                    state.view.zoom = new_zoom;
+                    state.view.offset = new_offset;
+                }
             }
         }
-    }
 
-    // Clamp offset
-    state.view.offset = clamp_offset(
-        state.view.offset,
-        viewport_rect,
-        img_w,
-        img_h,
-        state.view.zoom,
-    );
+        // Clamp offset
+        state.view.offset = clamp_offset(
+            state.view.offset,
+            viewport_rect,
+            img_w,
+            img_h,
+            state.view.zoom,
+        );
 
-    // 4. Multi-select with Right-Click Drag
-    let right_pressed = ui
-        .ctx()
-        .input(|i| i.pointer.button_pressed(PointerButton::Secondary));
-    let right_down = ui
-        .ctx()
-        .input(|i| i.pointer.button_down(PointerButton::Secondary));
-    let right_released = ui
-        .ctx()
-        .input(|i| i.pointer.button_released(PointerButton::Secondary));
+        // 4. Multi-select with Right-Click Drag
+        let right_pressed = ui
+            .ctx()
+            .input(|i| i.pointer.button_pressed(PointerButton::Secondary));
+        let right_down = ui
+            .ctx()
+            .input(|i| i.pointer.button_down(PointerButton::Secondary));
+        let right_released = ui
+            .ctx()
+            .input(|i| i.pointer.button_released(PointerButton::Secondary));
 
-    if right_pressed {
-        if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
-            if viewport_rect.contains(pos) && grid.cols > 0 && grid.rows > 0 {
-                let page_pos = state.view.screen_to_page(pos);
-                let rel_x = page_pos.x - grid.padding as f32;
-                let rel_y = page_pos.y - grid.padding as f32;
-                let stride_x = (grid.tile_w + grid.spacing).max(1) as f32;
-                let stride_y = (grid.tile_h + grid.spacing).max(1) as f32;
-                let col = (rel_x / stride_x)
-                    .floor()
-                    .clamp(0.0, grid.cols.saturating_sub(1) as f32)
-                    as u32;
-                let row = (rel_y / stride_y)
-                    .floor()
-                    .clamp(0.0, grid.rows.saturating_sub(1) as f32)
-                    as u32;
+        if right_pressed {
+            if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
+                if viewport_rect.contains(pos) && grid.cols > 0 && grid.rows > 0 {
+                    let page_pos = state.view.screen_to_page(pos);
+                    let rel_x = page_pos.x - grid.padding as f32;
+                    let rel_y = page_pos.y - grid.padding as f32;
+                    let stride_x = (grid.tile_w + grid.spacing).max(1) as f32;
+                    let stride_y = (grid.tile_h + grid.spacing).max(1) as f32;
+                    let col = (rel_x / stride_x)
+                        .floor()
+                        .clamp(0.0, grid.cols.saturating_sub(1) as f32)
+                        as u32;
+                    let row = (rel_y / stride_y)
+                        .floor()
+                        .clamp(0.0, grid.rows.saturating_sub(1) as f32)
+                        as u32;
 
-                state.drag_start_cell = Some((col, row));
-                state.is_right_dragging = true;
-                let single_rect = TileRect::single(col, row);
-                state.live_drag_rect = Some(single_rect);
-                state.selected_tile_rect = Some(single_rect);
-                events.push(AtlasEvent::DragRectStart(single_rect));
+                    state.drag_start_cell = Some((col, row));
+                    state.is_right_dragging = true;
+                    let single_rect = TileRect::single(col, row);
+                    state.live_drag_rect = Some(single_rect);
+                    state.selected_tile_rect = Some(single_rect);
+                    events.push(AtlasEvent::DragRectStart(single_rect));
+                }
             }
         }
-    }
 
-    if state.is_right_dragging && right_down {
-        if let Some(start_cell) = state.drag_start_cell {
-            if let Some(curr_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                let edge_margin = 24.0;
-                let scroll_step = 6.0;
-                let mut auto_scroll = vec2(0.0, 0.0);
-                if curr_pos.x < viewport_rect.min.x + edge_margin {
-                    auto_scroll.x += scroll_step;
-                }
-                if curr_pos.x > viewport_rect.max.x - edge_margin {
-                    auto_scroll.x -= scroll_step;
-                }
-                if curr_pos.y < viewport_rect.min.y + edge_margin {
-                    auto_scroll.y += scroll_step;
-                }
-                if curr_pos.y > viewport_rect.max.y - edge_margin {
-                    auto_scroll.y -= scroll_step;
-                }
-                if auto_scroll != vec2(0.0, 0.0) {
-                    state.view.offset += auto_scroll;
-                    ui.ctx().request_repaint();
-                }
+        if state.is_right_dragging && right_down {
+            if let Some(start_cell) = state.drag_start_cell {
+                if let Some(curr_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+                    let edge_margin = 24.0;
+                    let scroll_step = 6.0;
+                    let mut auto_scroll = vec2(0.0, 0.0);
+                    if curr_pos.x < viewport_rect.min.x + edge_margin {
+                        auto_scroll.x += scroll_step;
+                    }
+                    if curr_pos.x > viewport_rect.max.x - edge_margin {
+                        auto_scroll.x -= scroll_step;
+                    }
+                    if curr_pos.y < viewport_rect.min.y + edge_margin {
+                        auto_scroll.y += scroll_step;
+                    }
+                    if curr_pos.y > viewport_rect.max.y - edge_margin {
+                        auto_scroll.y -= scroll_step;
+                    }
+                    if auto_scroll != vec2(0.0, 0.0) {
+                        state.view.offset += auto_scroll;
+                        ui.ctx().request_repaint();
+                    }
 
-                let curr_page = state.view.screen_to_page(curr_pos);
-                let rel_x = curr_page.x - grid.padding as f32;
-                let rel_y = curr_page.y - grid.padding as f32;
-                let stride_x = (grid.tile_w + grid.spacing).max(1) as f32;
-                let stride_y = (grid.tile_h + grid.spacing).max(1) as f32;
-                let end_col = (rel_x / stride_x)
-                    .floor()
-                    .clamp(0.0, grid.cols.saturating_sub(1) as f32)
-                    as u32;
-                let end_row = (rel_y / stride_y)
-                    .floor()
-                    .clamp(0.0, grid.rows.saturating_sub(1) as f32)
-                    as u32;
+                    let curr_page = state.view.screen_to_page(curr_pos);
+                    let rel_x = curr_page.x - grid.padding as f32;
+                    let rel_y = curr_page.y - grid.padding as f32;
+                    let stride_x = (grid.tile_w + grid.spacing).max(1) as f32;
+                    let stride_y = (grid.tile_h + grid.spacing).max(1) as f32;
+                    let end_col = (rel_x / stride_x)
+                        .floor()
+                        .clamp(0.0, grid.cols.saturating_sub(1) as f32)
+                        as u32;
+                    let end_row = (rel_y / stride_y)
+                        .floor()
+                        .clamp(0.0, grid.rows.saturating_sub(1) as f32)
+                        as u32;
 
-                let sel = TileRect::from_cells(start_cell, (end_col, end_row))
-                    .clamp(grid.cols, grid.rows);
-                state.live_drag_rect = Some(sel);
+                    let sel = TileRect::from_cells(start_cell, (end_col, end_row))
+                        .clamp(grid.cols, grid.rows);
+                    state.live_drag_rect = Some(sel);
+                    state.selected_tile_rect = Some(sel);
+                    events.push(AtlasEvent::DragRectUpdate(sel));
+                }
+            }
+        }
+
+        if state.is_right_dragging && right_released {
+            state.is_right_dragging = false;
+            state.drag_start_cell = None;
+            if let Some(sel) = state.live_drag_rect.take().or(state.selected_tile_rect) {
                 state.selected_tile_rect = Some(sel);
-                events.push(AtlasEvent::DragRectUpdate(sel));
+                events.push(AtlasEvent::DragRectEnd(sel));
             }
         }
-    }
 
-    if state.is_right_dragging && right_released {
-        state.is_right_dragging = false;
-        state.drag_start_cell = None;
-        if let Some(sel) = state.live_drag_rect.take().or(state.selected_tile_rect) {
-            state.selected_tile_rect = Some(sel);
-            events.push(AtlasEvent::DragRectEnd(sel));
-        }
-    }
-
-    // 5. Hover Detection & Clicks
-    let mut hovered_c_r = None;
-    let mut hovered_tid = None;
-    if !state.is_right_dragging && !space_down {
-        if let Some(mpos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-            if viewport_rect.contains(mpos) {
-                let page_pos = state.view.screen_to_page(mpos);
-                if let Some(cell) = grid.cell_at(page_pos) {
-                    hovered_c_r = Some(cell);
-                    hovered_tid = Some(grid.tile_id(cell.0, cell.1));
-                    ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        // 5. Hover Detection & Clicks
+        let mut hovered_tid = None;
+        if !state.is_right_dragging && !space_down {
+            if let Some(mpos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+                if viewport_rect.contains(mpos) {
+                    let page_pos = state.view.screen_to_page(mpos);
+                    if let Some(cell) = grid.cell_at(page_pos) {
+                        hovered_c_r = Some(cell);
+                        hovered_tid = Some(grid.tile_id(cell.0, cell.1));
+                        ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+                    }
                 }
             }
         }
-    }
-    state.hovered_tile = hovered_tid;
-    events.push(AtlasEvent::Hovered(state.hovered_tile));
+        state.hovered_tile = hovered_tid;
+        events.push(AtlasEvent::Hovered(state.hovered_tile));
 
-    // Handle clicks
-    if !state.is_right_dragging && !space_down {
-        if let Some(cell) = hovered_c_r {
-            let tid = grid.tile_id(cell.0, cell.1);
-            if response.clicked() {
-                events.push(AtlasEvent::Clicked {
-                    cell,
-                    tile_id: tid,
-                    button: PointerButton::Primary,
-                    modifiers: ui.ctx().input(|i| i.modifiers),
-                });
-            } else if response.secondary_clicked() {
-                events.push(AtlasEvent::Clicked {
-                    cell,
-                    tile_id: tid,
-                    button: PointerButton::Secondary,
-                    modifiers: ui.ctx().input(|i| i.modifiers),
-                });
-            } else if response.middle_clicked() {
-                events.push(AtlasEvent::Clicked {
-                    cell,
-                    tile_id: tid,
-                    button: PointerButton::Middle,
-                    modifiers: ui.ctx().input(|i| i.modifiers),
-                });
+        // Handle clicks
+        if !state.is_right_dragging && !space_down {
+            if let Some(cell) = hovered_c_r {
+                let tid = grid.tile_id(cell.0, cell.1);
+                if response.clicked() {
+                    events.push(AtlasEvent::Clicked {
+                        cell,
+                        tile_id: tid,
+                        button: PointerButton::Primary,
+                        modifiers: ui.ctx().input(|i| i.modifiers),
+                    });
+                } else if response.secondary_clicked() {
+                    events.push(AtlasEvent::Clicked {
+                        cell,
+                        tile_id: tid,
+                        button: PointerButton::Secondary,
+                        modifiers: ui.ctx().input(|i| i.modifiers),
+                    });
+                } else if response.middle_clicked() {
+                    events.push(AtlasEvent::Clicked {
+                        cell,
+                        tile_id: tid,
+                        button: PointerButton::Middle,
+                        modifiers: ui.ctx().input(|i| i.modifiers),
+                    });
+                }
             }
         }
     }

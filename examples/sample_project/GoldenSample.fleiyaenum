@@ -5,27 +5,51 @@
     {
       "identifier": "BiomeType",
       "uid": 1,
-      "iconTilesetUid": 1,
+      "iconTilesetUid": 2,
       "values": [
         {
           "id": "Forest",
           "color": 3050327,
-          "tileRect": null
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 96,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
         },
         {
           "id": "Desert",
           "color": 15583663,
-          "tileRect": null
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 32,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
         },
         {
           "id": "Tundra",
           "color": 11591910,
-          "tileRect": null
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 64,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
         },
         {
           "id": "Volcanic",
           "color": 11674146,
-          "tileRect": null
+          "tileRect": {
+            "tilesetUid": 2,
+            "x": 0,
+            "y": 96,
+            "w": 16,
+            "h": 16
+          }
         }
       ],
       "tags": [],

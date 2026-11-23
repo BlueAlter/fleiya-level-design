@@ -68,13 +68,14 @@ where
 
     let mut outcome = None;
 
-    // 1. Semi-transparent dark background scrim
+    // 1. Semi-transparent dark background scrim in Foreground order (blocks all clicks and drags underneath)
     let screen_rect = ctx.viewport_rect();
     Area::new(Id::new("custom_data_modal_scrim"))
-        .order(Order::Middle)
+        .order(Order::Foreground)
         .fixed_pos(screen_rect.min)
         .show(ctx, |ui| {
-            let (scrim_rect, response) = ui.allocate_exact_size(screen_rect.size(), Sense::click());
+            let (scrim_rect, response) =
+                ui.allocate_exact_size(screen_rect.size(), Sense::click_and_drag());
             ui.painter().rect_filled(
                 scrim_rect,
                 CornerRadius::ZERO,
@@ -91,7 +92,7 @@ where
         return Some(CustomDataOutcome::Cancel);
     }
 
-    // 2. Centered modal dialog window
+    // 2. Centered modal dialog window with sharp rectangular styling
     let modal_width = 680.0_f32.min(screen_rect.width() - 32.0);
     let modal_height = 460.0_f32.min(screen_rect.height() - 32.0);
 
@@ -103,23 +104,26 @@ where
             ui.set_height(modal_height);
 
             let window_frame = Frame::new()
-                .fill(Color32::from_rgb(26, 36, 48))
-                .stroke(Stroke::new(1.0, Color32::from_rgb(55, 75, 95)))
-                .corner_radius(CornerRadius::same(6))
+                .fill(t.panel)
+                .stroke(Stroke::new(1.0, t.line_strong))
+                .corner_radius(CornerRadius::ZERO)
                 .inner_margin(Margin::same(0));
 
             window_frame.show(ui, |ui| {
                 ui.vertical(|ui| {
-                    // Header bar
+                    // Header bar spanning the full width
                     let header_frame = Frame::new()
-                        .fill(Color32::from_rgb(32, 45, 60))
+                        .fill(t.sunken)
+                        .stroke(Stroke::new(1.0, t.line))
+                        .corner_radius(CornerRadius::ZERO)
                         .inner_margin(Margin::symmetric(16, 12));
                     header_frame.show(ui, |ui| {
+                        ui.set_width(ui.available_width());
                         ui.label(
                             RichText::new(format!("TILE {} CUSTOM DATA", state.tile_id))
-                                .size(13.5)
+                                .size(13.0)
                                 .strong()
-                                .color(Color32::WHITE),
+                                .color(t.ink_strong),
                         );
                     });
 
@@ -127,7 +131,7 @@ where
                     Frame::new()
                         .inner_margin(Margin::same(16))
                         .show(ui, |ui| {
-                            // Top info callout banner
+                            // Top info callout banner (rectangular)
                             info_banner(
                                 ui,
                                 t,
@@ -137,16 +141,18 @@ where
 
                             ui.add_space(12.0);
 
-                            // Multi-line editor with line numbers
+                            // Multi-line editor with rectangular styling
                             let editor_frame = Frame::new()
-                                .fill(Color32::from_rgb(14, 22, 30))
+                                .fill(t.canvas)
                                 .stroke(t.hairline())
-                                .corner_radius(CornerRadius::same(4))
-                                .inner_margin(Margin::same(10));
+                                .corner_radius(CornerRadius::ZERO)
+                                .inner_margin(Margin::same(8));
+
+                            let editor_height = (modal_height - 210.0).max(140.0);
 
                             editor_frame.show(ui, |ui| {
-                                let editor_height = (modal_height - 210.0).max(140.0);
                                 ui.set_height(editor_height);
+                                let editor_rect = ui.available_rect_before_wrap();
 
                                 egui::ScrollArea::vertical()
                                     .auto_shrink([false, false])
@@ -154,30 +160,45 @@ where
                                         ui.horizontal_top(|ui| {
                                             // Line numbers gutter
                                             let count = state.text_buffer.lines().count().max(1);
-                                            let mut gutter_str = String::with_capacity(count * 4);
+                                            let digits = count.max(9).to_string().len().max(2);
+                                            let mut gutter_str = String::with_capacity(count * (digits + 2));
                                             for idx in 1..=count {
-                                                gutter_str.push_str(&format!("{}\n", idx));
+                                                use std::fmt::Write;
+                                                let _ = writeln!(gutter_str, "{:>width$}", idx, width = digits);
                                             }
-                                            ui.label(
+
+                                            let gutter_resp = ui.label(
                                                 RichText::new(gutter_str.trim_end())
-                                                    .font(FontId::monospace(12.5))
-                                                    .color(Color32::from_rgb(70, 95, 120)),
+                                                    .font(FontId::monospace(12.0))
+                                                    .color(t.faint),
                                             );
 
-                                            ui.add_space(6.0);
+                                            let divider_x = gutter_resp.rect.max.x + 6.0;
+
+                                            // Draw vertical divider spanning the entire content height
+                                            let line_top = gutter_resp.rect.min.y;
+                                            let line_bottom = gutter_resp.rect.max.y.max(line_top + editor_height);
                                             ui.painter().vline(
-                                                ui.cursor().min.x,
-                                                ui.cursor().min.y
-                                                    ..=(ui.cursor().min.y + editor_height),
-                                                Stroke::new(1.0, Color32::from_rgb(35, 50, 65)),
+                                                divider_x,
+                                                line_top..=line_bottom,
+                                                t.hairline(),
                                             );
-                                            ui.add_space(8.0);
+
+                                            // Also draw vertical divider across the full visible editor frame
+                                            // so it is permanently visible regardless of scrolling
+                                            ui.painter().vline(
+                                                divider_x,
+                                                editor_rect.min.y..=editor_rect.max.y,
+                                                t.hairline(),
+                                            );
+
+                                            ui.add_space(14.0);
 
                                             // Actual editable text buffer
                                             let text_edit =
                                                 egui::TextEdit::multiline(&mut state.text_buffer)
-                                                    .font(FontId::monospace(12.5))
-                                                    .text_color(Color32::from_rgb(220, 235, 245))
+                                                    .font(FontId::monospace(12.0))
+                                                    .text_color(t.ink)
                                                     .desired_width(f32::INFINITY)
                                                     .frame(Frame::new());
                                             ui.add(text_edit);
@@ -192,13 +213,13 @@ where
                                 let close_btn_width = ui.available_width() - 44.0;
                                 let close_btn = egui::Button::new(
                                     RichText::new("CLOSE")
-                                        .size(12.5)
+                                        .size(12.0)
                                         .strong()
                                         .color(Color32::WHITE),
                                 )
                                 .fill(Color32::from_rgb(220, 75, 12))
-                                .corner_radius(CornerRadius::same(3))
-                                .min_size(vec2(close_btn_width.max(100.0), 34.0));
+                                .corner_radius(CornerRadius::ZERO)
+                                .min_size(vec2(close_btn_width.max(100.0), 32.0));
 
                                 if ui.add(close_btn).clicked() {
                                     outcome =

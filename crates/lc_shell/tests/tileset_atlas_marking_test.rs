@@ -171,3 +171,69 @@ fn test_custom_data_dialog_open_and_command_execution() {
     });
     output.textures_delta.clear();
 }
+
+#[test]
+fn test_custom_data_dialog_freezes_atlas() {
+    let project = setup_marking_project();
+    let mut app = ShellApp::new(project);
+    app.active_mode = AppMode::Tilesets;
+    app.tileset_view_state.select_tileset(TilesetDefId(1));
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    // Initial render
+    let raw_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output.textures_delta.clear();
+
+    let initial_zoom = app
+        .tileset_view_state
+        .pan_zoom
+        .get(&TilesetDefId(1))
+        .map(|pz| pz.zoom)
+        .unwrap_or(1.0);
+
+    // Open custom data dialog
+    app.tileset_view_state
+        .custom_data_dialog
+        .open(TilesetDefId(1), 52, Some("line 1\nline 2"));
+    assert!(app.tileset_view_state.custom_data_dialog.is_open);
+
+    // Simulate key presses (F key) and mouse scrolling while dialog is open
+    let events = vec![egui::Event::Key {
+        key: egui::Key::F,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+
+    let raw_input_with_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        events,
+        ..Default::default()
+    };
+    let mut output2 = ctx.run_ui(raw_input_with_input, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output2.textures_delta.clear();
+
+    // Atlas zoom and pan must remain frozen and unchanged!
+    let current_zoom = app
+        .tileset_view_state
+        .pan_zoom
+        .get(&TilesetDefId(1))
+        .map(|pz| pz.zoom)
+        .unwrap_or(1.0);
+    assert_eq!(
+        initial_zoom, current_zoom,
+        "Atlas zoom must remain frozen while dialog is open"
+    );
+}

@@ -118,8 +118,11 @@ pub fn render_atlas_view(
         })
     };
 
+    let is_dialog_open = app.tileset_view_state.custom_data_dialog.is_open;
+
     let available_rect = ui.available_rect_before_wrap();
-    let fit_key = ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
+    let fit_key = !is_dialog_open
+        && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
     let needs_fit = app
         .tileset_view_state
         .canvas_state_mut(tileset.id)
@@ -160,7 +163,23 @@ pub fn render_atlas_view(
         render_tile_overlay(painter, &ctx_clone, tile_rect, tile_id, &overlay_cx);
     };
 
-    let (response, events) = {
+    let (response, events) = if is_dialog_open {
+        ui.add_enabled_ui(false, |ui| {
+            let canvas_state = app.tileset_view_state.canvas_state_mut(tileset.id);
+            render_atlas_canvas(
+                ui,
+                t,
+                canvas_state,
+                tex,
+                page_bg.as_ref(),
+                &grid,
+                vec2(img_w as f32, img_h as f32),
+                Some(&mut overlay as &mut TileOverlayCallback<'_>),
+                None,
+            )
+        })
+        .inner
+    } else {
         let canvas_state = app.tileset_view_state.canvas_state_mut(tileset.id);
         render_atlas_canvas(
             ui,
@@ -175,105 +194,109 @@ pub fn render_atlas_view(
         )
     };
 
-    if (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
+    if !is_dialog_open && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
         let cs = app.tileset_view_state.canvas_state_mut(tileset.id);
         cs.view.zoom = fit_zoom;
         cs.view.offset = fit_offset;
     }
 
-    // Hover tooltip: "Tile N" + tag names / custom data
-    if let Some(hovered_id) = app
-        .tileset_view_state
-        .canvas_state_mut(tileset.id)
-        .hovered_tile
-    {
-        let mut tooltip_lines = vec![format!("Tile {hovered_id}")];
-        let tags = tileset.marking.tags_at(hovered_id);
-        if !tags.is_empty() {
-            if let Some(ref enum_def) = enum_def_opt {
-                let tag_names: Vec<&str> = tags
-                    .iter()
-                    .filter_map(|tag| enum_def.value(tag).map(|v| v.name.as_str()))
-                    .collect();
-                if !tag_names.is_empty() {
-                    tooltip_lines.push(tag_names.join(" + "));
+    // Hover tooltip: "Tile N" + tag names / custom data (suppressed while dialog is open)
+    if !is_dialog_open {
+        if let Some(hovered_id) = app
+            .tileset_view_state
+            .canvas_state_mut(tileset.id)
+            .hovered_tile
+        {
+            let mut tooltip_lines = vec![format!("Tile {hovered_id}")];
+            let tags = tileset.marking.tags_at(hovered_id);
+            if !tags.is_empty() {
+                if let Some(ref enum_def) = enum_def_opt {
+                    let tag_names: Vec<&str> = tags
+                        .iter()
+                        .filter_map(|tag| enum_def.value(tag).map(|v| v.name.as_str()))
+                        .collect();
+                    if !tag_names.is_empty() {
+                        tooltip_lines.push(tag_names.join(" + "));
+                    }
                 }
             }
-        }
-        if let Some(custom_data) = tileset.custom_data.get(&hovered_id) {
-            if !custom_data.trim().is_empty() {
-                tooltip_lines.push(format!("Data: {custom_data}"));
+            if let Some(custom_data) = tileset.custom_data.get(&hovered_id) {
+                if !custom_data.trim().is_empty() {
+                    tooltip_lines.push(format!("Data: {custom_data}"));
+                }
             }
+            if tooltip_lines.len() == 1 && grid.cols > 0 {
+                let col = hovered_id % grid.cols;
+                let row = hovered_id / grid.cols;
+                tooltip_lines[0] = format!("Tile {hovered_id} ({col}, {row})");
+            }
+            response.on_hover_text(tooltip_lines.join("\n"));
         }
-        if tooltip_lines.len() == 1 && grid.cols > 0 {
-            let col = hovered_id % grid.cols;
-            let row = hovered_id / grid.cols;
-            tooltip_lines[0] = format!("Tile {hovered_id} ({col}, {row})");
-        }
-        response.on_hover_text(tooltip_lines.join("\n"));
     }
 
-    // Process events (clicks never mutate project data directly, only via Commands)
+    // Process events (suppressed while dialog is open)
     let mut toggle_marking: Option<(String, u32, bool)> = None;
 
-    for event in events {
-        match event {
-            AtlasEvent::Clicked {
-                cell,
-                tile_id,
-                button,
-                ..
-            } => {
-                app.tileset_view_state.selected_tile = Some(tile_id);
-                app.tileset_view_state
-                    .canvas_state_mut(tileset.id)
-                    .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
+    if !is_dialog_open {
+        for event in events {
+            match event {
+                AtlasEvent::Clicked {
+                    cell,
+                    tile_id,
+                    button,
+                    ..
+                } => {
+                    app.tileset_view_state.selected_tile = Some(tile_id);
+                    app.tileset_view_state
+                        .canvas_state_mut(tileset.id)
+                        .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
 
-                if tileset.marking.source_enum.is_none() {
-                    // When no enum for marking is selected, clicking opens Custom Data dialog
-                    if button == PointerButton::Primary {
-                        let existing = tileset.custom_data.get(&tile_id).map(|s| s.as_str());
-                        app.tileset_view_state
-                            .custom_data_dialog
-                            .open(tileset.id, tile_id, existing);
-                    }
-                } else if app.tileset_view_state.active_mode == "Marking" {
-                    if let Some(ref val_id) = app.tileset_view_state.selected_marking_value {
-                        if val_id == CUSTOM_DATA_VALUE_ID {
-                            if button == PointerButton::Primary {
-                                let existing =
-                                    tileset.custom_data.get(&tile_id).map(|s| s.as_str());
-                                app.tileset_view_state
-                                    .custom_data_dialog
-                                    .open(tileset.id, tile_id, existing);
-                            } else if button == PointerButton::Secondary
-                                && tileset.custom_data.contains_key(&tile_id)
-                            {
-                                app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                                    tileset.id,
-                                    tile_id,
-                                    None::<String>,
-                                )));
-                            }
-                        } else if button == PointerButton::Primary {
-                            // Left click marks
-                            if !tileset.marking.has_tag(val_id, tile_id) {
-                                toggle_marking = Some((val_id.clone(), tile_id, true));
-                            }
-                        } else if button == PointerButton::Secondary {
-                            // Right click unmarks
-                            if tileset.marking.has_tag(val_id, tile_id) {
-                                toggle_marking = Some((val_id.clone(), tile_id, false));
+                    if tileset.marking.source_enum.is_none() {
+                        // When no enum for marking is selected, clicking opens Custom Data dialog
+                        if button == PointerButton::Primary {
+                            let existing = tileset.custom_data.get(&tile_id).map(|s| s.as_str());
+                            app.tileset_view_state
+                                .custom_data_dialog
+                                .open(tileset.id, tile_id, existing);
+                        }
+                    } else if app.tileset_view_state.active_mode == "Marking" {
+                        if let Some(ref val_id) = app.tileset_view_state.selected_marking_value {
+                            if val_id == CUSTOM_DATA_VALUE_ID {
+                                if button == PointerButton::Primary {
+                                    let existing =
+                                        tileset.custom_data.get(&tile_id).map(|s| s.as_str());
+                                    app.tileset_view_state
+                                        .custom_data_dialog
+                                        .open(tileset.id, tile_id, existing);
+                                } else if button == PointerButton::Secondary
+                                    && tileset.custom_data.contains_key(&tile_id)
+                                {
+                                    app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                                        tileset.id,
+                                        tile_id,
+                                        None::<String>,
+                                    )));
+                                }
+                            } else if button == PointerButton::Primary {
+                                // Left click marks
+                                if !tileset.marking.has_tag(val_id, tile_id) {
+                                    toggle_marking = Some((val_id.clone(), tile_id, true));
+                                }
+                            } else if button == PointerButton::Secondary {
+                                // Right click unmarks
+                                if tileset.marking.has_tag(val_id, tile_id) {
+                                    toggle_marking = Some((val_id.clone(), tile_id, false));
+                                }
                             }
                         }
                     }
                 }
+                AtlasEvent::DragRectEnd(rect) => {
+                    app.tileset_view_state.selected_tile = Some(rect.top_left_id(&grid));
+                }
+                _ => {}
             }
-            AtlasEvent::DragRectEnd(rect) => {
-                app.tileset_view_state.selected_tile = Some(rect.top_left_id(&grid));
-            }
-            _ => {}
         }
     }
 
