@@ -17,7 +17,7 @@ fn test_sections_for_document_and_definition_tabs() {
 
     let def_sections = sections_for(TILESET_DEF_SUB_TAB);
     assert!(def_sections.title, "TILESET DEF tab must show title");
-    assert!(def_sections.footer, "TILESET DEF tab must show footer");
+    assert!(!def_sections.footer, "TILESET DEF tab must not show footer");
 }
 
 #[test]
@@ -400,15 +400,10 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
         left_row_borders
     );
 
-    // 3. atlas rect fills area between card and footer
-    let footer_text = text_items
-        .iter()
-        .find(|(t, _)| t.contains("Used by"))
-        .expect("footer text must exist");
+    // 3. atlas rect fills area between card and bottom - 12 (756.0)
     assert!(
-        footer_text.0.contains('•'),
-        "footer must contain '•', found: {}",
-        footer_text.0
+        !text_items.iter().any(|(t, _)| t.contains("Used by")),
+        "footer text must be removed from tileset workspace"
     );
 
     let card_title = text_items
@@ -419,12 +414,12 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
     let atlas_backdrop = fill_rects.iter().find(|r| {
         r.min.x >= 250.0
             && r.min.y > card_title.1.max.y
-            && r.max.y < footer_text.1.min.y + 10.0
+            && (r.max.y - 756.0).abs() < 1.0
             && r.height() > 200.0
     });
     assert!(
         atlas_backdrop.is_some(),
-        "atlas rect must fill area between card and footer"
+        "atlas rect must fill area between card and bottom - 12 (756.0)"
     );
 
     // 4. right panel is a bordered tools card (240px wide)

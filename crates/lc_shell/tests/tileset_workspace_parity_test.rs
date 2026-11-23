@@ -336,16 +336,11 @@ fn test_tileset_enum_workspace_parity() {
         "Fit button must be removed from atlas view"
     );
 
-    // 7. atlas card bottom == footer top - 12; the zoom label is inside the atlas card and does not intersect the footer
-    let footer_rect = ts_rects
-        .iter()
-        .find(|r| (r.min.x - 260.0).abs() < 0.5 && r.min.y >= 700.0)
-        .expect("Footer rect must exist");
+    // 7. atlas card bottom == window bottom - 12 (756.0); the zoom label is inside the atlas card
     assert!(
-        (atlas_card.rect.max.y - (footer_rect.min.y - 12.0)).abs() < 1.0,
-        "Atlas card bottom ({}) must equal footer top - 12 ({})",
-        atlas_card.rect.max.y,
-        footer_rect.min.y - 12.0
+        (atlas_card.rect.max.y - 756.0).abs() < 1.0,
+        "Atlas card bottom ({}) must equal window bottom - 12 (756.0)",
+        atlas_card.rect.max.y
     );
 
     let zoom_label = ts_texts
@@ -391,20 +386,14 @@ fn test_tileset_enum_workspace_parity() {
         enum_first_h.1.min.y
     );
 
-    // 10. footer text x == 272; footer rect equals the enum footer rect
-    let ts_footer_text = ts_texts
-        .iter()
-        .find(|(t, _)| t.contains("Used by"))
-        .expect("Footer text must exist");
-    let enum_footer_text = enum_texts
-        .iter()
-        .find(|(t, _)| t.contains("Used by"))
-        .expect("Enum footer text must exist");
+    // 10. tileset workspace has NO footer text, enum footer text exists
     assert!(
-        (ts_footer_text.1.min.x - enum_footer_text.1.min.x).abs() < 1.0,
-        "Footer text x must match enum footer text x: ts={}, enum={}",
-        ts_footer_text.1.min.x,
-        enum_footer_text.1.min.x
+        !ts_texts.iter().any(|(t, _)| t.contains("Used by")),
+        "Tileset workspace must not have footer text"
+    );
+    assert!(
+        enum_texts.iter().any(|(t, _)| t.contains("Used by")),
+        "Enum workspace retains footer text"
     );
 }
 

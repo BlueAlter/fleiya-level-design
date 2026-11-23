@@ -399,9 +399,7 @@ pub fn render_attributes_card(
             });
         });
 
-    ui.add_space(6.0);
-
-    // Image info line under the card (no emoji or pictograph characters)
+    // Inline warning under the card ONLY when leftover pixels do not fit the grid or source image is missing
     let (img_w, img_h) = if let Some(tex) = texture {
         let sz = tex.size();
         (sz[0] as u32, sz[1] as u32)
@@ -409,47 +407,49 @@ pub fn render_attributes_card(
         (0, 0)
     };
 
-    ui.horizontal(|ui| {
-        ui.add_space(4.0);
-        if img_w > 0 && img_h > 0 {
-            let metrics: GridMetrics = compute_tileset_grid(
-                [img_w, img_h],
-                tileset.tile_size,
-                tileset.spacing,
-                tileset.padding,
-            );
-            ui.label(
-                RichText::new(format!(
-                    "Atlas {}x{} px, {} x {} tiles ({})",
-                    img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
-                ))
-                .font(egui::FontId::proportional(12.0))
-                .color(t.muted),
-            );
-
-            if metrics.leftover_x > 0 || metrics.leftover_y > 0 {
-                ui.add_space(8.0);
+    if img_w > 0 && img_h > 0 {
+        let metrics: GridMetrics = compute_tileset_grid(
+            [img_w, img_h],
+            tileset.tile_size,
+            tileset.spacing,
+            tileset.padding,
+        );
+        if metrics.leftover_x > 0 || metrics.leftover_y > 0 {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                let msg = if metrics.leftover_x > 0 && metrics.leftover_y > 0 {
+                    format!(
+                        "Warning: {}x{} image with {}x{} tiles leaves {} px right and {} px bottom unused",
+                        img_w, img_h, tileset.tile_size.x, tileset.tile_size.y, metrics.leftover_x, metrics.leftover_y
+                    )
+                } else if metrics.leftover_x > 0 {
+                    format!(
+                        "Warning: {}x{} image with {}x{} tiles leaves {} px right unused",
+                        img_w, img_h, tileset.tile_size.x, tileset.tile_size.y, metrics.leftover_x
+                    )
+                } else {
+                    format!(
+                        "Warning: {}x{} image with {}x{} tiles leaves {} px bottom unused",
+                        img_w, img_h, tileset.tile_size.x, tileset.tile_size.y, metrics.leftover_y
+                    )
+                };
                 ui.label(
-                    RichText::new(format!(
-                        "Warning: {}px width and {}px height unused",
-                        metrics.leftover_x, metrics.leftover_y
-                    ))
-                    .font(egui::FontId::proportional(11.5))
-                    .color(egui::Color32::from_rgb(234, 179, 8)),
+                    RichText::new(msg)
+                        .font(egui::FontId::proportional(11.5))
+                        .color(egui::Color32::from_rgb(234, 179, 8)),
                 );
-            }
-        } else if !tileset.path.is_empty() {
+            });
+        }
+    } else if !tileset.path.is_empty() {
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.add_space(4.0);
             ui.label(
                 RichText::new("Warning: Source image file could not be loaded.")
                     .font(egui::FontId::proportional(11.5))
                     .color(egui::Color32::from_rgb(234, 179, 8)),
             );
-        } else {
-            ui.label(
-                RichText::new("No image assigned.")
-                    .font(egui::FontId::proportional(12.0))
-                    .color(t.muted),
-            );
-        }
-    });
+        });
+    }
 }

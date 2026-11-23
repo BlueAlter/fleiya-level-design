@@ -8,8 +8,7 @@ use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
 use lc_feature_tileset::{
-    generate_unique_tileset_name, tileset_usage_counts, AddTilesetDefCommand,
-    UpdateTilesetDefCommand,
+    generate_unique_tileset_name, AddTilesetDefCommand, UpdateTilesetDefCommand,
 };
 use lc_ui_api::AssetService;
 
@@ -21,7 +20,7 @@ use super::left_panel::render_left_panel;
 use super::right_panel::render_right_panel;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
-use crate::shared::ui::def_workspace::{def_footer, def_panel_width, DEF_FOOTER_HEIGHT};
+use crate::shared::ui::def_workspace::def_panel_width;
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::render_document_page;
 use crate::shared::ui::sub_tabs::sub_tabs;
@@ -37,7 +36,7 @@ pub const DOCUMENT_SUB_TAB: usize = 1;
 pub struct DetailSections {
     /// Whether to draw the title row above content.
     pub title: bool,
-    /// Whether to draw the pinned footer bar at bottom.
+    /// Whether to draw the pinned footer bar at bottom (false for tileset workspace).
     pub footer: bool,
 }
 
@@ -50,7 +49,7 @@ pub const fn sections_for(tab: usize) -> DetailSections {
         },
         _ => DetailSections {
             title: true,
-            footer: true,
+            footer: false,
         },
     }
 }
@@ -214,23 +213,7 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
 
     let sections = sections_for(app.tileset_view_state.active_sub_tab);
 
-    let content_bottom = if tileset.is_some() && sections.footer {
-        let footer_top = full_rect.max.y - DEF_FOOTER_HEIGHT;
-        let footer_rect = Rect::from_min_max(Pos2::new(left_rect.max.x, footer_top), full_rect.max);
-        ui.scope_builder(egui::UiBuilder::new().max_rect(footer_rect), |ui| {
-            if let Some(ref ts) = tileset {
-                let (layers_count, enums_count) = tileset_usage_counts(&app.project, ts.id);
-                let left_text = format!(
-                    "ID: TilesetDefId({}) • Used by {} Layer(s) & {} Enum(s)",
-                    ts.id.0, layers_count, enums_count
-                );
-                def_footer(ui, &t, &left_text, |_| {});
-            }
-        });
-        footer_top - WORKSPACE_PADDING
-    } else {
-        full_rect.max.y - WORKSPACE_PADDING
-    };
+    let content_bottom = full_rect.max.y - WORKSPACE_PADDING;
 
     let content_rect = Rect::from_min_max(
         Pos2::new(
@@ -345,17 +328,46 @@ fn render_detail_area(
             let gap = WORKSPACE_PADDING; // 12.0
             let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
 
+            let (img_w, img_h) = if let Some(ref t) = tex {
+                let sz = t.size();
+                (sz[0] as u32, sz[1] as u32)
+            } else {
+                (0, 0)
+            };
+
+            let atlas_tooltip = if img_w > 0 && img_h > 0 {
+                let metrics = lc_feature_tileset::compute_tileset_grid(
+                    [img_w, img_h],
+                    tileset.tile_size,
+                    tileset.spacing,
+                    tileset.padding,
+                );
+                format!(
+                    "Atlas {}x{} px, {} x {} tiles ({})",
+                    img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
+                )
+            } else if !tileset.path.is_empty() {
+                "Source image file could not be loaded.".to_string()
+            } else {
+                "No image assigned.".to_string()
+            };
+
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 let (atlas_label_rect, _) =
                     ui.allocate_exact_size(vec2(atlas_card_w, 18.0), Sense::hover());
                 let mut child = ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
-                child.label(
-                    RichText::new("TILE ATLAS")
-                        .size(11.0)
-                        .strong()
-                        .color(t.accent_ink),
-                );
+                child
+                    .add(
+                        egui::Label::new(
+                            RichText::new("TILE ATLAS")
+                                .size(11.0)
+                                .strong()
+                                .color(t.accent_ink),
+                        )
+                        .sense(Sense::hover()),
+                    )
+                    .on_hover_text(atlas_tooltip);
 
                 ui.add_space(gap);
 
