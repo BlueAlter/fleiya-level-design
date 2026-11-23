@@ -135,6 +135,14 @@ impl TilesetViewState {
         self.canvas_state_mut(id).needs_initial_fit = true;
     }
 
+    /// Sets the active sub-tab, resetting document scroll offset on tab change.
+    pub fn set_sub_tab(&mut self, tab: usize) {
+        if self.active_sub_tab != tab {
+            self.active_sub_tab = tab;
+            self.doc_scroll = 0.0;
+        }
+    }
+
     /// Gets or creates the pan and zoom state for a given tileset.
     pub fn pan_zoom_mut(&mut self, id: TilesetDefId) -> &mut TilesetPanZoom {
         self.pan_zoom.entry(id).or_default()

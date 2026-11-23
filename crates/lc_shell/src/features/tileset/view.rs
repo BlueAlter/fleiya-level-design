@@ -279,154 +279,169 @@ fn render_detail_area(
             ui.set_min_height(CONTROL_HEIGHT_COMPACT);
             ui.set_max_height(CONTROL_HEIGHT_COMPACT);
             let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
-            sub_tabs(ui, t, &mut app.tileset_view_state.active_sub_tab, &labels);
+            let mut active = app.tileset_view_state.active_sub_tab;
+            if sub_tabs(ui, t, &mut active, &labels) {
+                app.tileset_view_state.set_sub_tab(active);
+            }
         });
 
-        // Content dispatch based on sub-tab
+        // Content dispatch based on sub-tab with separate id_salt
         if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {
-            ui.add_space(12.0);
-            render_document_page(
-                ui,
-                t,
-                &app.tileset_view_state.doc_cache,
-                &mut app.tileset_view_state.doc_scroll,
-                "tileset_document_scroll",
-                doc("tileset", "overview"),
+            ui.scope_builder(
+                egui::UiBuilder::new().id_salt("tileset_tab_document"),
+                |ui| {
+                    ui.add_space(12.0);
+                    render_document_page(
+                        ui,
+                        t,
+                        &app.tileset_view_state.doc_cache,
+                        &mut app.tileset_view_state.doc_scroll,
+                        "tileset_document_scroll",
+                        doc("tileset", "overview"),
+                    );
+                },
             );
         } else {
-            // Header title row & description (only for TILESET DEF tab, below sub-tabs)
-            if sections.title {
-                ui.add_space(12.0);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!("{} (Tileset)", tileset.name))
-                            .size(20.0)
-                            .strong()
-                            .color(t.ink_strong),
-                    )
-                    .truncate(),
-                );
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(tr(keys::DESCRIPTION))
-                        .size(11.5)
-                        .color(t.muted),
-                );
-                ui.add_space(10.0);
-            }
+            ui.scope_builder(
+                egui::UiBuilder::new().id_salt("tileset_tab_definition"),
+                |ui| {
+                    // Header title row & description (only for TILESET DEF tab, below sub-tabs)
+                    if sections.title {
+                        ui.add_space(12.0);
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(format!("{} (Tileset)", tileset.name))
+                                    .size(20.0)
+                                    .strong()
+                                    .color(t.ink_strong),
+                            )
+                            .truncate(),
+                        );
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new(tr(keys::DESCRIPTION))
+                                .size(11.5)
+                                .color(t.muted),
+                        );
+                        ui.add_space(10.0);
+                    }
 
-            // TILESET DEF Tab
-            let mut tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
+                    // TILESET DEF Tab
+                    let mut tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
 
-            // Attribute Card + Image info
-            render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_mut());
+                    // Attribute Card + Image info
+                    render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_mut());
 
-            ui.add_space(10.0);
+                    ui.add_space(10.0);
 
-            // Center area: Atlas card on left (flex width), Tools card on right (240px)
-            let mode_card_w = 240.0;
-            let gap = WORKSPACE_PADDING; // 12.0
-            let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
+                    // Center area: Atlas card on left (flex width), Tools card on right (240px)
+                    let mode_card_w = 240.0;
+                    let gap = WORKSPACE_PADDING; // 12.0
+                    let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
 
-            let (img_w, img_h) = if let Some(ref t) = tex {
-                let sz = t.size();
-                (sz[0] as u32, sz[1] as u32)
-            } else {
-                (0, 0)
-            };
+                    let (img_w, img_h) = if let Some(ref t) = tex {
+                        let sz = t.size();
+                        (sz[0] as u32, sz[1] as u32)
+                    } else {
+                        (0, 0)
+                    };
 
-            let atlas_tooltip = if img_w > 0 && img_h > 0 {
-                let metrics = lc_feature_tileset::compute_tileset_grid(
-                    [img_w, img_h],
-                    tileset.tile_size,
-                    tileset.spacing,
-                    tileset.padding,
-                );
-                format!(
-                    "Atlas {}x{} px, {} x {} tiles ({})",
-                    img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
-                )
-            } else if !tileset.path.is_empty() {
-                "Source image file could not be loaded.".to_string()
-            } else {
-                "No image assigned.".to_string()
-            };
+                    let atlas_tooltip = if img_w > 0 && img_h > 0 {
+                        let metrics = lc_feature_tileset::compute_tileset_grid(
+                            [img_w, img_h],
+                            tileset.tile_size,
+                            tileset.spacing,
+                            tileset.padding,
+                        );
+                        format!(
+                            "Atlas {}x{} px, {} x {} tiles ({})",
+                            img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
+                        )
+                    } else if !tileset.path.is_empty() {
+                        "Source image file could not be loaded.".to_string()
+                    } else {
+                        "No image assigned.".to_string()
+                    };
 
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                let (atlas_label_rect, _) =
-                    ui.allocate_exact_size(vec2(atlas_card_w, 18.0), Sense::hover());
-                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
-                child
-                    .add(
-                        egui::Label::new(
-                            RichText::new("TILE ATLAS")
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        let (atlas_label_rect, _) =
+                            ui.allocate_exact_size(vec2(atlas_card_w, 18.0), Sense::hover());
+                        let mut child =
+                            ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
+                        child
+                            .add(
+                                egui::Label::new(
+                                    RichText::new("TILE ATLAS")
+                                        .size(11.0)
+                                        .strong()
+                                        .color(t.accent_ink),
+                                )
+                                .sense(Sense::hover()),
+                            )
+                            .on_hover_text(atlas_tooltip);
+
+                        ui.add_space(gap);
+
+                        let (tools_label_rect, _) =
+                            ui.allocate_exact_size(vec2(mode_card_w, 18.0), Sense::hover());
+                        let mut child =
+                            ui.new_child(egui::UiBuilder::new().max_rect(tools_label_rect));
+                        child.label(
+                            RichText::new("TOOLS")
                                 .size(11.0)
                                 .strong()
                                 .color(t.accent_ink),
-                        )
-                        .sense(Sense::hover()),
-                    )
-                    .on_hover_text(atlas_tooltip);
+                        );
+                    });
 
-                ui.add_space(gap);
+                    ui.add_space(4.0);
 
-                let (tools_label_rect, _) =
-                    ui.allocate_exact_size(vec2(mode_card_w, 18.0), Sense::hover());
-                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(tools_label_rect));
-                child.label(
-                    RichText::new("TOOLS")
-                        .size(11.0)
-                        .strong()
-                        .color(t.accent_ink),
-                );
-            });
+                    let card_top = ui.cursor().min.y;
+                    let card_bottom = content_rect.max.y;
+                    let card_h = (card_bottom - card_top).max(60.0);
 
-            ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
 
-            let card_top = ui.cursor().min.y;
-            let card_bottom = content_rect.max.y;
-            let card_h = (card_bottom - card_top).max(60.0);
-
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-
-                // Bordered Atlas Card
-                ui.allocate_ui(vec2(atlas_card_w, card_h), |ui| {
-                    Frame::new()
-                        .fill(t.canvas)
-                        .stroke(t.hairline())
-                        .corner_radius(CornerRadius::same(4))
-                        .show(ui, |ui| {
-                            render_atlas_view(
-                                ui,
-                                t,
-                                tileset,
-                                tex.as_ref(),
-                                &mut app.tileset_view_state,
-                            );
+                        // Bordered Atlas Card
+                        ui.allocate_ui(vec2(atlas_card_w, card_h), |ui| {
+                            Frame::new()
+                                .fill(t.canvas)
+                                .stroke(t.hairline())
+                                .corner_radius(CornerRadius::same(4))
+                                .show(ui, |ui| {
+                                    render_atlas_view(
+                                        ui,
+                                        t,
+                                        tileset,
+                                        tex.as_ref(),
+                                        &mut app.tileset_view_state,
+                                    );
+                                });
                         });
-                });
 
-                ui.add_space(gap);
+                        ui.add_space(gap);
 
-                // Bordered Tools / Mode Card
-                ui.allocate_ui(vec2(mode_card_w, card_h), |ui| {
-                    Frame::new()
-                        .fill(t.panel)
-                        .stroke(t.hairline())
-                        .corner_radius(CornerRadius::same(4))
-                        .show(ui, |ui| {
-                            render_right_panel(
-                                ui,
-                                t,
-                                tileset,
-                                &app.project,
-                                &mut app.tileset_view_state,
-                            );
+                        // Bordered Tools / Mode Card
+                        ui.allocate_ui(vec2(mode_card_w, card_h), |ui| {
+                            Frame::new()
+                                .fill(t.panel)
+                                .stroke(t.hairline())
+                                .corner_radius(CornerRadius::same(4))
+                                .show(ui, |ui| {
+                                    render_right_panel(
+                                        ui,
+                                        t,
+                                        tileset,
+                                        &app.project,
+                                        &mut app.tileset_view_state,
+                                    );
+                                });
                         });
-                });
-            });
+                    });
+                },
+            );
         }
     });
 }
