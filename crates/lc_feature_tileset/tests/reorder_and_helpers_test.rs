@@ -212,6 +212,7 @@ fn test_mode_availability() {
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking {
             source_enum: Some(lc_core::id::EnumDefId(1)),
+            ..Default::default()
         },
     };
     let modes2 = mode_availability(&ts_with_marking);

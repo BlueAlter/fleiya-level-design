@@ -3,32 +3,9 @@
 use crate::fields::FieldDef;
 use crate::id::{EntityDefId, EnumDefId, LayerDefId, TilesetDefId};
 use crate::layer::{LayerKind, TileRef};
+pub use crate::marking::TileMarking;
 use glam::{UVec2, Vec2};
 use serde::{Deserialize, Serialize};
-
-/// Tile marking configuration (e.g. source enum for tile-level enum tagging).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TileMarking {
-    /// Source enum definition used for tile marking.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_enum: Option<EnumDefId>,
-}
-
-impl TileMarking {
-    /// Empty / default tile marking with no source enum.
-    pub const EMPTY: Self = Self { source_enum: None };
-
-    /// Returns `true` if no source enum is configured.
-    pub fn is_empty(&self) -> bool {
-        self.source_enum.is_none()
-    }
-}
-
-impl Default for TileMarking {
-    fn default() -> Self {
-        Self::EMPTY
-    }
-}
 
 /// Definition of an external tileset asset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +28,27 @@ pub struct TilesetDef {
     /// Tile marking configuration (e.g. source enum).
     #[serde(default, skip_serializing_if = "TileMarking::is_empty")]
     pub marking: TileMarking,
+}
+
+impl TilesetDef {
+    /// Constructs a new tileset definition with default tags and marking.
+    pub fn new(
+        id: TilesetDefId,
+        name: impl Into<String>,
+        path: impl Into<String>,
+        tile_size: UVec2,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            path: path.into(),
+            tile_size,
+            spacing: 0,
+            padding: 0,
+            tags: Vec::new(),
+            marking: TileMarking::new(),
+        }
+    }
 }
 
 /// An individual value option within an `EnumDef`.
@@ -192,6 +190,24 @@ impl Definitions {
     /// Looks up a mutable tileset definition by ID.
     pub fn tileset_mut(&mut self, id: TilesetDefId) -> Option<&mut TilesetDef> {
         self.tilesets.iter_mut().find(|t| t.id == id)
+    }
+
+    /// Snapshots tile markings for all tilesets using the specified enum as their source.
+    pub fn marking_snapshots(&self, enum_id: EnumDefId) -> Vec<(TilesetDefId, TileMarking)> {
+        self.tilesets
+            .iter()
+            .filter(|t| t.marking.source_enum == Some(enum_id))
+            .map(|t| (t.id, t.marking.clone()))
+            .collect()
+    }
+
+    /// Restores tile markings on tilesets matching the snapshots.
+    pub fn restore_markings(&mut self, snapshots: &[(TilesetDefId, TileMarking)]) {
+        for (id, marking) in snapshots {
+            if let Some(t) = self.tileset_mut(*id) {
+                t.marking = marking.clone();
+            }
+        }
     }
 
     /// Looks up an enum definition by ID.

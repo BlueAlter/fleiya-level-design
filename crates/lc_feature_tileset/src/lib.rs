@@ -9,6 +9,7 @@ mod fill_tools;
 pub mod handler;
 pub mod helpers;
 pub mod marking_command;
+pub mod marking_commands;
 pub mod paint_commands;
 pub mod palette;
 pub mod reorder_command;
@@ -19,7 +20,12 @@ pub mod view;
 pub use clipboard::TileClipboard;
 pub use commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
-    SetMarkingSourceCommand, UpdateTilesetDefCommand,
+    UpdateTilesetDefCommand,
+};
+pub use marking_commands::{
+    compute_tile_count, AddTilesetTagCommand, PaintTileTagsCommand, PruneTilesetMarkingsCommand,
+    RemoveTilesetTagCommand, RenameTilesetTagCommand, SetMarkingSourceCommand,
+    SetTileMarkingCommand, SetTilesetSourceEnumCommand,
 };
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
 pub use helpers::{

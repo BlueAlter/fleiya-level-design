@@ -17,6 +17,7 @@ pub mod grid;
 pub mod id;
 pub mod layer;
 pub mod level;
+pub mod marking;
 pub mod project;
 pub mod world;
 
@@ -26,8 +27,7 @@ pub use commands::{
     RenameLevelCommand, RenameWorldCommand,
 };
 pub use defs::{
-    Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TileMarking,
-    TilesetDef,
+    Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TilesetDef,
 };
 pub use error::CoreError;
 pub use fields::{FieldDef, FieldType, FieldValue, FieldValues};
@@ -38,6 +38,7 @@ pub use id::{
 };
 pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;
+pub use marking::{known_tags, normalize_tag, tags_eq, TileMarking};
 pub use project::{Project, ProjectSettings};
 pub use world::{World, WorldLayout};
 

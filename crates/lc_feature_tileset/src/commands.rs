@@ -1,11 +1,12 @@
 //! Commands for managing Tileset definitions in the editor data model.
 
-pub use crate::marking_command::SetMarkingSourceCommand;
+pub use crate::marking_commands::*;
 pub use crate::paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };
 pub use crate::reorder_command::ReorderTilesetDefCommand;
 
+use glam::UVec2;
 use lc_core::command::{Command, DocKind};
 use lc_core::defs::TilesetDef;
 use lc_core::error::CoreError;
@@ -80,6 +81,7 @@ impl Command for AddTilesetDefCommand {
 #[derive(Debug, Clone)]
 pub struct UpdateTilesetDefCommand {
     updated: TilesetDef,
+    tile_count: Option<u32>,
     previous: Option<TilesetDef>,
     previous_index: Option<usize>,
 }
@@ -89,9 +91,27 @@ impl UpdateTilesetDefCommand {
     pub fn new(updated: TilesetDef) -> Self {
         Self {
             updated,
+            tile_count: None,
             previous: None,
             previous_index: None,
         }
+    }
+
+    /// Sets the target tile count for pruning marking tiles.
+    pub fn with_tile_count(mut self, tile_count: u32) -> Self {
+        self.tile_count = Some(tile_count);
+        self
+    }
+
+    /// Computes and sets the target tile count from an image size.
+    pub fn with_image_size(mut self, image_size: UVec2) -> Self {
+        self.tile_count = Some(crate::marking_commands::compute_tile_count(
+            image_size,
+            self.updated.tile_size,
+            self.updated.spacing,
+            self.updated.padding,
+        ));
+        self
     }
 
     /// Accessor for the updated definition.
@@ -111,6 +131,11 @@ impl Command for UpdateTilesetDefCommand {
 
         self.previous = Some(p.defs.tilesets[idx].clone());
         self.previous_index = Some(idx);
+
+        if let Some(tile_count) = self.tile_count {
+            self.updated.marking.prune_tiles_from(tile_count);
+        }
+
         p.defs.tilesets[idx] = self.updated.clone();
         Ok(())
     }
@@ -129,6 +154,9 @@ impl Command for UpdateTilesetDefCommand {
         if let Some(other) = next.as_any().downcast_ref::<Self>() {
             if self.updated.id == other.updated.id {
                 self.updated = other.updated.clone();
+                if other.tile_count.is_some() {
+                    self.tile_count = other.tile_count;
+                }
                 return true;
             }
         }

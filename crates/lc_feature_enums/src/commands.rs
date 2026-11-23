@@ -4,7 +4,8 @@ use lc_core::command::{Command, DocKind};
 use lc_core::defs::{EnumDef, EnumValueDef};
 use lc_core::error::CoreError;
 use lc_core::fields::{FieldDef, FieldType, FieldValue};
-use lc_core::id::{EntityDefId, EntityId, EnumDefId, LevelId, WorldId};
+use lc_core::id::{EntityDefId, EntityId, EnumDefId, LevelId, TilesetDefId, WorldId};
+use lc_core::marking::TileMarking;
 use lc_core::project::Project;
 
 /// Detailed record of a project location referencing an `EnumDef` or `EnumValueDef`.
@@ -257,6 +258,7 @@ pub struct RemoveEnumDefCommand {
     cascade: bool,
     removed_index_and_def: Option<(usize, EnumDef)>,
     cascaded_fields: Vec<(EntityDefId, usize, FieldDef)>,
+    marking_snapshots: Vec<(TilesetDefId, TileMarking)>,
 }
 
 impl RemoveEnumDefCommand {
@@ -267,6 +269,7 @@ impl RemoveEnumDefCommand {
             cascade: false,
             removed_index_and_def: None,
             cascaded_fields: Vec::new(),
+            marking_snapshots: Vec::new(),
         }
     }
 
@@ -277,6 +280,7 @@ impl RemoveEnumDefCommand {
             cascade: true,
             removed_index_and_def: None,
             cascaded_fields: Vec::new(),
+            marking_snapshots: Vec::new(),
         }
     }
 }
@@ -317,6 +321,14 @@ impl Command for RemoveEnumDefCommand {
             }
         }
 
+        // Clear source enum in tilesets that use this enum
+        self.marking_snapshots = p.defs.marking_snapshots(self.id);
+        for ts in &mut p.defs.tilesets {
+            if ts.marking.source_enum == Some(self.id) {
+                ts.marking.set_source(None);
+            }
+        }
+
         let def = p.defs.enums.remove(pos);
         self.removed_index_and_def = Some((pos, def));
         Ok(())
@@ -341,6 +353,9 @@ impl Command for RemoveEnumDefCommand {
                 }
             }
         }
+
+        // Restore tileset marking sources and tags
+        p.defs.restore_markings(&self.marking_snapshots);
     }
 
     fn merge(&mut self, _next: &dyn Command) -> bool {
@@ -522,6 +537,7 @@ pub struct RemoveEnumValueCommand {
     cascade: bool,
     removed_index_and_val: Option<(usize, EnumValueDef)>,
     cleared_defaults: Vec<(EntityDefId, String, FieldValue)>,
+    marking_snapshots: Vec<(TilesetDefId, TileMarking)>,
 }
 
 impl RemoveEnumValueCommand {
@@ -533,6 +549,7 @@ impl RemoveEnumValueCommand {
             cascade: false,
             removed_index_and_val: None,
             cleared_defaults: Vec::new(),
+            marking_snapshots: Vec::new(),
         }
     }
 
@@ -544,6 +561,7 @@ impl RemoveEnumValueCommand {
             cascade: true,
             removed_index_and_val: None,
             cleared_defaults: Vec::new(),
+            marking_snapshots: Vec::new(),
         }
     }
 }
@@ -598,6 +616,14 @@ impl Command for RemoveEnumValueCommand {
             }
         }
 
+        // Remove markings for this value in tilesets using this enum
+        self.marking_snapshots = p.defs.marking_snapshots(self.enum_id);
+        for ts in &mut p.defs.tilesets {
+            if ts.marking.source_enum == Some(self.enum_id) {
+                ts.marking.remove_value(&self.val_id);
+            }
+        }
+
         let enum_def = p.defs.enum_def_mut(self.enum_id).ok_or_else(|| {
             CoreError::DefNotFound(format!("EnumDef with id {:?} not found", self.enum_id))
         })?;
@@ -626,6 +652,9 @@ impl Command for RemoveEnumValueCommand {
                 }
             }
         }
+
+        // Restore tileset markings
+        p.defs.restore_markings(&self.marking_snapshots);
     }
 
     fn merge(&mut self, _next: &dyn Command) -> bool {
@@ -726,6 +755,7 @@ pub struct RenameEnumValueIdCommand {
     new_id: String,
     affected_defaults: Vec<(EntityDefId, String)>,
     affected_instances: Vec<(WorldId, LevelId, EntityId, String)>,
+    marking_snapshots: Vec<(TilesetDefId, TileMarking)>,
 }
 
 impl RenameEnumValueIdCommand {
@@ -737,6 +767,7 @@ impl RenameEnumValueIdCommand {
             new_id: new_id.into(),
             affected_defaults: Vec::new(),
             affected_instances: Vec::new(),
+            marking_snapshots: Vec::new(),
         }
     }
 }
@@ -761,6 +792,14 @@ impl Command for RenameEnumValueIdCommand {
             ))
         })?;
         val.id = self.new_id.clone();
+
+        // Cascade to tileset markings
+        self.marking_snapshots = p.defs.marking_snapshots(self.enum_id);
+        for ts in &mut p.defs.tilesets {
+            if ts.marking.source_enum == Some(self.enum_id) {
+                ts.marking.rename_value(&self.old_id, &self.new_id);
+            }
+        }
 
         // Cascade to entity field defaults
         self.affected_defaults.clear();
@@ -808,6 +847,9 @@ impl Command for RenameEnumValueIdCommand {
                 val.id = self.old_id.clone();
             }
         }
+
+        // Restore tileset markings
+        p.defs.restore_markings(&self.marking_snapshots);
 
         for (ent_id, fname) in &self.affected_defaults {
             if let Some(entity) = p.defs.entity_mut(*ent_id) {
