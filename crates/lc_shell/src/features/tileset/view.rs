@@ -314,7 +314,9 @@ fn render_detail_area(
             ui.scope_builder(
                 egui::UiBuilder::new().id_salt("tileset_tab_document"),
                 |ui| {
-                    ui.add_space(12.0);
+                    // CommonMarkViewer prepends a 15 px newline before the first heading.
+                    // Compensate so the first heading lands at the same y as the TILESET DEF title.
+                    ui.add_space(12.0 - 15.0);
                     render_document_page(
                         ui,
                         t,
