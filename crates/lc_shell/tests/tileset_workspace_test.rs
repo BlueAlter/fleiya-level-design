@@ -431,7 +431,7 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
         "right panel must be a 240px bordered tools card"
     );
 
-    // 5. Attributes card fields exist (no tags or marking row)
+    // 5. Attributes card fields exist
     let id_row = text_items.iter().find(|(t, _)| t.contains("Identifier"));
     assert!(id_row.is_some(), "Identifier row must exist");
 
@@ -441,9 +441,6 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
     let layout_row = text_items.iter().find(|(t, _)| t.contains("Tiles layout"));
     assert!(layout_row.is_some(), "Tiles layout row must exist");
 
-    let tags_row = text_items.iter().find(|(t, _)| t.contains("Tags:"));
-    assert!(
-        tags_row.is_none(),
-        "Tags row must NOT exist (separate task)"
-    );
+    let tags_row = text_items.iter().find(|(t, _)| t.contains("Tags"));
+    assert!(tags_row.is_some(), "Tags row must exist");
 }

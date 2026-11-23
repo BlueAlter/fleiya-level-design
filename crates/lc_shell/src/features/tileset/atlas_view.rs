@@ -124,7 +124,11 @@ pub fn render_atlas_view(
 
     let available_rect = ui.available_rect_before_wrap();
     let fit_key = ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
-    let needs_fit = app.tileset_view_state.canvas_state_mut(tileset.id).needs_initial_fit || fit_key;
+    let needs_fit = app
+        .tileset_view_state
+        .canvas_state_mut(tileset.id)
+        .needs_initial_fit
+        || fit_key;
 
     if needs_fit && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
@@ -156,10 +160,8 @@ pub fn render_atlas_view(
                             val.color[2],
                             val.color[3],
                         );
-                        let dot_rect = Rect::from_min_size(
-                            Pos2::new(dot_x, dot_y),
-                            vec2(dot_size, dot_size),
-                        );
+                        let dot_rect =
+                            Rect::from_min_size(Pos2::new(dot_x, dot_y), vec2(dot_size, dot_size));
                         painter.rect_filled(dot_rect, CornerRadius::same(1), color);
                         painter.rect_stroke(
                             dot_rect,
@@ -200,7 +202,11 @@ pub fn render_atlas_view(
     }
 
     // Hover tooltip: "Tile N (col, row)"
-    if let Some(hovered_id) = app.tileset_view_state.canvas_state_mut(tileset.id).hovered_tile {
+    if let Some(hovered_id) = app
+        .tileset_view_state
+        .canvas_state_mut(tileset.id)
+        .hovered_tile
+    {
         if grid.cols > 0 {
             let col = hovered_id % grid.cols;
             let row = hovered_id / grid.cols;
@@ -242,10 +248,7 @@ pub fn render_atlas_view(
 
     if let Some((val_id, tile_id, active)) = toggle_marking {
         app.execute_command(Box::new(SetTileMarkingCommand::new(
-            tileset.id,
-            val_id,
-            tile_id,
-            active,
+            tileset.id, val_id, tile_id, active,
         )));
     }
 

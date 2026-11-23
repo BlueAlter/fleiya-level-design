@@ -5,8 +5,7 @@ use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::marking::known_tags;
 use lc_feature_tileset::{
-    AddTilesetTagCommand, RemoveTilesetTagCommand, RenameTilesetTagCommand,
-    SetMarkingSourceCommand,
+    AddTilesetTagCommand, RemoveTilesetTagCommand, RenameTilesetTagCommand, SetMarkingSourceCommand,
 };
 
 use super::attributes_card::def_attribute_row;
@@ -35,9 +34,7 @@ pub fn render_tags_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &Ti
         for ev in events {
             match ev {
                 TagEvent::Add(tag_name) => {
-                    app.execute_command(Box::new(AddTilesetTagCommand::new(
-                        tileset.id, tag_name,
-                    )));
+                    app.execute_command(Box::new(AddTilesetTagCommand::new(tileset.id, tag_name)));
                 }
                 TagEvent::Remove(tag_name) => {
                     app.execute_command(Box::new(RemoveTilesetTagCommand::new(
@@ -55,12 +52,7 @@ pub fn render_tags_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &Ti
 }
 
 /// Renders the Enum for tile marking row for a tileset definition.
-pub fn render_marking_enum_row(
-    app: &mut ShellApp,
-    ui: &mut Ui,
-    t: &Tokens,
-    tileset: &TilesetDef,
-) {
+pub fn render_marking_enum_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &TilesetDef) {
     def_attribute_row(ui, t, tr(keys::FIELD_MARKING_ENUM), |ui| {
         ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
 

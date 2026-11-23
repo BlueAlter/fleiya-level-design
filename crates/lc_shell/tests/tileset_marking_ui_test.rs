@@ -6,7 +6,9 @@ use lc_core::defs::{EnumDef, EnumValueDef, TilesetDef};
 use lc_core::id::{EnumDefId, TilesetDefId};
 use lc_core::marking::TileMarking;
 use lc_core::project::Project;
-use lc_feature_tileset::{AddTilesetTagCommand, RemoveTilesetTagCommand, SetMarkingSourceCommand, SetTileMarkingCommand};
+use lc_feature_tileset::{
+    AddTilesetTagCommand, RemoveTilesetTagCommand, SetMarkingSourceCommand, SetTileMarkingCommand,
+};
 use lc_shell::features::editor::app_mode::AppMode;
 use lc_shell::features::tileset::view::render_tileset_view;
 use lc_shell::ShellApp;
@@ -81,7 +83,9 @@ fn test_tileset_tags_and_marking_ui_rendering() {
 
     // Test tag addition command
     let mut add_cmd = Box::new(AddTilesetTagCommand::new(TilesetDefId(1), "Decoration"));
-    add_cmd.apply(&mut app.project).expect("tag addition should succeed");
+    add_cmd
+        .apply(&mut app.project)
+        .expect("tag addition should succeed");
     assert_eq!(
         app.project.defs.tileset(TilesetDefId(1)).unwrap().tags,
         vec!["Ground", "Decoration"]
@@ -89,7 +93,9 @@ fn test_tileset_tags_and_marking_ui_rendering() {
 
     // Test tag removal command
     let mut remove_cmd = Box::new(RemoveTilesetTagCommand::new(TilesetDefId(1), "Ground"));
-    remove_cmd.apply(&mut app.project).expect("tag removal should succeed");
+    remove_cmd
+        .apply(&mut app.project)
+        .expect("tag removal should succeed");
     assert_eq!(
         app.project.defs.tileset(TilesetDefId(1)).unwrap().tags,
         vec!["Decoration"]
@@ -107,19 +113,48 @@ fn test_tileset_tags_and_marking_ui_rendering() {
         4,
         true,
     ));
-    mark_cmd.apply(&mut app.project).expect("tile marking should succeed");
-    assert!(app.project.defs.tileset(TilesetDefId(1)).unwrap().marking.has_tag("Grass", 4));
+    mark_cmd
+        .apply(&mut app.project)
+        .expect("tile marking should succeed");
+    assert!(app
+        .project
+        .defs
+        .tileset(TilesetDefId(1))
+        .unwrap()
+        .marking
+        .has_tag("Grass", 4));
 
     mark_cmd.revert(&mut app.project);
-    assert!(!app.project.defs.tileset(TilesetDefId(1)).unwrap().marking.has_tag("Grass", 4));
+    assert!(!app
+        .project
+        .defs
+        .tileset(TilesetDefId(1))
+        .unwrap()
+        .marking
+        .has_tag("Grass", 4));
 
     // Test clearing marking source enum
     let mut clear_src_cmd = Box::new(SetMarkingSourceCommand::new(TilesetDefId(1), None));
-    clear_src_cmd.apply(&mut app.project).expect("clearing source should succeed");
-    assert_eq!(app.project.defs.tileset(TilesetDefId(1)).unwrap().marking.source_enum, None);
+    clear_src_cmd
+        .apply(&mut app.project)
+        .expect("clearing source should succeed");
+    assert_eq!(
+        app.project
+            .defs
+            .tileset(TilesetDefId(1))
+            .unwrap()
+            .marking
+            .source_enum,
+        None
+    );
     clear_src_cmd.revert(&mut app.project);
     assert_eq!(
-        app.project.defs.tileset(TilesetDefId(1)).unwrap().marking.source_enum,
+        app.project
+            .defs
+            .tileset(TilesetDefId(1))
+            .unwrap()
+            .marking
+            .source_enum,
         Some(EnumDefId(1))
     );
 }

@@ -209,14 +209,7 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
     );
 
     ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
-        render_detail_area(
-            app,
-            ui,
-            &t,
-            &dialog_mgr,
-            tileset.as_ref(),
-            content_rect,
-        );
+        render_detail_area(app, ui, &t, &dialog_mgr, tileset.as_ref(), content_rect);
     });
 }
 
@@ -435,13 +428,7 @@ fn render_detail_area(
                                 .stroke(t.hairline())
                                 .corner_radius(CornerRadius::same(4))
                                 .show(ui, |ui| {
-                                    render_atlas_view(
-                                        app,
-                                        ui,
-                                        t,
-                                        tileset,
-                                        tex.as_ref(),
-                                    );
+                                    render_atlas_view(app, ui, t, tileset, tex.as_ref());
                                 });
                         });
 

@@ -112,13 +112,10 @@ pub fn render_right_panel(
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 for val in &enum_def.values {
-                                    let is_selected = state.selected_marking_value.as_deref()
-                                        == Some(&val.id);
-                                    let marked_count = tileset
-                                        .marking
-                                        .tags
-                                        .get(&val.id)
-                                        .map_or(0, |s| s.len());
+                                    let is_selected =
+                                        state.selected_marking_value.as_deref() == Some(&val.id);
+                                    let marked_count =
+                                        tileset.marking.tags.get(&val.id).map_or(0, |s| s.len());
 
                                     let row_height = 26.0;
                                     let (row_rect, row_resp) = ui.allocate_exact_size(
@@ -162,7 +159,11 @@ pub fn render_right_panel(
                                         val.color[2],
                                         val.color[3],
                                     );
-                                    ui.painter().rect_filled(chip_rect, CornerRadius::same(2), color);
+                                    ui.painter().rect_filled(
+                                        chip_rect,
+                                        CornerRadius::same(2),
+                                        color,
+                                    );
                                     ui.painter().rect_stroke(
                                         chip_rect,
                                         CornerRadius::same(2),

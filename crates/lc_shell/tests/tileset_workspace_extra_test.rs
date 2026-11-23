@@ -23,6 +23,7 @@ fn test_headless_render_source_enum_missing() {
         tags: vec!["Dungeon".to_string()],
         marking: TileMarking {
             source_enum: Some(lc_core::id::EnumDefId(999)),
+            ..Default::default()
         },
     });
 

@@ -433,7 +433,12 @@ pub struct SetTileMarkingCommand {
 
 impl SetTileMarkingCommand {
     /// Creates a command to set or clear marking for a single tile.
-    pub fn new(tileset_id: TilesetDefId, value_id: impl Into<String>, tile: u32, active: bool) -> Self {
+    pub fn new(
+        tileset_id: TilesetDefId,
+        value_id: impl Into<String>,
+        tile: u32,
+        active: bool,
+    ) -> Self {
         Self {
             inner: PaintTileTagsCommand::new(tileset_id, value_id, vec![tile], active),
         }
