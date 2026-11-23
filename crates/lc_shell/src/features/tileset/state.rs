@@ -126,7 +126,13 @@ impl TilesetViewState {
             self.selected_tileset_id = Some(id);
             self.selected_tile = None;
             self.active_mode = "None".to_string();
+            self.canvas_state_mut(id).needs_initial_fit = true;
         }
+    }
+
+    /// Marks the atlas canvas for a given tileset to re-fit synchronously on next render.
+    pub fn reset_atlas_fit(&mut self, id: TilesetDefId) {
+        self.canvas_state_mut(id).needs_initial_fit = true;
     }
 
     /// Gets or creates the pan and zoom state for a given tileset.

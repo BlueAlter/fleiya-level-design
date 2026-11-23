@@ -12,6 +12,25 @@ use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 const PAGE_BG_BYTES: &[u8] =
     include_bytes!("../../../../../assets/Bg/tileset_picker_bg_netral.png");
 
+/// Computes synchronous fit zoom and centered pan for an atlas image in an available rect.
+///
+/// Fit rule from workspace spec:
+/// zoom = min((avail_w - 32) / img_w, (avail_h - 32) / img_h, 8.0). Clamped to min 0.1, max 8.0.
+/// pan = center of available rect - (img_size * zoom) / 2.
+pub fn compute_atlas_fit(available_rect: egui::Rect, img_w: f32, img_h: f32) -> (f32, egui::Vec2) {
+    if img_w <= 0.0 || img_h <= 0.0 {
+        return (1.0, egui::Vec2::ZERO);
+    }
+    let avail_w = (available_rect.width() - 32.0).max(1.0);
+    let avail_h = (available_rect.height() - 32.0).max(1.0);
+    let zoom = ((avail_w / img_w).min(avail_h / img_h))
+        .min(8.0)
+        .clamp(0.1, 8.0);
+    let zoomed_size = vec2(img_w * zoom, img_h * zoom);
+    let pan = available_rect.center() - zoomed_size / 2.0;
+    (zoom, pan.to_vec2())
+}
+
 /// Renders the atlas view with pan, zoom, hover tooltip, and tile selection via `render_atlas_canvas`.
 pub fn render_atlas_view(
     ui: &mut Ui,
@@ -100,6 +119,18 @@ pub fn render_atlas_view(
         })
     };
 
+    let available_rect = ui.available_rect_before_wrap();
+    let fit_key = ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
+    let needs_fit = state.canvas_state_mut(tileset.id).needs_initial_fit || fit_key;
+
+    if needs_fit && img_w > 0 && img_h > 0 {
+        let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
+        let cs = state.canvas_state_mut(tileset.id);
+        cs.view.zoom = fit_zoom;
+        cs.view.offset = fit_offset;
+        cs.needs_initial_fit = false;
+    }
+
     let (response, events) = {
         let canvas_state = state.canvas_state_mut(tileset.id);
         render_atlas_canvas(
@@ -114,6 +145,13 @@ pub fn render_atlas_view(
             None,
         )
     };
+
+    if (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
+        let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
+        let cs = state.canvas_state_mut(tileset.id);
+        cs.view.zoom = fit_zoom;
+        cs.view.offset = fit_offset;
+    }
 
     // Hover tooltip: "Tile N (col, row)"
     if let Some(hovered_id) = state.canvas_state_mut(tileset.id).hovered_tile {
