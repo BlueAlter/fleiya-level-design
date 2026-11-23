@@ -71,6 +71,8 @@ pub struct TilesetViewState {
     pub context_menu: Option<(TilesetDefId, Pos2)>,
     /// Whether the definition attributes card is collapsed (default false).
     pub is_attributes_collapsed: bool,
+    /// Image path pending confirmation modal to copy into project assets.
+    pub pending_outside_copy: Option<std::path::PathBuf>,
     /// Cached neutral repeating page background texture handle.
     pub page_bg: Option<egui::TextureHandle>,
 }
@@ -113,6 +115,7 @@ impl Default for TilesetViewState {
             tag_editing_text: String::new(),
             context_menu: None,
             is_attributes_collapsed: false,
+            pending_outside_copy: None,
             page_bg: None,
         }
     }

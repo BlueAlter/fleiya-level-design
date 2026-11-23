@@ -7,13 +7,12 @@ use egui::{vec2, Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText,
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
-use lc_feature_tileset::{
-    generate_unique_tileset_name, AddTilesetDefCommand, UpdateTilesetDefCommand,
-};
+use lc_feature_tileset::{AddTilesetDefCommand, UpdateTilesetDefCommand};
 use lc_ui_api::AssetService;
 
 use super::atlas_view::render_atlas_view;
 use super::attributes_card::render_attributes_card;
+use super::creation::{create_tileset_from_png, render_outside_copy_modal, CreateTilesetError};
 use super::file_dialog::{TilesetDialogManager, TilesetDialogMessage};
 use super::i18n::{self, keys};
 use super::left_panel::render_left_panel;
@@ -79,52 +78,40 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
                     .as_deref()
                     .and_then(|p| p.parent())
                     .unwrap_or(Path::new("."));
-                let canonical_root = project_root
-                    .canonicalize()
-                    .unwrap_or_else(|_| project_root.to_path_buf());
-                let canonical_file = path.canonicalize().unwrap_or_else(|_| path.clone());
+                let existing: Vec<String> = app
+                    .project
+                    .defs
+                    .tilesets
+                    .iter()
+                    .map(|t| t.name.clone())
+                    .collect();
 
-                if let Ok(rel) = canonical_file.strip_prefix(&canonical_root) {
-                    let rel_str = rel.to_string_lossy().replace('\\', "/");
-                    let stem = path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("tileset");
-                    let existing: Vec<String> = app
-                        .project
-                        .defs
-                        .tilesets
-                        .iter()
-                        .map(|t| t.name.clone())
-                        .collect();
-                    let unique_name = generate_unique_tileset_name(&existing, stem);
-                    let next_id = TilesetDefId(
-                        app.project
-                            .defs
-                            .tilesets
-                            .iter()
-                            .map(|ts| ts.id.0)
-                            .max()
-                            .unwrap_or(0)
-                            + 1,
-                    );
-                    let def = TilesetDef {
-                        id: next_id,
-                        name: unique_name,
-                        path: rel_str,
-                        tile_size: glam::UVec2::splat(16),
-                        spacing: 0,
-                        padding: 0,
-                        tags: Vec::new(),
-                        marking: lc_core::defs::TileMarking::EMPTY,
-                    };
-                    app.execute_command(Box::new(AddTilesetDefCommand::new(def)));
-                    app.selected_tileset_def = Some(next_id);
-                    app.tileset_view_state.select_tileset(next_id);
-                } else {
-                    app.status_message = tr(keys::ERROR_OUTSIDE_ROOT).to_string();
-                    app.tileset_view_state.error_message =
-                        Some(tr(keys::ERROR_OUTSIDE_ROOT).to_string());
+                match create_tileset_from_png(project_root, &path, &existing) {
+                    Ok(mut def) => {
+                        let next_id = TilesetDefId(
+                            app.project
+                                .defs
+                                .tilesets
+                                .iter()
+                                .map(|ts| ts.id.0)
+                                .max()
+                                .unwrap_or(0)
+                                + 1,
+                        );
+                        def.id = next_id;
+                        app.execute_command(Box::new(AddTilesetDefCommand::new(def)));
+                        app.selected_tileset_def = Some(next_id);
+                        app.tileset_view_state.select_tileset(next_id);
+                        app.tileset_view_state.reset_atlas_fit(next_id);
+                        app.tileset_view_state.error_message = None;
+                    }
+                    Err(CreateTilesetError::OutsideProject) => {
+                        app.tileset_view_state.pending_outside_copy = Some(path);
+                    }
+                    Err(e) => {
+                        app.status_message = e.to_string();
+                        app.tileset_view_state.error_message = Some(e.to_string());
+                    }
                 }
             }
             TilesetDialogMessage::BrowseSourceImage(ts_id, path) => {
@@ -246,6 +233,43 @@ fn render_detail_area(
     sections: DetailSections,
     content_rect: Rect,
 ) {
+    // Confirmation modal for copying outside images into project assets
+    render_outside_copy_modal(app, ui, t);
+
+    // Visible error banner (never fail silently)
+    if let Some(err) = app.tileset_view_state.error_message.clone() {
+        let mut dismiss = false;
+        let danger_color = Color32::from_rgb(220, 38, 38);
+        let danger_fill = danger_color.linear_multiply(0.15);
+        Frame::new()
+            .fill(danger_fill)
+            .stroke(egui::Stroke::new(1.0, danger_color))
+            .corner_radius(CornerRadius::same(4))
+            .inner_margin(egui::Margin::symmetric(12, 8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(&err)
+                            .font(egui::FontId::proportional(12.5))
+                            .color(danger_color)
+                            .strong(),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(RichText::new("Dismiss").size(11.0).color(t.muted))
+                            .clicked()
+                        {
+                            dismiss = true;
+                        }
+                    });
+                });
+            });
+        if dismiss {
+            app.tileset_view_state.error_message = None;
+        }
+        ui.add_space(8.0);
+    }
+
     let Some(tileset) = tileset else {
         // Empty State: No tilesets
         ui.centered_and_justified(|ui| {

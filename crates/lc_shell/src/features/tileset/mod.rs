@@ -2,6 +2,7 @@
 
 pub mod atlas_view;
 pub mod attributes_card;
+pub mod creation;
 pub mod dialog;
 pub mod file_dialog;
 pub mod file_picker;
