@@ -198,8 +198,6 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
         .selected_tileset_id
         .and_then(|id| app.project.defs.tileset(id).cloned());
 
-    let sections = sections_for(app.tileset_view_state.active_sub_tab);
-
     let content_bottom = full_rect.max.y - WORKSPACE_PADDING;
 
     let content_rect = Rect::from_min_max(
@@ -217,7 +215,6 @@ pub fn render_tileset_view(app: &mut ShellApp, ui: &mut Ui) {
             &t,
             &dialog_mgr,
             tileset.as_ref(),
-            sections,
             content_rect,
         );
     });
@@ -230,7 +227,6 @@ fn render_detail_area(
     t: &Tokens,
     dialogs: &Arc<TilesetDialogManager>,
     tileset: Option<&TilesetDef>,
-    sections: DetailSections,
     content_rect: Rect,
 ) {
     // Confirmation modal for copying outside images into project assets
@@ -308,6 +304,8 @@ fn render_detail_area(
                 app.tileset_view_state.set_sub_tab(active);
             }
         });
+
+        let sections = sections_for(app.tileset_view_state.active_sub_tab);
 
         // Content dispatch based on sub-tab with separate id_salt
         if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {

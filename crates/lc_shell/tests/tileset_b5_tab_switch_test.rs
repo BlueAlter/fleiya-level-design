@@ -193,6 +193,10 @@ fn test_b5_tab_switch_glitch_and_stability() {
         def_f1_texts.iter().any(|(t, _)| t == "TOOLS"),
         "DEF tab frame 1 must contain TOOLS label"
     );
+    assert!(
+        def_f1_texts.iter().any(|(t, _)| t.contains("(Tileset)")),
+        "DEF tab frame 1 must immediately contain tileset header title"
+    );
 
     // Render frames 2, 3, 4 of DEF
     render_frame(&ctx, &mut app, full_rect);
