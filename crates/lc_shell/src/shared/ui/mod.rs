@@ -59,7 +59,9 @@ pub use sub_tabs::{sub_tab_id, sub_tabs};
 pub use swatch::{color_swatch, tile_icon_button, TileIconData};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
 pub use tag_row::{normalize_tag, normalize_tags, tag_row, TagEvent};
-pub use text_field::{text_field, validate_identifier, FieldResponse, FieldStyle, IdentifierError};
+pub use text_field::{
+    text_field, validate_identifier, FieldOutline, FieldResponse, FieldStyle, IdentifierError,
+};
 pub use tile_bounds::{TileGrid, TileRect};
 pub use tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
 pub use tileset_select::{tileset_select, TilesetSelectItem};
