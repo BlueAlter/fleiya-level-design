@@ -4,6 +4,7 @@ pub mod atlas_view;
 pub mod attributes_card;
 pub mod dialog;
 pub mod file_dialog;
+pub mod file_picker;
 pub mod i18n;
 pub mod left_panel;
 pub mod panel;
