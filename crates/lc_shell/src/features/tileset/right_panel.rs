@@ -15,7 +15,7 @@ use crate::features::tileset::state::{TilesetViewState, CUSTOM_DATA_VALUE_ID};
 use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
 
 /// Paints a tile graphic thumbnail inside the given rect.
-fn paint_tile_thumbnail(
+pub fn paint_tile_thumbnail(
     painter: &egui::Painter,
     ctx: &egui::Context,
     icon_rect: Rect,

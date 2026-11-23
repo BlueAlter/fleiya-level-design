@@ -1,22 +1,20 @@
-//! Interactive atlas view widget for the Tilesets workspace.
+//! Atlas interactive viewport and tile grid view.
 
-use egui::{
-    vec2, Color32, CornerRadius, PointerButton, Pos2, Rect, RichText, Sense, StrokeKind,
-    TextureHandle, Ui,
-};
+use egui::{vec2, CornerRadius, PointerButton, Rect, RichText, Sense, TextureHandle, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
-use lc_feature_tileset::{compute_tileset_grid, SetTileMarkingCommand};
+use lc_feature_tileset::{compute_tileset_grid, SetTileCustomDataCommand, SetTileMarkingCommand};
 
+use super::atlas_overlay::{render_tile_overlay, TileOverlayContext};
+use super::state::CUSTOM_DATA_VALUE_ID;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::ui::atlas_canvas::{render_atlas_canvas, AtlasEvent, TileOverlayCallback};
+use crate::shared::ui::custom_data_dialog::{render_custom_data_dialog, CustomDataOutcome};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 
 const PAGE_BG_BYTES: &[u8] =
     include_bytes!("../../../../../assets/Bg/tileset_picker_bg_netral.png");
 
-/// Computes synchronous fit zoom and centered pan for an atlas image in an available rect.
-///
 /// Fit rule from workspace spec:
 /// zoom = min((avail_w - 32) / img_w, (avail_h - 32) / img_h, 8.0). Clamped to min 0.1, max 8.0.
 /// pan = center of available rect - (img_size * zoom) / 2.
@@ -44,8 +42,7 @@ pub fn render_atlas_view(
 ) {
     let Some(tex) = texture else {
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
-        ui.painter()
-            .rect_filled(rect, egui::CornerRadius::ZERO, t.bg);
+        ui.painter().rect_filled(rect, CornerRadius::ZERO, t.bg);
         ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.centered_and_justified(|ui| {
                 if tileset.path.is_empty() {
@@ -73,8 +70,7 @@ pub fn render_atlas_view(
     let (img_w, img_h) = (sz[0] as u32, sz[1] as u32);
     if img_w == 0 || img_h == 0 {
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
-        ui.painter()
-            .rect_filled(rect, egui::CornerRadius::ZERO, t.bg);
+        ui.painter().rect_filled(rect, CornerRadius::ZERO, t.bg);
         ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.centered_and_justified(|ui| {
                 ui.label(
@@ -144,39 +140,24 @@ pub fn render_atlas_view(
         .and_then(|id| app.project.defs.enum_def(id))
         .cloned();
 
+    let active_val_id = app.tileset_view_state.selected_marking_value.clone();
+    let is_marking_mode = app.tileset_view_state.active_mode == "Marking";
+    let ctx_clone = ui.ctx().clone();
+    let assets = app.assets.clone();
+    let project = app.project.clone();
+
+    let overlay_cx = TileOverlayContext {
+        tileset,
+        enum_def: enum_def_opt.as_ref(),
+        is_marking_mode,
+        selected_val_id: active_val_id.as_deref(),
+        project: &project,
+        assets: assets.as_ref(),
+    };
+
     let mut overlay = |painter: &egui::Painter, (col, row): (u32, u32), tile_rect: Rect| {
-        if let Some(ref enum_def) = enum_def_opt {
-            let tile_id = row * grid.cols + col;
-            let tags = tileset.marking.tags_at(tile_id);
-            if !tags.is_empty() {
-                let dot_size = (tile_rect.height() * 0.28).clamp(4.0, 10.0);
-                let mut dot_x = tile_rect.min.x + 2.0;
-                let dot_y = tile_rect.min.y + 2.0;
-                for tag in tags {
-                    if let Some(val) = enum_def.value(tag) {
-                        let color = Color32::from_rgba_unmultiplied(
-                            val.color[0],
-                            val.color[1],
-                            val.color[2],
-                            val.color[3],
-                        );
-                        let dot_rect =
-                            Rect::from_min_size(Pos2::new(dot_x, dot_y), vec2(dot_size, dot_size));
-                        painter.rect_filled(dot_rect, CornerRadius::same(1), color);
-                        painter.rect_stroke(
-                            dot_rect,
-                            CornerRadius::same(1),
-                            t.hairline(),
-                            StrokeKind::Inside,
-                        );
-                        dot_x += dot_size + 2.0;
-                        if dot_x + dot_size > tile_rect.max.x {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        let tile_id = row * grid.cols + col;
+        render_tile_overlay(painter, &ctx_clone, tile_rect, tile_id, &overlay_cx);
     };
 
     let (response, events) = {
@@ -201,17 +182,36 @@ pub fn render_atlas_view(
         cs.view.offset = fit_offset;
     }
 
-    // Hover tooltip: "Tile N (col, row)"
+    // Hover tooltip: "Tile N" + tag names / custom data
     if let Some(hovered_id) = app
         .tileset_view_state
         .canvas_state_mut(tileset.id)
         .hovered_tile
     {
-        if grid.cols > 0 {
+        let mut tooltip_lines = vec![format!("Tile {hovered_id}")];
+        let tags = tileset.marking.tags_at(hovered_id);
+        if !tags.is_empty() {
+            if let Some(ref enum_def) = enum_def_opt {
+                let tag_names: Vec<&str> = tags
+                    .iter()
+                    .filter_map(|tag| enum_def.value(tag).map(|v| v.name.as_str()))
+                    .collect();
+                if !tag_names.is_empty() {
+                    tooltip_lines.push(tag_names.join(" + "));
+                }
+            }
+        }
+        if let Some(custom_data) = tileset.custom_data.get(&hovered_id) {
+            if !custom_data.trim().is_empty() {
+                tooltip_lines.push(format!("Data: {custom_data}"));
+            }
+        }
+        if tooltip_lines.len() == 1 && grid.cols > 0 {
             let col = hovered_id % grid.cols;
             let row = hovered_id / grid.cols;
-            response.on_hover_text(format!("Tile {hovered_id} ({col}, {row})"));
+            tooltip_lines[0] = format!("Tile {hovered_id} ({col}, {row})");
         }
+        response.on_hover_text(tooltip_lines.join("\n"));
     }
 
     // Process events (clicks never mutate project data directly, only via Commands)
@@ -225,16 +225,47 @@ pub fn render_atlas_view(
                 button,
                 ..
             } => {
-                if button == PointerButton::Primary {
-                    app.tileset_view_state.selected_tile = Some(tile_id);
-                    app.tileset_view_state
-                        .canvas_state_mut(tileset.id)
-                        .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
+                app.tileset_view_state.selected_tile = Some(tile_id);
+                app.tileset_view_state
+                    .canvas_state_mut(tileset.id)
+                    .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
 
-                    if app.tileset_view_state.active_mode == "Marking" {
-                        if let Some(ref val_id) = app.tileset_view_state.selected_marking_value {
-                            let is_marked = tileset.marking.has_tag(val_id, tile_id);
-                            toggle_marking = Some((val_id.clone(), tile_id, !is_marked));
+                if tileset.marking.source_enum.is_none() {
+                    // When no enum for marking is selected, clicking opens Custom Data dialog
+                    if button == PointerButton::Primary {
+                        let existing = tileset.custom_data.get(&tile_id).map(|s| s.as_str());
+                        app.tileset_view_state
+                            .custom_data_dialog
+                            .open(tileset.id, tile_id, existing);
+                    }
+                } else if app.tileset_view_state.active_mode == "Marking" {
+                    if let Some(ref val_id) = app.tileset_view_state.selected_marking_value {
+                        if val_id == CUSTOM_DATA_VALUE_ID {
+                            if button == PointerButton::Primary {
+                                let existing =
+                                    tileset.custom_data.get(&tile_id).map(|s| s.as_str());
+                                app.tileset_view_state
+                                    .custom_data_dialog
+                                    .open(tileset.id, tile_id, existing);
+                            } else if button == PointerButton::Secondary
+                                && tileset.custom_data.contains_key(&tile_id)
+                            {
+                                app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                                    tileset.id,
+                                    tile_id,
+                                    None::<String>,
+                                )));
+                            }
+                        } else if button == PointerButton::Primary {
+                            // Left click marks
+                            if !tileset.marking.has_tag(val_id, tile_id) {
+                                toggle_marking = Some((val_id.clone(), tile_id, true));
+                            }
+                        } else if button == PointerButton::Secondary {
+                            // Right click unmarks
+                            if tileset.marking.has_tag(val_id, tile_id) {
+                                toggle_marking = Some((val_id.clone(), tile_id, false));
+                            }
                         }
                     }
                 }
@@ -250,6 +281,42 @@ pub fn render_atlas_view(
         app.execute_command(Box::new(SetTileMarkingCommand::new(
             tileset.id, val_id, tile_id, active,
         )));
+    }
+
+    // Render custom data modal dialog if open for this tileset
+    if app.tileset_view_state.custom_data_dialog.is_open
+        && app.tileset_view_state.custom_data_dialog.tileset_id == Some(tileset.id)
+    {
+        let tile_id = app.tileset_view_state.custom_data_dialog.tile_id;
+        let outcome = render_custom_data_dialog(
+            ui.ctx(),
+            t,
+            &mut app.tileset_view_state.custom_data_dialog,
+            None::<fn(&mut Ui)>,
+        );
+
+        if let Some(outcome) = outcome {
+            match outcome {
+                CustomDataOutcome::Save(content) => {
+                    let data = if content.trim().is_empty() {
+                        None
+                    } else {
+                        Some(content)
+                    };
+                    app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                        tileset.id, tile_id, data,
+                    )));
+                }
+                CustomDataOutcome::Delete => {
+                    app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                        tileset.id,
+                        tile_id,
+                        None::<String>,
+                    )));
+                }
+                CustomDataOutcome::Cancel => {}
+            }
+        }
     }
 
     // Synchronize pan and zoom settings in view state

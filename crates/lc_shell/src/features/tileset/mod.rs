@@ -1,5 +1,6 @@
 //! Tileset definitions workspace, atlas view, and panels.
 
+pub mod atlas_overlay;
 pub mod atlas_view;
 pub mod attributes_card;
 pub mod creation;
