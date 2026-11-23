@@ -4,6 +4,7 @@ use lc_core::defs::{TileMarking, TilesetDef};
 use lc_core::id::TilesetDefId;
 use lc_feature_tileset::generate_unique_tileset_name;
 use std::path::{Path, PathBuf};
+use std::{fs::copy, fs::create_dir_all};
 
 /// Error variants encountered when creating a tileset definition from an image file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +52,7 @@ pub fn create_tileset_from_png(
     }
 
     // 2. Read bytes
-    let bytes = std::fs::read(picked_path).map_err(|_| CreateTilesetError::Unreadable)?;
+    let bytes = lc_io::read_bytes(picked_path).map_err(|_| CreateTilesetError::Unreadable)?;
 
     // 3. Decode dimensions
     let img = image::load_from_memory(&bytes).map_err(|_| CreateTilesetError::Unreadable)?;
@@ -98,13 +99,13 @@ pub fn copy_image_to_assets(
 ) -> Result<PathBuf, std::io::Error> {
     let assets_dir = project_root.join("assets");
     if !assets_dir.exists() {
-        std::fs::create_dir_all(&assets_dir)?;
+        create_dir_all(&assets_dir)?;
     }
     let file_name = picked_path.file_name().ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing file name")
     })?;
     let dest_path = assets_dir.join(file_name);
-    std::fs::copy(picked_path, &dest_path)?;
+    copy(picked_path, &dest_path)?;
     Ok(dest_path)
 }
 

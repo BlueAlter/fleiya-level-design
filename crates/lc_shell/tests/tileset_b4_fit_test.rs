@@ -2,7 +2,6 @@
 
 use egui::{vec2, Context, Rect, Shape};
 use glam::UVec2;
-use image::{ImageBuffer, Rgba};
 use lc_canvas::theme::{self, ThemeChoice};
 use lc_core::defs::{TileMarking, TilesetDef};
 use lc_core::id::TilesetDefId;
@@ -10,16 +9,6 @@ use lc_core::project::Project;
 use lc_shell::features::editor::app_mode::AppMode;
 use lc_shell::features::tileset::view::render_tileset_view;
 use lc_shell::ShellApp;
-use std::io::Cursor;
-
-fn create_dummy_png(w: u32, h: u32) -> Vec<u8> {
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::from_pixel(w, h, Rgba([200, 100, 50, 255]));
-    let mut bytes = Cursor::new(Vec::new());
-    img.write_to(&mut bytes, image::ImageFormat::Png)
-        .expect("PNG encode");
-    bytes.into_inner()
-}
 
 fn collect_rects(shape: &Shape, out: &mut Vec<Rect>) {
     match shape {
@@ -49,12 +38,11 @@ fn expected_atlas_fit(available_rect: Rect, img_w: f32, img_h: f32) -> (f32, egu
 
 #[test]
 fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
-    let temp_dir = std::env::temp_dir().join(format!("levelcraft_b4_test_{}", std::process::id()));
-    let _ = std::fs::create_dir_all(&temp_dir);
-    let p64 = temp_dir.join("dummy_64.png");
-    let p128 = temp_dir.join("dummy_128_64.png");
-    std::fs::write(&p64, create_dummy_png(64, 64)).expect("write 64");
-    std::fs::write(&p128, create_dummy_png(128, 64)).expect("write 128");
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
 
     let mut project = Project::new("B4 Fit Centering Test");
     let ts_a = TilesetDefId(1);
@@ -63,7 +51,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     project.defs.tilesets.push(TilesetDef {
         id: ts_a,
         name: "TilesetA".to_string(),
-        path: "dummy_64.png".to_string(),
+        path: "assets/Bg/tileset_picker_bg_netral.png".to_string(),
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
@@ -73,7 +61,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     project.defs.tilesets.push(TilesetDef {
         id: ts_b,
         name: "TilesetB".to_string(),
-        path: "dummy_128_64.png".to_string(),
+        path: "assets/Bg/tileset_picker_bg_netral.png".to_string(),
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
@@ -82,7 +70,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     });
 
     let mut app = ShellApp::new(project);
-    app.assets.set_project_dir(Some(temp_dir.clone()));
+    app.assets.set_project_dir(Some(repo_root.to_path_buf()));
     app.active_mode = AppMode::Tilesets;
     app.tileset_view_state.select_tileset(ts_a);
 
@@ -90,7 +78,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     theme::install_fonts(&ctx);
     theme::apply(&ctx, ThemeChoice::Dark);
 
-    // Frame 1 render for Tileset A (64x64)
+    // Frame 1 render for Tileset A (16x16)
     let full_rect = Rect::from_min_size(egui::Pos2::ZERO, vec2(1366.0, 768.0));
     let mut output = ctx.run_ui(
         egui::RawInput {
@@ -121,7 +109,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     // The inner area of the atlas card inside its 1 px hairline stroke
     let atlas_card_inner = atlas_card.shrink(1.0);
 
-    let (expected_zoom_a, _expected_pan_a) = expected_atlas_fit(atlas_card_inner, 64.0, 64.0);
+    let (expected_zoom_a, _expected_pan_a) = expected_atlas_fit(atlas_card_inner, 16.0, 16.0);
 
     let cs_a = app.tileset_view_state.canvas_state_mut(ts_a);
     let actual_zoom_a = cs_a.view.zoom;
@@ -136,8 +124,8 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
 
     let expected_center = atlas_card.center();
     let actual_center_a = egui::Pos2::new(
-        actual_pan_a.x + (64.0 * actual_zoom_a) / 2.0,
-        actual_pan_a.y + (64.0 * actual_zoom_a) / 2.0,
+        actual_pan_a.x + (16.0 * actual_zoom_a) / 2.0,
+        actual_pan_a.y + (16.0 * actual_zoom_a) / 2.0,
     );
     let dist_a = actual_center_a.distance(expected_center);
     assert!(
@@ -148,7 +136,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         expected_center
     );
 
-    // Switch to Tileset B (128x64) and render Frame 1 after switch
+    // Switch to Tileset B (16x16) and render Frame 1 after switch
     app.tileset_view_state.select_tileset(ts_b);
     let mut output_b = ctx.run_ui(
         egui::RawInput {
@@ -161,7 +149,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     );
     output_b.textures_delta.clear();
 
-    let (expected_zoom_b, _expected_pan_b) = expected_atlas_fit(atlas_card_inner, 128.0, 64.0);
+    let (expected_zoom_b, _expected_pan_b) = expected_atlas_fit(atlas_card_inner, 16.0, 16.0);
     let cs_b = app.tileset_view_state.canvas_state_mut(ts_b);
     let actual_zoom_b = cs_b.view.zoom;
     let actual_pan_b = cs_b.view.offset;
@@ -174,8 +162,8 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
     );
 
     let actual_center_b = egui::Pos2::new(
-        actual_pan_b.x + (128.0 * actual_zoom_b) / 2.0,
-        actual_pan_b.y + (64.0 * actual_zoom_b) / 2.0,
+        actual_pan_b.x + (16.0 * actual_zoom_b) / 2.0,
+        actual_pan_b.y + (16.0 * actual_zoom_b) / 2.0,
     );
     let dist_b = actual_center_b.distance(expected_center);
     assert!(
@@ -218,8 +206,8 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         expected_zoom_b
     );
     let center_f = egui::Pos2::new(
-        cs_f.view.offset.x + (128.0 * cs_f.view.zoom) / 2.0,
-        cs_f.view.offset.y + (64.0 * cs_f.view.zoom) / 2.0,
+        cs_f.view.offset.x + (16.0 * cs_f.view.zoom) / 2.0,
+        cs_f.view.offset.y + (16.0 * cs_f.view.zoom) / 2.0,
     );
     assert!(
         center_f.distance(expected_center) < 1.0,
@@ -227,6 +215,4 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         center_f,
         expected_center
     );
-
-    let _ = std::fs::remove_dir_all(&temp_dir);
 }
