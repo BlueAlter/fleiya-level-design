@@ -1,0 +1,96 @@
+//! Standardized informative callout / banner component.
+//!
+//! Renders an info callout card with a prominent circular question/help badge
+//! on the left, multi-line guidance text in the middle, and an optional custom
+//! preview slot on the right.
+
+use egui::{
+    vec2, Align, Align2, Color32, CornerRadius, FontId, Frame, Layout, Margin, Response, RichText,
+    Sense, Stroke, Ui,
+};
+use lc_canvas::theme::Tokens;
+
+/// Renders a standardized informative callout banner.
+///
+/// # Arguments
+/// - `ui`: Target egui Ui.
+/// - `t`: Semantic design tokens.
+/// - `text`: Guidance message displayed in the center.
+/// - `preview`: Optional closure rendering a preview widget on the right.
+pub fn info_banner<F>(ui: &mut Ui, t: &Tokens, text: &str, preview: Option<F>) -> Response
+where
+    F: FnOnce(&mut Ui),
+{
+    let frame = Frame::new()
+        .fill(Color32::from_rgba_unmultiplied(26, 44, 38, 230))
+        .stroke(Stroke::new(1.0, Color32::from_rgb(50, 110, 80)))
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(Margin::symmetric(12, 10));
+
+    frame
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                // 1. Left circular help icon
+                let icon_size = vec2(26.0, 26.0);
+                let (rect, _) = ui.allocate_exact_size(icon_size, Sense::hover());
+                let circle_center = rect.center();
+                let circle_radius = icon_size.x * 0.5;
+
+                ui.painter().circle_filled(
+                    circle_center,
+                    circle_radius,
+                    Color32::from_rgb(52, 148, 76),
+                );
+                ui.painter().text(
+                    circle_center,
+                    Align2::CENTER_CENTER,
+                    "?",
+                    FontId::monospace(15.0),
+                    Color32::WHITE,
+                );
+
+                ui.add_space(8.0);
+
+                // 2. Middle guidance text
+                let text_layout_width = if preview.is_some() {
+                    ui.available_width() - 56.0
+                } else {
+                    ui.available_width()
+                };
+
+                ui.allocate_ui_with_layout(
+                    vec2(text_layout_width.max(100.0), 0.0),
+                    Layout::top_down(Align::Min),
+                    |ui| {
+                        ui.label(
+                            RichText::new(text)
+                                .size(11.5)
+                                .color(Color32::from_rgb(205, 225, 215)),
+                        );
+                    },
+                );
+
+                // 3. Optional right preview
+                if let Some(render_preview) = preview {
+                    ui.add_space(8.0);
+                    let (preview_rect, _) =
+                        ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
+                    ui.painter().rect_filled(
+                        preview_rect,
+                        CornerRadius::same(3),
+                        Color32::from_rgba_unmultiplied(10, 18, 24, 200),
+                    );
+                    ui.painter().rect_stroke(
+                        preview_rect,
+                        CornerRadius::same(3),
+                        t.hairline(),
+                        egui::StrokeKind::Inside,
+                    );
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(preview_rect), |ui| {
+                        render_preview(ui);
+                    });
+                }
+            });
+        })
+        .response
+}
