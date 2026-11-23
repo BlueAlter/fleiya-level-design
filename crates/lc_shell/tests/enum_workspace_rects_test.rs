@@ -560,6 +560,378 @@ fn assert_workspace_rects(m: &MeasuredWorkspace, screen_width: f32) {
 }
 
 #[test]
+#[allow(clippy::print_stdout)]
+fn test_measure_enum_def_and_document_layout() {
+    let mut app_def = setup_app(3);
+    let (_output_def, collected_def) = render_view(&mut app_def, 1366.0, 768.0);
+
+    // ENUM DEF measurements
+    let def_sub_tabs_rect = collected_def
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 260.0 && r.min.y >= 12.0 && r.min.y < 30.0 && r.height() <= 30.0)
+        .expect("ENUM DEF tab rect");
+
+    let def_title_text = collected_def
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("(Enum)"))
+        .expect("ENUM DEF title text");
+
+    let def_first_ctrl = collected_def
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 380.0 && r.min.x < 420.0 && approx_eq(r.height(), 32.0))
+        .expect("ENUM DEF first control");
+
+    let def_footer_rect = collected_def
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| approx_eq(r.min.x, 260.0) && approx_eq(r.max.y, 768.0) && r.height() > 30.0)
+        .expect("ENUM DEF footer panel rect");
+
+    println!("=== ENUM DEF MEASUREMENTS ===");
+    println!(
+        "Tabs left: {:.1}, top: {:.1}",
+        def_sub_tabs_rect.min.x, def_sub_tabs_rect.min.y
+    );
+    println!(
+        "Title text: '{}' at [{:.1}, {:.1}]",
+        def_title_text.galley.text(),
+        def_title_text.pos.x,
+        def_title_text.pos.y
+    );
+    println!("First control x: {:.1}", def_first_ctrl.min.x);
+    println!(
+        "Footer top: {:.1}, gap above footer: {:.1}",
+        def_footer_rect.min.y,
+        def_footer_rect.min.y - 720.0
+    );
+
+    // DOCUMENT tab measurements
+    let mut app_doc = setup_app(3);
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+    let state = lc_shell::features::enums::view::EnumViewState {
+        active_sub_tab: 1,
+        ..Default::default()
+    };
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state));
+
+    let raw_input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+
+    let mut output_doc = ctx.run_ui(raw_input, |ui| {
+        render_enum_view(&mut app_doc, ui);
+    });
+    output_doc.textures_delta.clear();
+    let collected_doc = collect_from_output(&output_doc.shapes);
+
+    let doc_sub_tabs_rect = collected_doc
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 260.0 && r.min.y >= 12.0 && r.min.y < 30.0 && r.height() <= 30.0)
+        .expect("DOCUMENT tab rect");
+
+    let doc_heading_text = collected_doc
+        .texts
+        .iter()
+        .find(|t| {
+            t.galley.text().contains("Create an enum")
+                || t.galley.text().contains("Overview")
+                || t.galley.text().contains("Enums")
+        })
+        .expect("DOCUMENT heading text");
+
+    let doc_body_max_x = collected_doc
+        .texts
+        .iter()
+        .filter(|t| t.pos.x > 260.0)
+        .map(|t| t.pos.x + t.galley.size().x)
+        .fold(0.0f32, f32::max);
+
+    println!("=== DOCUMENT MEASUREMENTS ===");
+    println!(
+        "Tabs left: {:.1}, top: {:.1}",
+        doc_sub_tabs_rect.min.x, doc_sub_tabs_rect.min.y
+    );
+    println!(
+        "First heading text: '{}' at [{:.1}, {:.1}]",
+        doc_heading_text.galley.text(),
+        doc_heading_text.pos.x,
+        doc_heading_text.pos.y
+    );
+    println!("Wrap right edge max x: {:.1}", doc_body_max_x);
+
+    println!("=== DOCUMENT TEXTS IN RIGHT PANEL (x > 250) ===");
+    for t in &collected_doc.texts {
+        if t.pos.x > 250.0 {
+            println!(
+                "Doc Text: {:<30} at [{:.1}, {:.1}] - size: [{:.1}, {:.1}]",
+                t.galley.text(),
+                t.pos.x,
+                t.pos.y,
+                t.galley.size().x,
+                t.galley.size().y
+            );
+        }
+    }
+}
+
+#[test]
+fn test_document_tab_margins_and_chrome() {
+    let mut app_def = setup_app(3);
+    let (_output_def, collected_def) = render_view(&mut app_def, 1366.0, 768.0);
+
+    let def_title_text = collected_def
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("(Enum)"))
+        .expect("ENUM DEF title text");
+
+    let mut app_doc = setup_app(3);
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+    let state = lc_shell::features::enums::view::EnumViewState {
+        active_sub_tab: 1,
+        ..Default::default()
+    };
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state));
+
+    let raw_input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+
+    let mut output_doc = ctx.run_ui(raw_input, |ui| {
+        render_enum_view(&mut app_doc, ui);
+    });
+    output_doc.textures_delta.clear();
+    let collected_doc = collect_from_output(&output_doc.shapes);
+
+    let doc_sub_tabs_rect = collected_doc
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 260.0 && r.min.y >= 12.0 && r.min.y < 30.0 && r.height() <= 30.0)
+        .expect("DOCUMENT tab rect");
+
+    let doc_heading_text = collected_doc
+        .texts
+        .iter()
+        .find(|t| {
+            t.galley.text().contains("Create an enum")
+                || t.galley.text().contains("Overview")
+                || t.galley.text().contains("Enums")
+        })
+        .expect("DOCUMENT heading text");
+
+    let doc_body_max_x = collected_doc
+        .texts
+        .iter()
+        .filter(|t| t.pos.x > 260.0)
+        .map(|t| t.pos.x + t.galley.size().x)
+        .fold(0.0f32, f32::max);
+
+    // D3 Assertions:
+    // 1. Tabs start at x = 272
+    assert!(
+        approx_eq(doc_sub_tabs_rect.min.x, 272.0),
+        "DOCUMENT tabs left must be 272.0, was {}",
+        doc_sub_tabs_rect.min.x
+    );
+    // 2. First heading x == 272.0
+    assert!(
+        approx_eq(doc_heading_text.pos.x, 272.0),
+        "DOCUMENT first heading x must be 272.0, was {}",
+        doc_heading_text.pos.x
+    );
+    // 3. Wrap right <= 1354.0
+    assert!(
+        doc_body_max_x <= 1354.0,
+        "DOCUMENT wrap right edge must be <= 1354.0, was {}",
+        doc_body_max_x
+    );
+    // 4. First heading y equals the ENUM DEF title y
+    assert!(
+        approx_eq(doc_heading_text.pos.y, def_title_text.pos.y),
+        "DOCUMENT first heading y must match ENUM DEF title y ({}), was {}",
+        def_title_text.pos.y,
+        doc_heading_text.pos.y
+    );
+    // 5. No title in DOCUMENT
+    let doc_has_title = collected_doc
+        .texts
+        .iter()
+        .any(|t| t.galley.text().contains("(Enum)"));
+    assert!(
+        !doc_has_title,
+        "DOCUMENT tab must not render enum definition title"
+    );
+    // 6. No footer in DOCUMENT
+    let doc_has_footer = collected_doc.rects.iter().any(|r| {
+        approx_eq(r.rect.min.x, 260.0)
+            && approx_eq(r.rect.max.y, 768.0)
+            && r.rect.height() <= 60.0
+            && r.rect.min.y >= 700.0
+    });
+    assert!(!doc_has_footer, "DOCUMENT tab must not render footer panel");
+    let doc_has_footer_buttons = collected_doc
+        .texts
+        .iter()
+        .any(|t| t.galley.text() == "Save" || t.galley.text() == "Revert");
+    assert!(
+        !doc_has_footer_buttons,
+        "DOCUMENT tab must not render Save/Revert buttons"
+    );
+}
+
+#[test]
+#[allow(clippy::print_stdout)]
+fn test_tab_switch_glitch_check() {
+    let mut app = setup_app(3);
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+
+    // Initial state: ENUM DEF
+    let state = lc_shell::features::enums::view::EnumViewState {
+        active_sub_tab: 0,
+        ..Default::default()
+    };
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state));
+
+    let raw_input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+
+    // Frame 0: ENUM DEF
+    let mut out0 = ctx.run_ui(raw_input.clone(), |ui| {
+        render_enum_view(&mut app, ui);
+    });
+    out0.textures_delta.clear();
+
+    // Frame 1: Switch to DOCUMENT
+    let mut state1 = ctx
+        .data(|d| {
+            d.get_temp::<lc_shell::features::enums::view::EnumViewState>(egui::Id::new(
+                "enum_mode_view_transient_state",
+            ))
+        })
+        .unwrap();
+    state1.active_sub_tab = 1;
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state1));
+
+    let mut out1 = ctx.run_ui(raw_input.clone(), |ui| {
+        render_enum_view(&mut app, ui);
+    });
+    out1.textures_delta.clear();
+    let col1 = collect_from_output(&out1.shapes);
+
+    // Frame 2: Settled frame
+    let mut out2 = ctx.run_ui(raw_input.clone(), |ui| {
+        render_enum_view(&mut app, ui);
+    });
+    out2.textures_delta.clear();
+    let col2 = collect_from_output(&out2.shapes);
+
+    let heading1 = col1
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("Enums"))
+        .map(|t| (t.pos.x, t.pos.y));
+    let heading2 = col2
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("Enums"))
+        .map(|t| (t.pos.x, t.pos.y));
+
+    println!("=== TAB SWITCH GLITCH CHECK ===");
+    println!("Frame 1 heading pos: {:?}", heading1);
+    println!("Frame 2 heading pos: {:?}", heading2);
+
+    let tabs1 = col1
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 260.0 && r.min.y >= 12.0 && r.min.y < 30.0)
+        .map(|r| (r.min.x, r.min.y));
+    let tabs2 = col2
+        .rects
+        .iter()
+        .map(|r| r.rect)
+        .find(|r| r.min.x > 260.0 && r.min.y >= 12.0 && r.min.y < 30.0)
+        .map(|r| (r.min.x, r.min.y));
+    println!("Frame 1 tabs pos: {:?}", tabs1);
+    println!("Frame 2 tabs pos: {:?}", tabs2);
+
+    assert_eq!(
+        heading1, heading2,
+        "Heading position must not glitch between Frame 1 and Frame 2"
+    );
+    assert_eq!(
+        tabs1, tabs2,
+        "Tabs position must not glitch between Frame 1 and Frame 2"
+    );
+
+    // Frame 3: Switch back to ENUM DEF
+    let mut state3 = ctx
+        .data(|d| {
+            d.get_temp::<lc_shell::features::enums::view::EnumViewState>(egui::Id::new(
+                "enum_mode_view_transient_state",
+            ))
+        })
+        .unwrap();
+    state3.active_sub_tab = 0;
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state3));
+
+    let mut out3 = ctx.run_ui(raw_input.clone(), |ui| {
+        render_enum_view(&mut app, ui);
+    });
+    out3.textures_delta.clear();
+    let col3 = collect_from_output(&out3.shapes);
+
+    // Frame 4: Settled ENUM DEF
+    let mut out4 = ctx.run_ui(raw_input, |ui| {
+        render_enum_view(&mut app, ui);
+    });
+    out4.textures_delta.clear();
+    let col4 = collect_from_output(&out4.shapes);
+
+    let title3 = col3
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("(Enum)"))
+        .map(|t| (t.pos.x, t.pos.y));
+    let title4 = col4
+        .texts
+        .iter()
+        .find(|t| t.galley.text().contains("(Enum)"))
+        .map(|t| (t.pos.x, t.pos.y));
+    println!("Frame 3 def title pos: {:?}", title3);
+    println!("Frame 4 def title pos: {:?}", title4);
+
+    assert_eq!(
+        title3, title4,
+        "Title position must not glitch between Frame 3 and Frame 4"
+    );
+    assert_eq!(
+        title3,
+        Some((272.0, 52.0)),
+        "Title position in ENUM DEF must be (272.0, 52.0)"
+    );
+}
+
+#[test]
 fn test_enum_workspace_rects_1366x768() {
     let mut app = setup_app(3);
     let (_, collected) = render_view(&mut app, 1366.0, 768.0);
