@@ -21,6 +21,7 @@ fn setup_test_project() -> (Project, TilesetDefId, EnumDefId) {
         tags: vec!["Nature".to_string(), "Ground".to_string()],
         marking: TileMarking::new(),
         custom_data: Default::default(),
+        animations: Default::default(),
     };
 
     let enum_def = EnumDef {

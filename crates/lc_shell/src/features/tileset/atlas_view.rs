@@ -4,9 +4,13 @@ use egui::{
     vec2, CornerRadius, Frame, Margin, PointerButton, Rect, RichText, Sense, TextureHandle, Ui,
 };
 use lc_canvas::theme::Tokens;
-use lc_core::defs::TilesetDef;
-use lc_feature_tileset::{compute_tileset_grid, SetTileCustomDataCommand, SetTileMarkingCommand};
+use lc_core::defs::{TileAnimationDef, TilesetDef};
+use lc_feature_tileset::{
+    compute_tileset_grid, AddAnimationFrameCommand, RemoveAnimationFrameCommand,
+    SetTileAnimationCommand, SetTileCustomDataCommand, SetTileMarkingCommand,
+};
 
+use super::animation_preview::render_animation_preview_card;
 use super::atlas_overlay::{render_tile_overlay, TileOverlayContext};
 use super::state::CUSTOM_DATA_VALUE_ID;
 use crate::features::editor::shell_app::ShellApp;
@@ -149,6 +153,10 @@ pub fn render_atlas_view(
 
     let active_val_id = app.tileset_view_state.selected_marking_value.clone();
     let is_marking_mode = app.tileset_view_state.active_mode == "Marking";
+    let is_animation_mode = app.tileset_view_state.active_mode == "Animation";
+    let selected_anim_anchor = app.tileset_view_state.selected_animation_anchor;
+    let is_anim_playing = app.tileset_view_state.is_animation_playing;
+    let anim_start_time = app.tileset_view_state.animation_start_time;
     let ctx_clone = ui.ctx().clone();
     let assets = app.assets.clone();
     let project = app.project.clone();
@@ -157,7 +165,11 @@ pub fn render_atlas_view(
         tileset,
         enum_def: enum_def_opt.as_ref(),
         is_marking_mode,
+        is_animation_mode,
         selected_val_id: active_val_id.as_deref(),
+        selected_animation_anchor: selected_anim_anchor,
+        is_animation_playing: is_anim_playing,
+        animation_start_time: anim_start_time,
         project: &project,
         assets: assets.as_ref(),
     };
@@ -197,6 +209,16 @@ pub fn render_atlas_view(
             None,
         )
     };
+
+    render_animation_preview_card(
+        ui,
+        t,
+        response.rect,
+        tileset,
+        &app.project,
+        app.assets.as_ref(),
+        &app.tileset_view_state,
+    );
 
     if !is_frozen && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
@@ -365,6 +387,32 @@ pub fn render_atlas_view(
                                     toggle_marking = Some((val_id.clone(), tile_id, false));
                                 }
                             }
+                        }
+                    } else if app.tileset_view_state.active_mode == "Animation" {
+                        if let Some(anchor_id) = app.tileset_view_state.selected_animation_anchor {
+                            if button == PointerButton::Primary {
+                                app.execute_command(Box::new(AddAnimationFrameCommand::new(
+                                    tileset.id, anchor_id, tile_id,
+                                )));
+                            } else if button == PointerButton::Secondary {
+                                if let Some(anim) = tileset.animations.get(&anchor_id) {
+                                    if let Some(pos) =
+                                        anim.frames.iter().rposition(|&f| f == tile_id)
+                                    {
+                                        app.execute_command(Box::new(
+                                            RemoveAnimationFrameCommand::new(
+                                                tileset.id, anchor_id, pos,
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                        } else {
+                            let anim = TileAnimationDef::new(tile_id);
+                            app.execute_command(Box::new(SetTileAnimationCommand::new(
+                                tileset.id, anim,
+                            )));
+                            app.tileset_view_state.selected_animation_anchor = Some(tile_id);
                         }
                     }
                 }

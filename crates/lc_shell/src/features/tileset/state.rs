@@ -85,6 +85,14 @@ pub struct TilesetViewState {
     pub custom_data_dialog: CustomDataDialogState,
     /// Whether the enum for tile marking dropdown (or tool mode dropdown) is currently open.
     pub is_enum_dropdown_open: bool,
+    /// Currently selected animation anchor tile ID in Animation tool mode.
+    pub selected_animation_anchor: Option<u32>,
+    /// Whether animations are actively playing in the viewport/preview.
+    pub is_animation_playing: bool,
+    /// Whether the floating bottom-left animation preview panel is visible.
+    pub show_animation_preview: bool,
+    /// Timestamp when animation playback started.
+    pub animation_start_time: std::time::Instant,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -130,6 +138,10 @@ impl Default for TilesetViewState {
             page_bg: None,
             custom_data_dialog: CustomDataDialogState::default(),
             is_enum_dropdown_open: false,
+            selected_animation_anchor: None,
+            is_animation_playing: true,
+            show_animation_preview: true,
+            animation_start_time: std::time::Instant::now(),
         }
     }
 }
@@ -167,5 +179,22 @@ impl TilesetViewState {
     /// Gets or creates the atlas canvas state for a given tileset.
     pub fn canvas_state_mut(&mut self, id: TilesetDefId) -> &mut AtlasCanvasState {
         self.canvas_states.entry(id).or_default()
+    }
+
+    /// Returns the active tile frame for an anchor tile at the current elapsed time.
+    pub fn active_animation_frame(
+        &self,
+        tileset: &lc_core::defs::TilesetDef,
+        anchor_id: u32,
+    ) -> u32 {
+        if let Some(anim) = tileset.animations.get(&anchor_id) {
+            if !self.is_animation_playing {
+                return anim.frames.first().copied().unwrap_or(anchor_id);
+            }
+            let elapsed_ms = self.animation_start_time.elapsed().as_millis() as u64;
+            anim.active_frame(elapsed_ms)
+        } else {
+            anchor_id
+        }
     }
 }

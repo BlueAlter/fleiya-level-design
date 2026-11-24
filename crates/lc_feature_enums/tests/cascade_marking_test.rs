@@ -29,6 +29,7 @@ fn setup_test_project() -> (Project, EnumDefId, TilesetDefId) {
         tags: Vec::new(),
         marking,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
 
     let enum_def = EnumDef {

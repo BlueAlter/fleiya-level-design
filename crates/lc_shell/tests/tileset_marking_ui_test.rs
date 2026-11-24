@@ -30,6 +30,7 @@ fn setup_test_project() -> Project {
             ..Default::default()
         },
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     project.defs.enums.push(EnumDef {

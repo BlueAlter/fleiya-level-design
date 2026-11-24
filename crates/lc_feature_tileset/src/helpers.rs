@@ -140,8 +140,8 @@ pub fn mode_availability(tileset: &TilesetDef) -> Vec<ModeEntry> {
         ModeEntry {
             id: "Animation",
             label: "Animation",
-            available: false,
-            hint: "Coming in a later update",
+            available: true,
+            hint: "",
         },
     ]
 }

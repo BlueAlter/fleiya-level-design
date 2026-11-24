@@ -148,6 +148,7 @@ pub fn render_left_panel(
                         tags: source.tags.clone(),
                         marking: source.marking.clone(),
                         custom_data: source.custom_data.clone(),
+                        animations: source.animations.clone(),
                     };
                     app.execute_command(Box::new(AddTilesetDefCommand::new(dup)));
                     app.tileset_view_state.select_tileset(next_id);

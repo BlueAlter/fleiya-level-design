@@ -21,16 +21,20 @@ pub fn info_banner<F>(ui: &mut Ui, t: &Tokens, text: &str, preview: Option<F>) -
 where
     F: FnOnce(&mut Ui),
 {
-    let frame = Frame::new()
-        .fill(t.sunken)
-        .stroke(t.hairline())
-        .corner_radius(CornerRadius::ZERO)
-        .inner_margin(Margin::symmetric(12, 10));
+    let target_w = ui.available_width();
+    ui.allocate_ui_with_layout(vec2(target_w, 0.0), Layout::top_down(Align::Min), |ui| {
+        ui.set_min_width(target_w);
+        let frame = Frame::new()
+            .fill(t.sunken)
+            .stroke(t.hairline())
+            .corner_radius(CornerRadius::ZERO)
+            .inner_margin(Margin::symmetric(12, 10));
 
-    frame
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
+        let resp = frame.show(ui, |ui| {
+            let inner_w = ui.available_width();
+            ui.set_min_width(inner_w);
             ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                ui.set_min_width(inner_w);
                 // 1. Left info icon badge (top-aligned, rectangular, project theme)
                 let icon_size = vec2(22.0, 22.0);
                 let (rect, _) = ui.allocate_exact_size(icon_size, Sense::hover());
@@ -48,15 +52,16 @@ where
 
                 // 2. Middle guidance text (top-aligned)
                 let text_layout_width = if preview.is_some() {
-                    ui.available_width() - 56.0
+                    inner_w - icon_size.x - 10.0 - 56.0
                 } else {
-                    ui.available_width()
+                    inner_w - icon_size.x - 10.0
                 };
 
                 ui.allocate_ui_with_layout(
                     vec2(text_layout_width.max(100.0), 0.0),
                     Layout::top_down(Align::Min),
                     |ui| {
+                        ui.set_min_width(text_layout_width.max(100.0));
                         ui.label(RichText::new(text).size(11.5).color(t.ink));
                     },
                 );
@@ -79,6 +84,8 @@ where
                     });
                 }
             });
-        })
-        .response
+        });
+        resp.response
+    })
+    .inner
 }

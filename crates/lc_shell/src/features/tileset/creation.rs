@@ -90,6 +90,7 @@ pub fn create_tileset_from_png(
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     })
 }
 

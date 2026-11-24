@@ -12,6 +12,7 @@ use lc_core::id::TilesetDefId;
 use lc_feature_tileset::{AddTilesetDefCommand, UpdateTilesetDefCommand};
 use lc_ui_api::AssetService;
 
+use super::animation_toolbar::render_animation_toolbar;
 use super::atlas_view::render_atlas_view;
 use super::attributes_card::render_attributes_card;
 use super::creation::{create_tileset_from_png, render_outside_copy_modal, CreateTilesetError};
@@ -404,14 +405,18 @@ fn render_detail_area(
 
                             render_mode_selector_combo(ui, tileset, &mut app.tileset_view_state);
 
+                            ui.add_space(8.0);
+
+                            ui.label(
+                                RichText::new("TOOLS")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.accent_ink),
+                            );
+
                             if app.tileset_view_state.active_mode == "Animation" {
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new("TOOLS")
-                                        .size(11.0)
-                                        .strong()
-                                        .color(t.accent_ink),
-                                );
+                                ui.add_space(10.0);
+                                render_animation_toolbar(app, ui, t, tileset);
                             }
                         });
 
@@ -460,6 +465,7 @@ fn render_detail_area(
                                 .stroke(t.hairline())
                                 .corner_radius(CornerRadius::ZERO)
                                 .show(ui, |ui| {
+                                    let mut commands = Vec::new();
                                     render_right_panel(
                                         ui,
                                         t,
@@ -467,7 +473,11 @@ fn render_detail_area(
                                         &app.project,
                                         app.assets.as_ref(),
                                         &mut app.tileset_view_state,
+                                        &mut commands,
                                     );
+                                    for cmd in commands {
+                                        app.execute_command(cmd);
+                                    }
                                 });
                         });
                     });

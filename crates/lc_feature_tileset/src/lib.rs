@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod animation_commands;
 mod brush;
 pub mod clipboard;
 pub mod commands;
@@ -19,6 +20,10 @@ pub mod tag_commands;
 pub mod tools;
 pub mod view;
 
+pub use animation_commands::{
+    AddAnimationFrameCommand, RemoveAnimationFrameCommand, RemoveTileAnimationCommand,
+    SetTileAnimationCommand,
+};
 pub use clipboard::TileClipboard;
 pub use commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,

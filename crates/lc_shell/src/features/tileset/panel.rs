@@ -190,6 +190,7 @@ impl PanelView for CombinedTilesetPanel {
                                 tags: Vec::new(),
                                 marking: lc_core::defs::TileMarking::EMPTY,
                                 custom_data: Default::default(),
+                                animations: Default::default(),
                             };
                             cx.exec(AddTilesetDefCommand::new(def));
                             cx.emit(EditorEvent::OpenDocument(DocKind::TilesetDef(next_id)));

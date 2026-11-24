@@ -13,6 +13,8 @@ use lc_ui_api::AssetService;
 
 use crate::features::tileset::state::{TilesetViewState, CUSTOM_DATA_VALUE_ID};
 
+use lc_core::Command;
+
 /// Paints a tile graphic thumbnail inside the given rect.
 pub fn paint_tile_thumbnail(
     painter: &egui::Painter,
@@ -192,6 +194,7 @@ pub fn render_right_panel(
     project: &Project,
     assets: &dyn AssetService,
     state: &mut TilesetViewState,
+    commands: &mut Vec<Box<dyn Command>>,
 ) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
@@ -437,6 +440,11 @@ pub fn render_right_panel(
                     );
                 });
                 ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
+            }
+            "Animation" => {
+                super::animation_panel::render_animation_panel(
+                    ui, t, tileset, project, assets, state, commands,
+                );
             }
             _ => {
                 ui.vertical_centered(|ui| {

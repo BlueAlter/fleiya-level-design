@@ -27,7 +27,8 @@ pub use commands::{
     RenameLevelCommand, RenameWorldCommand,
 };
 pub use defs::{
-    Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TilesetDef,
+    AnimationPlayMode, Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef,
+    TileAnimationDef, TilesetDef,
 };
 pub use error::CoreError;
 pub use fields::{FieldDef, FieldType, FieldValue, FieldValues};

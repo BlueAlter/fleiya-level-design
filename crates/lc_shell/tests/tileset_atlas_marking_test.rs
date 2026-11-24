@@ -45,6 +45,7 @@ fn setup_marking_project() -> Project {
             map.insert(52, "Some custom data".to_string());
             map
         },
+        animations: Default::default(),
     });
 
     project.defs.enums.push(EnumDef {
@@ -92,36 +93,36 @@ fn test_atlas_overlay_filtering_and_custom_data_mode() {
         let tile_rect = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(32.0, 32.0));
 
         // 1. When "Gold" is selected: tile 50 is marked
-        let cx_gold = TileOverlayContext {
+        let cx_gold = TileOverlayContext::new(
             tileset,
-            enum_def: Some(enum_def),
-            is_marking_mode: true,
-            selected_val_id: Some("Gold"),
-            project: &app.project,
-            assets: app.assets.as_ref(),
-        };
+            Some(enum_def),
+            true,
+            Some("Gold"),
+            &app.project,
+            app.assets.as_ref(),
+        );
         render_tile_overlay(painter, ui.ctx(), tile_rect, 50, &cx_gold);
 
         // 2. When "Gem" is selected: tile 50 is NOT marked (filtered out)
-        let cx_gem = TileOverlayContext {
+        let cx_gem = TileOverlayContext::new(
             tileset,
-            enum_def: Some(enum_def),
-            is_marking_mode: true,
-            selected_val_id: Some("Gem"),
-            project: &app.project,
-            assets: app.assets.as_ref(),
-        };
+            Some(enum_def),
+            true,
+            Some("Gem"),
+            &app.project,
+            app.assets.as_ref(),
+        );
         render_tile_overlay(painter, ui.ctx(), tile_rect, 50, &cx_gem);
 
         // 3. When Custom Data is selected: tile 52 has multiple tags (concentric outline)
-        let cx_custom_data = TileOverlayContext {
+        let cx_custom_data = TileOverlayContext::new(
             tileset,
-            enum_def: Some(enum_def),
-            is_marking_mode: true,
-            selected_val_id: Some(CUSTOM_DATA_VALUE_ID),
-            project: &app.project,
-            assets: app.assets.as_ref(),
-        };
+            Some(enum_def),
+            true,
+            Some(CUSTOM_DATA_VALUE_ID),
+            &app.project,
+            app.assets.as_ref(),
+        );
         render_tile_overlay(painter, ui.ctx(), tile_rect, 52, &cx_custom_data);
     });
     output.textures_delta.clear();
@@ -260,14 +261,14 @@ fn test_none_mode_shows_overlay_markers() {
 
         // When mode is "None" (is_marking_mode = false):
         // tile 50 (has Gold tag) and tile 52 (has tags + custom data) must still draw overlay indicators!
-        let cx_none = TileOverlayContext {
+        let cx_none = TileOverlayContext::new(
             tileset,
-            enum_def: Some(enum_def),
-            is_marking_mode: false,
-            selected_val_id: None,
-            project: &app.project,
-            assets: app.assets.as_ref(),
-        };
+            Some(enum_def),
+            false,
+            None,
+            &app.project,
+            app.assets.as_ref(),
+        );
 
         render_tile_overlay(painter, ui.ctx(), tile_rect, 50, &cx_none);
         render_tile_overlay(painter, ui.ctx(), tile_rect, 52, &cx_none);

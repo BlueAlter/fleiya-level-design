@@ -23,6 +23,7 @@ fn test_reorder_tileset_def_command_apply_revert() {
             tags: Vec::new(),
             marking: lc_core::defs::TileMarking::EMPTY,
             custom_data: Default::default(),
+            animations: Default::default(),
         });
     }
 
@@ -74,6 +75,7 @@ fn test_reorder_tileset_def_command_out_of_range() {
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     let mut cmd_out_of_range = ReorderTilesetDefCommand::new(TilesetDefId(1), 5);
@@ -195,6 +197,7 @@ fn test_mode_availability() {
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let modes = mode_availability(&ts);
     assert_eq!(modes.len(), 4);
@@ -205,7 +208,7 @@ fn test_mode_availability() {
     assert_eq!(modes[2].id, "Collision");
     assert!(modes[2].available);
     assert_eq!(modes[3].id, "Animation");
-    assert!(!modes[3].available);
+    assert!(modes[3].available);
 
     let ts_with_marking = TilesetDef {
         id: TilesetDefId(1),
@@ -220,6 +223,7 @@ fn test_mode_availability() {
             ..Default::default()
         },
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let modes2 = mode_availability(&ts_with_marking);
     assert!(modes2[1].available);

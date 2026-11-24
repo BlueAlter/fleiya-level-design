@@ -58,6 +58,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
     project.defs.tilesets.push(TilesetDef {
         id: ts_b,
@@ -69,6 +70,7 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     let mut app = ShellApp::new(project);

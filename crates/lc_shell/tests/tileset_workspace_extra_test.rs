@@ -26,6 +26,7 @@ fn test_headless_render_source_enum_missing() {
             ..Default::default()
         },
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -113,6 +114,7 @@ fn test_atlas_view_missing_and_empty_image_labels() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
     p.defs.tilesets.push(TilesetDef {
         id: TilesetDefId(2),
@@ -124,6 +126,7 @@ fn test_atlas_view_missing_and_empty_image_labels() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     let mut app = ShellApp::new(p);

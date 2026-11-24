@@ -1,42 +1,36 @@
 # Tilesets
 
 A **tileset** is a sliced image (atlas) containing graphical tiles used for
-painting levels, decorating terrain, and assigning icons to enums and entities.
+painting levels, decorating terrain, and defining tile animations.
 
 Each tileset definition specifies:
+- a unique identifier,
+- a **source image** relative to the project root,
+- uniform **tile dimensions** (width and height in pixels),
+- optional border padding and inter-tile spacing,
+- optional **tags**, a **marking enum**, and **tile animations**.
 
-- an **identifier** used in project definitions and references,
-- a **source image** path relative to the project root,
-- a uniform **tile size** (width and height in pixels),
-- optional **spacing** between tiles,
-- optional border **padding** around the entire image.
+## Create a Tileset
 
-## Create a tileset
+1. Press **+ New Tileset** in the left panel.
+2. Select a PNG image from your project folder.
+3. Configure the tile width, height, and spacing.
 
-1. Press **+ New Tileset** in the tileset list on the left.
-2. Select a PNG image from your project folder using the file dialog.
-3. Configure the **Tile Size**, **Spacing**, and **Padding** in the attributes card.
-4. The atlas view immediately updates to show the sliced grid and dimensions.
-
-## Atlas View
+## Atlas Viewport
 
 The central workspace displays the source atlas with an exact-aspect preview:
+- **Pan**: Middle-click drag, right-click drag, or `Space` + drag.
+- **Zoom / Fit**: `Ctrl` + wheel to zoom; double-click or press `F` to fit.
+- **Inspect**: Hover over any tile to view coordinates, tags, and data.
+- **Select**: Left-click a tile to focus its attributes in the right panel.
 
-- **Pan**: Drag with the middle mouse button or hold `Space` and drag.
-- **Zoom**: Hold `Ctrl` and scroll with the mouse wheel towards the cursor.
-- **Grid Lines**: Outlines each sliceable tile cell in the atlas.
-- **Inspect**: Hover over any tile to see its ID and grid coordinates.
-- **Select**: Click a tile to highlight it and view its details.
+## Tool Modes
 
-## Features and Workflows
+Switch tools using the selector next to the **Tile Atlas** header:
+- **None**: Left-click opens the **Custom Data** modal for JSON or text. Right-click clears data.
+- **Marking**: Left-click applies the active enum tag; right-click removes it.
+- **Animation**: Creates frame-based animated tiles. Anchors cycle frames in real time on the canvas and in the preview card. The toolbar toggles playback, mode (`Loop`, `Ping-Pong`, `Once`), duration, and preview card.
 
-- **Layers**: Tile layers reference tilesets to place tiles onto level grids.
-- **Tags** (planned): Categorize tilesets for quick filtering across large projects.
-- **Marking** (planned): Associate tiles with enum values (e.g. terrain, collision).
-- **Animation** (planned): Group consecutive tiles into frame-based animations.
+## Safety
 
-## Safety and Undo
-
-- All attribute changes, additions, deletions, and reordering actions are undoable.
-- Press **Ctrl+Z** to undo and **Ctrl+Y** to redo changes at any time.
-- Deleting a tileset referenced by layers, enums, or levels warns before removal.
+- All edits, frame reordering, and attribute changes support **Ctrl+Z** undo and **Ctrl+Y** redo.

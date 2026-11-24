@@ -25,6 +25,7 @@ fn setup_test_project() -> Project {
             ..Default::default()
         },
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     project.defs.enums.push(EnumDef {
@@ -73,6 +74,7 @@ fn test_right_panel_custom_data_and_enum_rendering() {
 
     let tileset = app.project.defs.tileset(TilesetDefId(1)).unwrap();
 
+    let mut commands = Vec::new();
     let mut output = ctx.run_ui(raw_input, |ui| {
         render_right_panel(
             ui,
@@ -81,6 +83,7 @@ fn test_right_panel_custom_data_and_enum_rendering() {
             &app.project,
             app.assets.as_ref(),
             &mut state,
+            &mut commands,
         );
     });
     output.textures_delta.clear();
@@ -108,6 +111,7 @@ fn test_right_panel_custom_data_and_enum_rendering() {
             &app.project,
             app.assets.as_ref(),
             &mut state,
+            &mut commands,
         );
     });
     output2.textures_delta.clear();

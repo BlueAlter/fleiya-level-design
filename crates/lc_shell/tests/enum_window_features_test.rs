@@ -79,6 +79,7 @@ fn test_enum_window_renders_when_opened() {
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
     app.project.defs.enums.push(EnumDef {
         id: EnumDefId(1),

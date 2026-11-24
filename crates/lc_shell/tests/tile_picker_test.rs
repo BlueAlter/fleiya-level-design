@@ -46,6 +46,7 @@ fn test_tileset_data_empty_and_conversion() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let data = TilesetData::from(&def);
     assert!(!data.is_empty());
@@ -112,6 +113,7 @@ fn test_tile_picker_keyboard_shortcuts() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let data = TilesetData::from(&def);
 
@@ -175,6 +177,7 @@ fn test_tile_picker_texture_caching_and_registration() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let dungeon_data = TilesetData::from(&dungeon_def);
 
@@ -189,6 +192,7 @@ fn test_tile_picker_texture_caching_and_registration() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let icons_data = TilesetData::from(&icons_def);
 
@@ -227,6 +231,7 @@ fn test_tile_picker_page_centering_and_view() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let data = TilesetData::from(&def);
 
@@ -269,6 +274,7 @@ fn test_tile_picker_multi_select_right_drag_and_cancel() {
         tags: Vec::new(),
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     };
     let data = TilesetData::from(&def);
 

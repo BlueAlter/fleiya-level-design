@@ -61,6 +61,7 @@ fn setup_test_app() -> ShellApp {
         tags: Vec::new(),
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
+        animations: Default::default(),
     });
 
     app.tag_registry.push(TagDef {

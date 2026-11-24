@@ -32,6 +32,99 @@ pub struct TilesetDef {
     /// Custom string data associated per tile (e.g. JSON, XML, strings).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub custom_data: BTreeMap<u32, String>,
+    /// Tile animation definitions keyed by anchor tile ID.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub animations: BTreeMap<u32, TileAnimationDef>,
+}
+
+fn default_frame_duration_ms() -> u32 {
+    100
+}
+
+/// Playback mode for tile animations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum AnimationPlayMode {
+    #[default]
+    Loop,
+    PingPong,
+    Once,
+}
+
+/// Definition of a tile animation tied to an anchor tile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TileAnimationDef {
+    /// ID of the anchor tile representing this animation in maps and the atlas.
+    pub anchor_tile_id: u32,
+    /// Ordered list of tile IDs representing consecutive animation frames.
+    pub frames: Vec<u32>,
+    /// Duration of each frame in milliseconds.
+    #[serde(default = "default_frame_duration_ms")]
+    pub frame_duration_ms: u32,
+    /// Playback mode: Loop, PingPong, or Once.
+    #[serde(default)]
+    pub mode: AnimationPlayMode,
+    /// Whether instances have randomized starting frame offsets.
+    #[serde(default)]
+    pub random_start: bool,
+}
+
+impl TileAnimationDef {
+    /// Creates a new tile animation with the anchor tile as its initial frame.
+    pub fn new(anchor_tile_id: u32) -> Self {
+        Self {
+            anchor_tile_id,
+            frames: vec![anchor_tile_id],
+            frame_duration_ms: 100,
+            mode: AnimationPlayMode::Loop,
+            random_start: false,
+        }
+    }
+
+    /// Computes the active frame tile ID given elapsed milliseconds.
+    pub fn active_frame(&self, elapsed_ms: u64) -> u32 {
+        if self.frames.is_empty() {
+            return self.anchor_tile_id;
+        }
+        if self.frames.len() == 1 {
+            return self.frames.first().copied().unwrap_or(self.anchor_tile_id);
+        }
+
+        let dur = (self.frame_duration_ms.max(1)) as u64;
+        let total_frames = self.frames.len();
+
+        match self.mode {
+            AnimationPlayMode::Loop => {
+                let frame_idx = ((elapsed_ms / dur) % total_frames as u64) as usize;
+                self.frames
+                    .get(frame_idx)
+                    .copied()
+                    .unwrap_or(self.anchor_tile_id)
+            }
+            AnimationPlayMode::PingPong => {
+                let cycle_len = (total_frames * 2).saturating_sub(2).max(1);
+                let cycle_idx = ((elapsed_ms / dur) % cycle_len as u64) as usize;
+                if cycle_idx < total_frames {
+                    self.frames
+                        .get(cycle_idx)
+                        .copied()
+                        .unwrap_or(self.anchor_tile_id)
+                } else {
+                    let back_idx = cycle_len - cycle_idx;
+                    self.frames
+                        .get(back_idx)
+                        .copied()
+                        .unwrap_or(self.anchor_tile_id)
+                }
+            }
+            AnimationPlayMode::Once => {
+                let frame_idx = ((elapsed_ms / dur) as usize).min(total_frames - 1);
+                self.frames
+                    .get(frame_idx)
+                    .copied()
+                    .unwrap_or(self.anchor_tile_id)
+            }
+        }
+    }
 }
 
 impl Default for TilesetDef {
@@ -46,6 +139,7 @@ impl Default for TilesetDef {
             tags: Vec::new(),
             marking: TileMarking::new(),
             custom_data: BTreeMap::new(),
+            animations: BTreeMap::new(),
         }
     }
 }
@@ -68,7 +162,33 @@ impl TilesetDef {
             tags: Vec::new(),
             marking: TileMarking::new(),
             custom_data: BTreeMap::new(),
+            animations: BTreeMap::new(),
         }
+    }
+
+    /// Returns the animation definition for an anchor tile, if one exists.
+    pub fn animation(&self, anchor: u32) -> Option<&TileAnimationDef> {
+        self.animations.get(&anchor)
+    }
+
+    /// Returns a mutable reference to the animation definition for an anchor tile.
+    pub fn animation_mut(&mut self, anchor: u32) -> Option<&mut TileAnimationDef> {
+        self.animations.get_mut(&anchor)
+    }
+
+    /// Returns true if the tile ID is configured as an animation anchor.
+    pub fn is_anchor(&self, tile_id: u32) -> bool {
+        self.animations.contains_key(&tile_id)
+    }
+
+    /// Finds which anchor an animation frame belongs to, if any.
+    pub fn anchor_for_frame(&self, frame_tile_id: u32) -> Option<u32> {
+        for (anchor, anim) in &self.animations {
+            if anim.frames.contains(&frame_tile_id) {
+                return Some(*anchor);
+            }
+        }
+        None
     }
 }
 
@@ -259,5 +379,70 @@ impl Definitions {
     /// Looks up a mutable layer definition by ID.
     pub fn layer_mut(&mut self, id: LayerDefId) -> Option<&mut LayerDef> {
         self.layers.iter_mut().find(|l| l.id == id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tile_animation_loop() {
+        let mut anim = TileAnimationDef::new(10);
+        anim.frames = vec![10, 11, 12];
+        anim.frame_duration_ms = 100;
+        anim.mode = AnimationPlayMode::Loop;
+
+        assert_eq!(anim.active_frame(0), 10);
+        assert_eq!(anim.active_frame(50), 10);
+        assert_eq!(anim.active_frame(100), 11);
+        assert_eq!(anim.active_frame(199), 11);
+        assert_eq!(anim.active_frame(200), 12);
+        assert_eq!(anim.active_frame(300), 10);
+        assert_eq!(anim.active_frame(450), 11);
+    }
+
+    #[test]
+    fn test_tile_animation_ping_pong() {
+        let mut anim = TileAnimationDef::new(10);
+        anim.frames = vec![10, 11, 12];
+        anim.frame_duration_ms = 100;
+        anim.mode = AnimationPlayMode::PingPong;
+
+        // Cycle order: 10 -> 11 -> 12 -> 11 -> 10 -> ...
+        assert_eq!(anim.active_frame(0), 10);
+        assert_eq!(anim.active_frame(100), 11);
+        assert_eq!(anim.active_frame(200), 12);
+        assert_eq!(anim.active_frame(300), 11);
+        assert_eq!(anim.active_frame(400), 10);
+        assert_eq!(anim.active_frame(500), 11);
+    }
+
+    #[test]
+    fn test_tile_animation_once() {
+        let mut anim = TileAnimationDef::new(10);
+        anim.frames = vec![10, 11, 12];
+        anim.frame_duration_ms = 100;
+        anim.mode = AnimationPlayMode::Once;
+
+        assert_eq!(anim.active_frame(0), 10);
+        assert_eq!(anim.active_frame(100), 11);
+        assert_eq!(anim.active_frame(200), 12);
+        assert_eq!(anim.active_frame(9999), 12);
+    }
+
+    #[test]
+    fn test_tileset_animation_lookup() {
+        let mut ts = TilesetDef::default();
+        let mut anim = TileAnimationDef::new(5);
+        anim.frames = vec![5, 6, 7];
+        ts.animations.insert(5, anim);
+
+        assert!(ts.is_anchor(5));
+        assert!(!ts.is_anchor(6));
+        assert_eq!(ts.anchor_for_frame(5), Some(5));
+        assert_eq!(ts.anchor_for_frame(6), Some(5));
+        assert_eq!(ts.anchor_for_frame(7), Some(5));
+        assert_eq!(ts.anchor_for_frame(8), None);
     }
 }
