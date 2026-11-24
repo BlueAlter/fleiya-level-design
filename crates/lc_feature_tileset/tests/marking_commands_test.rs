@@ -22,6 +22,7 @@ fn setup_test_project() -> (Project, TilesetDefId, EnumDefId) {
         marking: TileMarking::new(),
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let enum_def = EnumDef {

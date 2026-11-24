@@ -96,6 +96,7 @@ impl TilesetDocumentView {
             marking: def.marking.clone(),
             custom_data: def.custom_data.clone(),
             animations: def.animations.clone(),
+            collisions: def.collisions.clone(),
         };
 
         if *def != updated {

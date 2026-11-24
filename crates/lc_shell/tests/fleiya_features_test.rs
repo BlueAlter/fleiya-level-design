@@ -61,6 +61,7 @@ fn test_definition_tabs_and_windows_behavior() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
     shell.project.defs.enums.push(lc_core::defs::EnumDef {
         id: EnumDefId(1),
@@ -115,6 +116,7 @@ fn test_add_tileset_command_and_persistence() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     shell
@@ -165,6 +167,7 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     // Add a Tiles layer def

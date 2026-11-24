@@ -96,6 +96,7 @@ mod tests {
             marking: TileMarking::EMPTY,
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         });
         (p, ts_id)
     }

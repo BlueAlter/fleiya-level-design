@@ -180,6 +180,7 @@ mod tests {
             marking: TileMarking::new(),
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         }
     }
 

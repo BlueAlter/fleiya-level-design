@@ -1,5 +1,6 @@
 //! Commands for managing Tileset definitions in the editor data model.
 
+pub use crate::collision_commands::*;
 pub use crate::custom_data_commands::*;
 pub use crate::marking_commands::*;
 pub use crate::paint_commands::{

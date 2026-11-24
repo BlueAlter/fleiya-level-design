@@ -8,6 +8,7 @@
 //! `lc_core`: Core data model, identifiers, and grid storage for Level Craft.
 //! No egui dependency. No filesystem access.
 
+pub mod collision;
 pub mod command;
 pub mod commands;
 pub mod defs;
@@ -21,6 +22,7 @@ pub mod marking;
 pub mod project;
 pub mod world;
 
+pub use collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 pub use command::{Command, DocKind, UndoStack};
 pub use commands::{
     AddLevelCommand, AddWorldCommand, MoveLevelCommand, RemoveLevelCommand, RemoveWorldCommand,

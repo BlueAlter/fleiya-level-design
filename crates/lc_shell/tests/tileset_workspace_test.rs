@@ -50,6 +50,7 @@ fn test_headless_render_one_tileset() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -85,6 +86,7 @@ fn test_headless_render_many_tilesets() {
             marking: TileMarking::EMPTY,
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         });
     }
 
@@ -119,6 +121,7 @@ fn test_headless_render_missing_image_no_panic() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -150,6 +153,7 @@ fn test_headless_render_document_tab() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -218,6 +222,7 @@ fn test_headless_render_long_names() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut app = ShellApp::new(p);
@@ -316,6 +321,7 @@ fn test_tileset_workspace_headless_rect_target_layout_1366x768() {
             marking: TileMarking::EMPTY,
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         });
     }
 

@@ -91,6 +91,7 @@ pub fn create_tileset_from_png(
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     })
 }
 

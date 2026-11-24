@@ -57,6 +57,7 @@ fn create_test_project_with_tileset() -> (Project, TilesetDefId) {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let mut project = Project::new("Test Project");
@@ -320,6 +321,7 @@ fn test_tileset_commands_undo_redo_round_trip() {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     // 1. Add

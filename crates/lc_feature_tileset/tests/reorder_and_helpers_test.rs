@@ -24,6 +24,7 @@ fn test_reorder_tileset_def_command_apply_revert() {
             marking: lc_core::defs::TileMarking::EMPTY,
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         });
     }
 
@@ -76,6 +77,7 @@ fn test_reorder_tileset_def_command_out_of_range() {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut cmd_out_of_range = ReorderTilesetDefCommand::new(TilesetDefId(1), 5);
@@ -198,6 +200,7 @@ fn test_mode_availability() {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
     let modes = mode_availability(&ts);
     assert_eq!(modes.len(), 4);
@@ -224,6 +227,7 @@ fn test_mode_availability() {
         },
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
     let modes2 = mode_availability(&ts_with_marking);
     assert!(modes2[1].available);

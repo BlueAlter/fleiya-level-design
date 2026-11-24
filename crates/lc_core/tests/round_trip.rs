@@ -17,6 +17,7 @@ fn test_core_model_serde_round_trip() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let enum_id = gen.next_enum_def_id();

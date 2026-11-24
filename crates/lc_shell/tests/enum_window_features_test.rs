@@ -80,6 +80,7 @@ fn test_enum_window_renders_when_opened() {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
     app.project.defs.enums.push(EnumDef {
         id: EnumDefId(1),

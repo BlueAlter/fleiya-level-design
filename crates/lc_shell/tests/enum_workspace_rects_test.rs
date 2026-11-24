@@ -59,6 +59,7 @@ fn setup_app(enum_count: usize) -> ShellApp {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     app.tag_registry.push(TagDef {

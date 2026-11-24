@@ -1,5 +1,6 @@
 //! Project-level definitions and templates.
 
+pub use crate::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 use crate::fields::FieldDef;
 use crate::id::{EntityDefId, EnumDefId, LayerDefId, TilesetDefId};
 use crate::layer::{LayerKind, TileRef};
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Definition of an external tileset asset.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TilesetDef {
     /// Stable identifier of the tileset.
     pub id: TilesetDefId,
@@ -35,6 +36,9 @@ pub struct TilesetDef {
     /// Tile animation definitions keyed by anchor tile ID.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub animations: BTreeMap<u32, TileAnimationDef>,
+    /// Tile collision definitions keyed by tile ID.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub collisions: BTreeMap<u32, TileCollisionDef>,
 }
 
 fn default_frame_duration_ms() -> u32 {
@@ -140,6 +144,7 @@ impl Default for TilesetDef {
             marking: TileMarking::new(),
             custom_data: BTreeMap::new(),
             animations: BTreeMap::new(),
+            collisions: BTreeMap::new(),
         }
     }
 }
@@ -163,6 +168,7 @@ impl TilesetDef {
             marking: TileMarking::new(),
             custom_data: BTreeMap::new(),
             animations: BTreeMap::new(),
+            collisions: BTreeMap::new(),
         }
     }
 
@@ -189,6 +195,21 @@ impl TilesetDef {
             }
         }
         None
+    }
+
+    /// Returns the collision definition for a tile ID, if configured.
+    pub fn collision(&self, tile_id: u32) -> Option<&TileCollisionDef> {
+        self.collisions.get(&tile_id)
+    }
+
+    /// Returns a mutable reference to the collision definition for a tile ID.
+    pub fn collision_mut(&mut self, tile_id: u32) -> Option<&mut TileCollisionDef> {
+        self.collisions.get_mut(&tile_id)
+    }
+
+    /// Returns true if the given tile ID has collision shapes defined.
+    pub fn has_collision(&self, tile_id: u32) -> bool {
+        self.collisions.get(&tile_id).is_some_and(|c| !c.is_empty())
     }
 }
 

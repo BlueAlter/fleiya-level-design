@@ -472,6 +472,7 @@ mod tests {
             marking: lc_core::defs::TileMarking::EMPTY,
             custom_data: Default::default(),
             animations: Default::default(),
+            collisions: Default::default(),
         });
         project.defs.enums.push(EnumDef {
             id: EnumDefId(1),

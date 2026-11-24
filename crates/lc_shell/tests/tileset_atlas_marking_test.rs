@@ -46,6 +46,7 @@ fn setup_marking_project() -> Project {
             map
         },
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     project.defs.enums.push(EnumDef {

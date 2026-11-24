@@ -27,6 +27,7 @@ fn create_sample_project() -> Project {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let enum_id = gen.next_enum_def_id();

@@ -5,6 +5,7 @@
 pub mod animation_commands;
 mod brush;
 pub mod clipboard;
+pub mod collision_commands;
 pub mod commands;
 pub mod custom_data_commands;
 mod fill_tools;
@@ -25,6 +26,9 @@ pub use animation_commands::{
     SetTileAnimationCommand,
 };
 pub use clipboard::TileClipboard;
+pub use collision_commands::{
+    BatchSetTileCollisionCommand, RemoveTileCollisionCommand, SetTileCollisionCommand,
+};
 pub use commands::{
     AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
     SetTileCustomDataCommand, UpdateTilesetDefCommand,

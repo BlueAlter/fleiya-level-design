@@ -122,6 +122,7 @@ fn test_b5_tab_switch_glitch_and_stability() {
         marking: TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     });
 
     let mut app = ShellApp::new(project);

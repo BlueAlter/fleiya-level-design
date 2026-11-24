@@ -23,6 +23,7 @@ fn setup_test_project() -> (Project, TilesetDefId, IdGenerator) {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let mut project = Project::new("Test Project");
@@ -45,6 +46,7 @@ fn test_add_tileset_def_command_apply_and_revert() {
         marking: lc_core::defs::TileMarking::EMPTY,
         custom_data: Default::default(),
         animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let mut cmd = AddTilesetDefCommand::new(new_def.clone());
