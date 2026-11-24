@@ -465,6 +465,7 @@ fn render_detail_area(
                                 .stroke(t.hairline())
                                 .corner_radius(CornerRadius::ZERO)
                                 .show(ui, |ui| {
+                                    ui.set_min_size(vec2(ui.available_width(), card_h - 2.0));
                                     let mut commands = Vec::new();
                                     render_right_panel(
                                         ui,

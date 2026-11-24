@@ -4,14 +4,12 @@
 //! arbitrary string data (such as JSON, XML, numbers or text) for a specific tile.
 
 use egui::{
-    vec2, Area, Color32, Context, CornerRadius, FontId, Frame, Id, Key, Margin, Order, RichText,
-    Sense, Stroke, Ui,
+    vec2, Area, Color32, Context, CornerRadius, FontId, Frame, Id, Key, Margin, Order, Pos2,
+    RichText, Sense, Stroke, Ui,
 };
-use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::id::TilesetDefId;
 
-use super::icon_button::{icon_button, IconButtonStyle};
 use super::info_banner::info_banner;
 
 /// State for managing the custom data dialog.
@@ -120,31 +118,28 @@ where
                 .inner_margin(Margin::same(0));
 
             window_frame.show(ui, |ui| {
+                ui.set_width(modal_width);
                 ui.vertical(|ui| {
-                    // Header bar spanning the full width
-                    let header_frame = Frame::new()
-                        .fill(t.sunken)
-                        .stroke(Stroke::new(1.0, t.line))
-                        .corner_radius(CornerRadius::ZERO)
-                        .inner_margin(Margin::symmetric(16, 10));
-                    header_frame.show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new(format!("TILE {} CUSTOM DATA", state.tile_id))
-                                    .size(13.0)
-                                    .strong()
-                                    .color(t.ink_strong),
-                            );
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if icon_button(ui, Icon::Close, 20.0, IconButtonStyle::ghost())
-                                    .on_hover_text("Close dialog")
-                                    .clicked()
-                                {
-                                    outcome = Some(CustomDataOutcome::Cancel);
-                                }
-                            });
-                        });
-                    });
+                    // Header bar spanning the exact full width of the window
+                    let header_h = 42.0;
+                    let (header_rect, _) =
+                        ui.allocate_exact_size(vec2(modal_width, header_h), Sense::hover());
+                    ui.painter()
+                        .rect_filled(header_rect, CornerRadius::ZERO, t.sunken);
+                    ui.painter().hline(
+                        header_rect.x_range(),
+                        header_rect.max.y,
+                        Stroke::new(1.0, t.line),
+                    );
+
+                    let title_pos = Pos2::new(header_rect.min.x + 16.0, header_rect.center().y);
+                    ui.painter().text(
+                        title_pos,
+                        egui::Align2::LEFT_CENTER,
+                        format!("TILE {} CUSTOM DATA", state.tile_id),
+                        FontId::proportional(13.0),
+                        t.ink_strong,
+                    );
 
                     // Body contents
                     Frame::new()

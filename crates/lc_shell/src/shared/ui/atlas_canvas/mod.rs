@@ -120,7 +120,7 @@ pub fn render_atlas_canvas(
             state.view.zoom,
         );
 
-        // 4. Multi-select with Right-Click Drag
+        // 4. Multi-select with Drag (Right-click drag or Left-click drag when not panning)
         let right_pressed = ui
             .ctx()
             .input(|i| i.pointer.button_pressed(PointerButton::Secondary));
@@ -131,7 +131,29 @@ pub fn render_atlas_canvas(
             .ctx()
             .input(|i| i.pointer.button_released(PointerButton::Secondary));
 
-        if right_pressed {
+        let left_pressed = !space_down
+            && ui
+                .ctx()
+                .input(|i| i.pointer.button_pressed(PointerButton::Primary));
+        let left_down = !space_down
+            && ui
+                .ctx()
+                .input(|i| i.pointer.button_down(PointerButton::Primary));
+        let left_released = ui
+            .ctx()
+            .input(|i| i.pointer.button_released(PointerButton::Primary));
+
+        let drag_pressed = if right_pressed {
+            state.last_drag_button = Some(PointerButton::Secondary);
+            true
+        } else if left_pressed {
+            state.last_drag_button = Some(PointerButton::Primary);
+            true
+        } else {
+            false
+        };
+
+        if drag_pressed {
             if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
                 if viewport_rect.contains(pos) && grid.cols > 0 && grid.rows > 0 {
                     let page_pos = state.view.screen_to_page(pos);
@@ -149,16 +171,26 @@ pub fn render_atlas_canvas(
                         as u32;
 
                     state.drag_start_cell = Some((col, row));
-                    state.is_right_dragging = true;
-                    let single_rect = TileRect::single(col, row);
-                    state.live_drag_rect = Some(single_rect);
-                    state.selected_tile_rect = Some(single_rect);
-                    events.push(AtlasEvent::DragRectStart(single_rect));
+                    if state.last_drag_button == Some(PointerButton::Secondary) {
+                        state.is_right_dragging = true;
+                        let single_rect = TileRect::single(col, row);
+                        state.live_drag_rect = Some(single_rect);
+                        state.selected_tile_rect = Some(single_rect);
+                        events.push(AtlasEvent::DragRectStart(single_rect));
+                    } else {
+                        state.is_right_dragging = false;
+                        state.live_drag_rect = None;
+                    }
                 }
             }
         }
 
-        if state.is_right_dragging && right_down {
+        let is_current_down = match state.last_drag_button {
+            Some(PointerButton::Primary) => left_down,
+            _ => right_down,
+        };
+
+        if is_current_down {
             if let Some(start_cell) = state.drag_start_cell {
                 if let Some(curr_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
                     let edge_margin = 24.0;
@@ -195,22 +227,37 @@ pub fn render_atlas_canvas(
                         .clamp(0.0, grid.rows.saturating_sub(1) as f32)
                         as u32;
 
-                    let sel = TileRect::from_cells(start_cell, (end_col, end_row))
-                        .clamp(grid.cols, grid.rows);
-                    state.live_drag_rect = Some(sel);
-                    state.selected_tile_rect = Some(sel);
-                    events.push(AtlasEvent::DragRectUpdate(sel));
+                    if (end_col, end_row) != start_cell || state.is_right_dragging {
+                        if !state.is_right_dragging {
+                            state.is_right_dragging = true;
+                            let single = TileRect::single(start_cell.0, start_cell.1);
+                            events.push(AtlasEvent::DragRectStart(single));
+                        }
+                        let sel = TileRect::from_cells(start_cell, (end_col, end_row))
+                            .clamp(grid.cols, grid.rows);
+                        state.live_drag_rect = Some(sel);
+                        state.selected_tile_rect = Some(sel);
+                        events.push(AtlasEvent::DragRectUpdate(sel));
+                    }
                 }
             }
         }
 
-        if state.is_right_dragging && right_released {
-            state.is_right_dragging = false;
-            state.drag_start_cell = None;
-            if let Some(sel) = state.live_drag_rect.take().or(state.selected_tile_rect) {
-                state.selected_tile_rect = Some(sel);
-                events.push(AtlasEvent::DragRectEnd(sel));
+        let is_current_released = match state.last_drag_button {
+            Some(PointerButton::Primary) => left_released,
+            _ => right_released,
+        };
+
+        if is_current_released {
+            if state.is_right_dragging {
+                state.is_right_dragging = false;
+                if let Some(sel) = state.live_drag_rect.take().or(state.selected_tile_rect) {
+                    state.selected_tile_rect = Some(sel);
+                    events.push(AtlasEvent::DragRectEnd(sel));
+                }
             }
+            state.drag_start_cell = None;
+            state.live_drag_rect = None;
         }
 
         // 5. Hover Detection & Clicks

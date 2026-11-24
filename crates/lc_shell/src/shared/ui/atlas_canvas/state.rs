@@ -50,6 +50,8 @@ pub struct AtlasCanvasState {
     pub drag_start_cell: Option<(u32, u32)>,
     /// Whether right-mouse drag multi-selection is actively occurring.
     pub is_right_dragging: bool,
+    /// Last pointer button that initiated or performed a drag selection.
+    pub last_drag_button: Option<PointerButton>,
     /// Whether to draw tile grid lines.
     pub show_grid: bool,
     /// Whether initial auto-fit is pending.
@@ -65,6 +67,7 @@ impl Default for AtlasCanvasState {
             live_drag_rect: None,
             drag_start_cell: None,
             is_right_dragging: false,
+            last_drag_button: None,
             show_grid: true,
             needs_initial_fit: true,
         }

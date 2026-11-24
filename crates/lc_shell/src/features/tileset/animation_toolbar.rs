@@ -14,15 +14,6 @@ pub fn render_animation_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
 
-        ui.label(
-            RichText::new("TOOLS")
-                .size(11.0)
-                .strong()
-                .color(t.accent_ink),
-        );
-
-        ui.add_space(2.0);
-
         // 1. Play / Pause button
         let play_icon = if app.tileset_view_state.is_animation_playing {
             Icon::Pause
@@ -34,7 +25,7 @@ pub fn render_animation_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
         } else {
             "Play animation"
         };
-        if icon_button(ui, play_icon, 22.0, IconButtonStyle::bordered())
+        if icon_button(ui, play_icon, 22.0, IconButtonStyle::bordered().square())
             .on_hover_text(play_tip)
             .clicked()
         {
@@ -102,13 +93,9 @@ pub fn render_animation_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
 
             // 4. Random start phase toggle
             let rnd_style = if anim.random_start {
-                IconButtonStyle {
-                    danger: false,
-                    selected: true,
-                    bordered: true,
-                }
+                IconButtonStyle::bordered().selected(true).square()
             } else {
-                IconButtonStyle::bordered()
+                IconButtonStyle::bordered().square()
             };
             if icon_button(ui, Icon::Sparkle, 22.0, rnd_style)
                 .on_hover_text(if anim.random_start {
@@ -139,13 +126,9 @@ pub fn render_animation_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
             "Show animation preview card"
         };
         let preview_style = if app.tileset_view_state.show_animation_preview {
-            IconButtonStyle {
-                danger: false,
-                selected: true,
-                bordered: true,
-            }
+            IconButtonStyle::bordered().selected(true).square()
         } else {
-            IconButtonStyle::bordered()
+            IconButtonStyle::bordered().square()
         };
         if icon_button(ui, preview_icon, 22.0, preview_style)
             .on_hover_text(preview_tip)

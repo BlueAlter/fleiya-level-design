@@ -1,6 +1,10 @@
 //! Tile marking and custom data overlay rendering on the atlas canvas.
 
-use egui::{vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, StrokeKind};
+use egui::{
+    vec2, Align2, Color32, CornerRadius, FontId, Frame, Margin, Pos2, Rect, Response, RichText,
+    Stroke, StrokeKind,
+};
+use lc_canvas::theme::Tokens;
 use lc_core::defs::{EnumDef, TilesetDef};
 use lc_core::layer::TileRef;
 use lc_core::project::Project;
@@ -352,4 +356,76 @@ fn draw_frame_badge(painter: &egui::Painter, tile_rect: Rect, frame_num: usize) 
         FontId::monospace(badge_h * 0.6),
         Color32::from_rgb(255, 190, 80),
     );
+}
+
+/// Renders a structured hover tooltip for a tile on the atlas canvas.
+pub fn render_tile_hover_tooltip(
+    response: &Response,
+    t: &Tokens,
+    title: &str,
+    tag_names: &[String],
+    custom_data_text: Option<&str>,
+) {
+    response.clone().on_hover_ui_at_pointer(|ui| {
+        Frame::new()
+            .fill(t.panel)
+            .stroke(t.hairline())
+            .corner_radius(CornerRadius::ZERO)
+            .inner_margin(Margin::symmetric(8, 6))
+            .show(ui, |ui| {
+                ui.set_max_width(220.0);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(title).size(11.5).strong().color(t.ink_strong));
+
+                    if !tag_names.is_empty() {
+                        ui.add_space(2.0);
+                        let limit = 6;
+                        let display_tags = &tag_names[..tag_names.len().min(limit)];
+                        ui.vertical(|ui| {
+                            for name in display_tags {
+                                ui.label(
+                                    RichText::new(format!("• {name}")).size(11.0).color(t.ink),
+                                );
+                            }
+                            if tag_names.len() > limit {
+                                ui.label(
+                                    RichText::new(format!(
+                                        "+ {} more tags",
+                                        tag_names.len() - limit
+                                    ))
+                                    .size(9.5)
+                                    .color(t.muted),
+                                );
+                            }
+                        });
+                    }
+
+                    if let Some(custom_data) = custom_data_text {
+                        ui.add_space(3.0);
+                        ui.label(
+                            RichText::new("Data:")
+                                .size(10.5)
+                                .strong()
+                                .color(t.accent_ink),
+                        );
+                        let lines: Vec<&str> = custom_data.lines().collect();
+                        let line_limit = 6;
+                        let display_count = lines.len().min(line_limit);
+                        let preview_snippet = lines[..display_count].join("\n");
+                        ui.label(RichText::new(preview_snippet).size(10.0).color(t.faint));
+                        if lines.len() > line_limit {
+                            ui.label(
+                                RichText::new(format!(
+                                    "... (+{} more lines)",
+                                    lines.len() - line_limit
+                                ))
+                                .size(9.5)
+                                .italics()
+                                .color(t.muted),
+                            );
+                        }
+                    }
+                });
+            });
+    });
 }

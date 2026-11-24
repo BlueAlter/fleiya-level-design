@@ -1,8 +1,8 @@
 //! Right panel content for managing tile animations (anchors and frames).
 
 use egui::{
-    vec2, Align, Align2, Color32, CornerRadius, FontId, Pos2, Rect, RichText, ScrollArea, Sense,
-    Stroke, StrokeKind, Ui,
+    vec2, Align, Align2, Color32, CornerRadius, FontId, Frame, Margin, Pos2, Rect, RichText,
+    ScrollArea, Sense, Stroke, StrokeKind, Ui,
 };
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
@@ -39,27 +39,36 @@ pub fn render_animation_panel(
         }
     }
 
-    let panel_w = ui.available_width();
     let total_h = ui.available_height();
-    let section_h = (total_h / 2.0).max(120.0);
+    let divider_h = 10.0;
+    let section_h = ((total_h - divider_h) * 0.5).max(110.0);
 
-    // 1. Top Section: Anchors List
-    ui.allocate_ui(vec2(panel_w, section_h), |ui| {
-        render_anchors_section(ui, t, tileset, project, assets, state, commands);
-    });
+    Frame::new()
+        .inner_margin(Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            let inner_w = ui.available_width();
+            let inner_section_h = section_h - 8.0;
 
-    ui.add_space(4.0);
-    ui.painter().hline(
-        ui.available_rect_before_wrap().x_range(),
-        ui.cursor().min.y,
-        Stroke::new(1.0, t.hairline().color),
-    );
-    ui.add_space(4.0);
+            // 1. Top Section: Anchors List
+            ui.allocate_ui(vec2(inner_w, inner_section_h), |ui| {
+                ui.set_min_size(vec2(inner_w, inner_section_h));
+                render_anchors_section(ui, t, tileset, project, assets, state, commands);
+            });
 
-    // 2. Bottom Section: Frames List for the Selected Anchor
-    ui.allocate_ui(vec2(panel_w, ui.available_height()), |ui| {
-        render_frames_section(ui, t, tileset, project, assets, state, commands);
-    });
+            ui.add_space(4.0);
+            ui.painter().hline(
+                ui.available_rect_before_wrap().x_range(),
+                ui.cursor().min.y,
+                Stroke::new(1.0, t.hairline().color),
+            );
+            ui.add_space(4.0);
+
+            // 2. Bottom Section: Frames List for the Selected Anchor
+            ui.allocate_ui(vec2(inner_w, inner_section_h), |ui| {
+                ui.set_min_size(vec2(inner_w, inner_section_h));
+                render_frames_section(ui, t, tileset, project, assets, state, commands);
+            });
+        });
 }
 
 /// Renders the top anchors section.
@@ -72,6 +81,7 @@ fn render_anchors_section(
     state: &mut TilesetViewState,
     commands: &mut Vec<Box<dyn Command>>,
 ) {
+    let section_h = ui.available_height();
     // Header
     ui.horizontal(|ui| {
         ui.label(
@@ -87,7 +97,7 @@ fn render_anchors_section(
         );
 
         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            if icon_button(ui, Icon::Add, 20.0, IconButtonStyle::bordered())
+            if icon_button(ui, Icon::Add, 20.0, IconButtonStyle::bordered().square())
                 .on_hover_text("Create new animation from selected tile")
                 .clicked()
             {
@@ -106,19 +116,23 @@ fn render_anchors_section(
     ui.add_space(4.0);
 
     if tileset.animations.is_empty() {
-        ui.vertical_centered(|ui| {
-            ui.add_space(14.0);
-            ui.label(
-                RichText::new("No animation anchors yet.")
-                    .size(11.0)
-                    .color(t.muted),
-            );
-            ui.add_space(2.0);
-            ui.label(
-                RichText::new("Select a tile and click '+' above.")
-                    .size(10.5)
-                    .color(t.faint),
-            );
+        let empty_h = (section_h - 32.0).max(60.0);
+        ui.allocate_ui(vec2(ui.available_width(), empty_h), |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        RichText::new("No animation anchors yet.")
+                            .size(11.0)
+                            .color(t.muted),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new("Select a tile and click '+' above.")
+                            .size(10.5)
+                            .color(t.faint),
+                    );
+                });
+            });
         });
         return;
     }
@@ -127,6 +141,7 @@ fn render_anchors_section(
         .id_salt("tileset_anim_anchors_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
             for (&anchor_id, anim) in &tileset.animations {
                 let is_selected = state.selected_animation_anchor == Some(anchor_id);
                 let row_h = 30.0;
@@ -161,31 +176,14 @@ fn render_anchors_section(
                     Pos2::new(row_rect.min.x + 4.0, row_rect.center().y - thumb_size / 2.0),
                     vec2(thumb_size, thumb_size),
                 );
-                ui.painter().rect_filled(
-                    thumb_rect,
-                    CornerRadius::ZERO,
-                    Color32::from_rgb(14, 16, 20),
-                );
-                ui.painter().rect_stroke(
-                    thumb_rect,
-                    CornerRadius::ZERO,
-                    Stroke::new(1.0, Color32::from_rgb(60, 68, 80)),
-                    StrokeKind::Inside,
-                );
-
-                let tile_ref = TileRef {
-                    tileset_id: tileset.id,
-                    tile_id: anchor_id,
-                    flip_x: false,
-                    flip_y: false,
-                };
-                paint_tile_thumbnail(
+                draw_thumb(
                     ui.painter(),
                     ui.ctx(),
                     thumb_rect,
                     project,
                     assets,
-                    &tile_ref,
+                    tileset.id,
+                    anchor_id,
                 );
 
                 // Anchor ID & frame count
@@ -198,21 +196,11 @@ fn render_anchors_section(
                     Color32::WHITE,
                 );
 
-                let frames_info = format!("{} frames", anim.frames.len());
-                let frames_pos = Pos2::new(row_rect.max.x - 28.0, row_rect.center().y);
-                ui.painter().text(
-                    frames_pos,
-                    Align2::RIGHT_CENTER,
-                    frames_info,
-                    FontId::proportional(10.5),
-                    t.muted,
-                );
-
                 // Delete button
                 let del_size = 20.0;
                 let del_rect = Rect::from_min_size(
                     Pos2::new(
-                        row_rect.max.x - del_size - 4.0,
+                        row_rect.max.x - del_size - 6.0,
                         row_rect.center().y - del_size / 2.0,
                     ),
                     vec2(del_size, del_size),
@@ -235,6 +223,16 @@ fn render_anchors_section(
                     }
                 }
 
+                let frames_info = format!("{} frames", anim.frames.len());
+                let frames_pos = Pos2::new(del_rect.min.x - 8.0, row_rect.center().y);
+                ui.painter().text(
+                    frames_pos,
+                    Align2::RIGHT_CENTER,
+                    frames_info,
+                    FontId::proportional(10.5),
+                    t.muted,
+                );
+
                 ui.add_space(2.0);
             }
         });
@@ -250,14 +248,17 @@ fn render_frames_section(
     state: &mut TilesetViewState,
     commands: &mut Vec<Box<dyn Command>>,
 ) {
+    let section_h = ui.available_height();
     let Some(anchor_id) = state.selected_animation_anchor else {
-        ui.vertical_centered(|ui| {
-            ui.add_space(20.0);
-            ui.label(
-                RichText::new("Select an anchor above.")
-                    .size(11.0)
-                    .color(t.muted),
-            );
+        let empty_h = (section_h - 32.0).max(60.0);
+        ui.allocate_ui(vec2(ui.available_width(), empty_h), |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.label(
+                    RichText::new("Select an anchor above.")
+                        .size(11.0)
+                        .color(t.muted),
+                );
+            });
         });
         return;
     };
@@ -275,7 +276,7 @@ fn render_frames_section(
                 .color(t.ink_strong),
         );
         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            if icon_button(ui, Icon::Add, 20.0, IconButtonStyle::bordered())
+            if icon_button(ui, Icon::Add, 20.0, IconButtonStyle::bordered().square())
                 .on_hover_text("Add selected tile as frame")
                 .clicked()
             {
@@ -289,10 +290,33 @@ fn render_frames_section(
 
     ui.add_space(4.0);
 
+    if anim.frames.is_empty() {
+        let empty_h = (section_h - 32.0).max(60.0);
+        ui.allocate_ui(vec2(ui.available_width(), empty_h), |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        RichText::new("No frames in animation.")
+                            .size(11.0)
+                            .color(t.muted),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new("Click tiles on atlas to add frames.")
+                            .size(10.5)
+                            .color(t.faint),
+                    );
+                });
+            });
+        });
+        return;
+    }
+
     ScrollArea::vertical()
         .id_salt("tileset_anim_frames_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
             for (idx, &frame_tile_id) in anim.frames.iter().enumerate() {
                 let row_h = 28.0;
                 let (row_rect, _) =
@@ -331,31 +355,14 @@ fn render_frames_section(
                     ),
                     vec2(thumb_size, thumb_size),
                 );
-                ui.painter().rect_filled(
-                    thumb_rect,
-                    CornerRadius::ZERO,
-                    Color32::from_rgb(14, 16, 20),
-                );
-                ui.painter().rect_stroke(
-                    thumb_rect,
-                    CornerRadius::ZERO,
-                    Stroke::new(1.0, Color32::from_rgb(60, 68, 80)),
-                    StrokeKind::Inside,
-                );
-
-                let tile_ref = TileRef {
-                    tileset_id: tileset.id,
-                    tile_id: frame_tile_id,
-                    flip_x: false,
-                    flip_y: false,
-                };
-                paint_tile_thumbnail(
+                draw_thumb(
                     ui.painter(),
                     ui.ctx(),
                     thumb_rect,
                     project,
                     assets,
-                    &tile_ref,
+                    tileset.id,
+                    frame_tile_id,
                 );
 
                 // Tile ID text
@@ -370,7 +377,7 @@ fn render_frames_section(
 
                 // Actions: Reorder up, reorder down, delete
                 let btn_size = 18.0;
-                let right_edge = row_rect.max.x - 2.0;
+                let right_edge = row_rect.max.x - 6.0;
 
                 // Delete frame button
                 let del_rect = Rect::from_min_size(
@@ -445,4 +452,29 @@ fn render_frames_section(
                 ui.add_space(2.0);
             }
         });
+}
+
+fn draw_thumb(
+    painter: &egui::Painter,
+    ctx: &egui::Context,
+    rect: Rect,
+    project: &Project,
+    assets: &dyn AssetService,
+    tileset_id: lc_core::id::TilesetDefId,
+    tile_id: u32,
+) {
+    painter.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(14, 16, 20));
+    painter.rect_stroke(
+        rect,
+        CornerRadius::ZERO,
+        Stroke::new(1.0, Color32::from_rgb(60, 68, 80)),
+        StrokeKind::Inside,
+    );
+    let tr = TileRef {
+        tileset_id,
+        tile_id,
+        flip_x: false,
+        flip_y: false,
+    };
+    paint_tile_thumbnail(painter, ctx, rect, project, assets, &tr);
 }

@@ -111,11 +111,7 @@ pub fn row_menu_button<K: Clone + PartialEq + 'static>(
         Icon::DotsThreeVertical,
         ICON_BUTTON_SIZE_COMPACT,
         if menu_open {
-            IconButtonStyle {
-                danger: false,
-                selected: true,
-                bordered: true,
-            }
+            IconButtonStyle::bordered().selected(true)
         } else {
             IconButtonStyle::ghost()
         },
