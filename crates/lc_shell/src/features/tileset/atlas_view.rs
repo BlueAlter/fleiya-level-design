@@ -126,11 +126,12 @@ pub fn render_atlas_view(
     let available_rect = ui.available_rect_before_wrap();
     let fit_key =
         !is_frozen && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
-    let needs_fit = app
-        .tileset_view_state
-        .canvas_state_mut(tileset.id)
-        .needs_initial_fit
-        || fit_key;
+    let needs_fit = !is_frozen
+        && (app
+            .tileset_view_state
+            .canvas_state_mut(tileset.id)
+            .needs_initial_fit
+            || fit_key);
 
     if needs_fit && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
@@ -248,6 +249,7 @@ pub fn render_atlas_view(
                                 ui.add_space(2.0);
                                 if tag_names.len() > 5 {
                                     egui::ScrollArea::vertical()
+                                        .id_salt("tile_hover_tags_scroll")
                                         .max_height(80.0)
                                         .auto_shrink([false, false])
                                         .show(ui, |ui| {
@@ -286,6 +288,7 @@ pub fn render_atlas_view(
                                         .color(t.accent_ink),
                                 );
                                 egui::ScrollArea::vertical()
+                                    .id_salt("tile_hover_data_scroll")
                                     .max_height(60.0)
                                     .auto_shrink([false, false])
                                     .show(ui, |ui| {
@@ -317,13 +320,23 @@ pub fn render_atlas_view(
                         .canvas_state_mut(tileset.id)
                         .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
 
-                    if tileset.marking.source_enum.is_none() {
-                        // When no enum for marking is selected, clicking opens Custom Data dialog
+                    if app.tileset_view_state.active_mode == "None"
+                        || tileset.marking.source_enum.is_none()
+                    {
+                        // In mode "None" or when no enum is selected: direct Custom Data mode
                         if button == PointerButton::Primary {
                             let existing = tileset.custom_data.get(&tile_id).map(|s| s.as_str());
                             app.tileset_view_state
                                 .custom_data_dialog
                                 .open(tileset.id, tile_id, existing);
+                        } else if button == PointerButton::Secondary
+                            && tileset.custom_data.contains_key(&tile_id)
+                        {
+                            app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                                tileset.id,
+                                tile_id,
+                                None::<String>,
+                            )));
                         }
                     } else if app.tileset_view_state.active_mode == "Marking" {
                         if let Some(ref val_id) = app.tileset_view_state.selected_marking_value {

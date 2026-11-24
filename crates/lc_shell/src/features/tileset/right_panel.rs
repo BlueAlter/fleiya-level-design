@@ -115,6 +115,75 @@ pub fn render_mode_selector_combo(ui: &mut Ui, tileset: &TilesetDef, state: &mut
         });
 }
 
+/// Paints the rectangular "Custom data" header row with #tile_id badge.
+fn paint_custom_data_header_row(
+    ui: &mut Ui,
+    badge_text: &str,
+    is_selected: bool,
+) -> egui::Response {
+    let custom_data_h = 30.0;
+    let (cd_rect, cd_resp) =
+        ui.allocate_exact_size(vec2(ui.available_width(), custom_data_h), Sense::click());
+
+    let cd_fill = if is_selected {
+        Color32::from_rgb(34, 40, 48)
+    } else if cd_resp.hovered() {
+        Color32::from_rgb(38, 44, 52)
+    } else {
+        Color32::from_rgb(26, 30, 36)
+    };
+
+    ui.painter()
+        .rect_filled(cd_rect, CornerRadius::ZERO, cd_fill);
+
+    let stroke = if is_selected {
+        Stroke::new(2.0, Color32::WHITE)
+    } else {
+        Stroke::new(1.0, Color32::from_rgb(50, 58, 68))
+    };
+    ui.painter()
+        .rect_stroke(cd_rect, CornerRadius::ZERO, stroke, StrokeKind::Inside);
+
+    let cd_text_pos = Pos2::new(cd_rect.min.x + 8.0, cd_rect.center().y);
+    ui.painter().text(
+        cd_text_pos,
+        egui::Align2::LEFT_CENTER,
+        "Custom data",
+        egui::FontId::proportional(12.0),
+        Color32::from_rgb(150, 170, 190),
+    );
+
+    let badge_w = 32.0;
+    let badge_h = 16.0;
+    let badge_rect = Rect::from_min_size(
+        Pos2::new(
+            cd_rect.max.x - badge_w - 4.0,
+            cd_rect.center().y - badge_h / 2.0,
+        ),
+        vec2(badge_w, badge_h),
+    );
+    ui.painter().rect_filled(
+        badge_rect,
+        CornerRadius::ZERO,
+        Color32::from_rgb(20, 24, 28),
+    );
+    ui.painter().rect_stroke(
+        badge_rect,
+        CornerRadius::ZERO,
+        Stroke::new(1.0, Color32::from_rgb(70, 78, 88)),
+        StrokeKind::Inside,
+    );
+    ui.painter().text(
+        badge_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        badge_text,
+        egui::FontId::monospace(10.0),
+        Color32::WHITE,
+    );
+
+    cd_resp
+}
+
 /// Renders the right panel shell (tool content area).
 pub fn render_right_panel(
     ui: &mut Ui,
@@ -131,13 +200,37 @@ pub fn render_right_panel(
         // Content for selected mode
         match state.active_mode.as_str() {
             "None" => {
-                ui.add_space(16.0);
+                ui.add_space(4.0);
+                let active_tile_id = state
+                    .canvas_states
+                    .get(&tileset.id)
+                    .and_then(|cs| cs.hovered_tile)
+                    .or(state.selected_tile);
+                let badge_text = active_tile_id
+                    .map(|id| format!("#{id}"))
+                    .unwrap_or_else(|| "#--".to_string());
+
+                let cd_resp = paint_custom_data_header_row(ui, &badge_text, false);
+
+                if let Some(tid) = active_tile_id {
+                    if cd_resp.clicked() {
+                        let existing = tileset.custom_data.get(&tid).map(|s| s.as_str());
+                        state.custom_data_dialog.open(tileset.id, tid, existing);
+                    }
+                }
+
+                ui.add_space(14.0);
                 ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("No tool active").color(t.faint));
                     ui.label(
-                        RichText::new("Select a tool above to view options")
+                        RichText::new("Click any tile to edit custom data")
                             .size(11.0)
                             .color(t.faint),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new("Right-click to clear custom data")
+                            .size(10.5)
+                            .color(t.muted),
                     );
                 });
                 ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
@@ -167,84 +260,13 @@ pub fn render_right_panel(
                             .unwrap_or_else(|| "#--".to_string());
 
                         // Top item: "Custom data" with tile ID badge
-                        let custom_data_h = 30.0;
-                        let (cd_rect, cd_resp) = ui.allocate_exact_size(
-                            vec2(ui.available_width(), custom_data_h),
-                            Sense::click(),
-                        );
-
                         let is_cd_selected =
                             state.selected_marking_value.as_deref() == Some(CUSTOM_DATA_VALUE_ID);
-
-                        let cd_fill = if is_cd_selected {
-                            Color32::from_rgb(34, 40, 48)
-                        } else if cd_resp.hovered() {
-                            Color32::from_rgb(38, 44, 52)
-                        } else {
-                            Color32::from_rgb(26, 30, 36)
-                        };
-
-                        ui.painter()
-                            .rect_filled(cd_rect, CornerRadius::same(3), cd_fill);
-
-                        if is_cd_selected {
-                            ui.painter().rect_stroke(
-                                cd_rect,
-                                CornerRadius::same(3),
-                                Stroke::new(2.0, Color32::WHITE),
-                                StrokeKind::Inside,
-                            );
-                        } else {
-                            ui.painter().rect_stroke(
-                                cd_rect,
-                                CornerRadius::same(3),
-                                Stroke::new(1.0, Color32::from_rgb(50, 58, 68)),
-                                StrokeKind::Inside,
-                            );
-                        }
+                        let cd_resp = paint_custom_data_header_row(ui, &badge_text, is_cd_selected);
 
                         if cd_resp.clicked() {
                             state.selected_marking_value = Some(CUSTOM_DATA_VALUE_ID.to_string());
                         }
-
-                        // "Custom data" label
-                        let cd_text_pos = Pos2::new(cd_rect.min.x + 8.0, cd_rect.center().y);
-                        ui.painter().text(
-                            cd_text_pos,
-                            egui::Align2::LEFT_CENTER,
-                            "Custom data",
-                            egui::FontId::proportional(12.0),
-                            Color32::from_rgb(150, 170, 190),
-                        );
-
-                        // #badge on top right
-                        let badge_w = 32.0;
-                        let badge_h = 16.0;
-                        let badge_rect = Rect::from_min_size(
-                            Pos2::new(
-                                cd_rect.max.x - badge_w - 4.0,
-                                cd_rect.center().y - badge_h / 2.0,
-                            ),
-                            vec2(badge_w, badge_h),
-                        );
-                        ui.painter().rect_filled(
-                            badge_rect,
-                            CornerRadius::same(2),
-                            Color32::from_rgb(20, 24, 28),
-                        );
-                        ui.painter().rect_stroke(
-                            badge_rect,
-                            CornerRadius::same(2),
-                            Stroke::new(1.0, Color32::from_rgb(70, 78, 88)),
-                            StrokeKind::Inside,
-                        );
-                        ui.painter().text(
-                            badge_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            badge_text,
-                            egui::FontId::monospace(10.0),
-                            Color32::WHITE,
-                        );
 
                         ui.add_space(2.0);
 
@@ -281,7 +303,7 @@ pub fn render_right_panel(
 
                                     ui.painter().rect_filled(
                                         row_rect,
-                                        CornerRadius::same(3),
+                                        CornerRadius::ZERO,
                                         fill_color,
                                     );
 
@@ -292,7 +314,7 @@ pub fn render_right_panel(
                                     );
                                     ui.painter().rect_filled(
                                         stripe_rect,
-                                        CornerRadius::same(2),
+                                        CornerRadius::ZERO,
                                         accent_color,
                                     );
 
@@ -300,14 +322,14 @@ pub fn render_right_panel(
                                     if is_selected {
                                         ui.painter().rect_stroke(
                                             row_rect,
-                                            CornerRadius::same(3),
+                                            CornerRadius::ZERO,
                                             Stroke::new(2.0, Color32::WHITE),
                                             StrokeKind::Inside,
                                         );
                                     } else if row_resp.hovered() {
                                         ui.painter().rect_stroke(
                                             row_rect,
-                                            CornerRadius::same(3),
+                                            CornerRadius::ZERO,
                                             Stroke::new(1.0, Color32::from_white_alpha(70)),
                                             StrokeKind::Inside,
                                         );
@@ -324,12 +346,12 @@ pub fn render_right_panel(
                                     );
                                     ui.painter().rect_filled(
                                         icon_box_rect,
-                                        CornerRadius::same(2),
+                                        CornerRadius::ZERO,
                                         Color32::from_rgb(22, 26, 32),
                                     );
                                     ui.painter().rect_stroke(
                                         icon_box_rect,
-                                        CornerRadius::same(2),
+                                        CornerRadius::ZERO,
                                         Stroke::new(1.0, Color32::from_rgb(45, 52, 60)),
                                         StrokeKind::Inside,
                                     );
@@ -357,7 +379,7 @@ pub fn render_right_panel(
                                         );
                                         ui.painter().rect_filled(
                                             dot_rect,
-                                            CornerRadius::same(2),
+                                            CornerRadius::ZERO,
                                             accent_color,
                                         );
                                     }
@@ -396,6 +418,25 @@ pub fn render_right_panel(
                         );
                     });
                 }
+            }
+            "Collision" => {
+                ui.add_space(16.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(RichText::new("Tile Collision").strong().color(t.ink_strong));
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("Collision boundaries and tags")
+                            .size(11.0)
+                            .color(t.faint),
+                    );
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new("(Coming soon)")
+                            .font(egui::FontId::proportional(11.0))
+                            .color(t.muted),
+                    );
+                });
+                ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
             }
             _ => {
                 ui.vertical_centered(|ui| {

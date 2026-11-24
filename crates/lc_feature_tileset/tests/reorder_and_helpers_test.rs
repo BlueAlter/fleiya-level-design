@@ -197,13 +197,15 @@ fn test_mode_availability() {
         custom_data: Default::default(),
     };
     let modes = mode_availability(&ts);
-    assert_eq!(modes.len(), 3);
+    assert_eq!(modes.len(), 4);
     assert_eq!(modes[0].id, "None");
     assert!(modes[0].available);
     assert_eq!(modes[1].id, "Marking");
     assert!(!modes[1].available);
-    assert_eq!(modes[2].id, "Animation");
-    assert!(!modes[2].available);
+    assert_eq!(modes[2].id, "Collision");
+    assert!(modes[2].available);
+    assert_eq!(modes[3].id, "Animation");
+    assert!(!modes[3].available);
 
     let ts_with_marking = TilesetDef {
         id: TilesetDefId(1),

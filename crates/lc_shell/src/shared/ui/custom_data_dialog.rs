@@ -22,6 +22,7 @@ pub struct CustomDataDialogState {
     pub tile_id: u32,
     pub text_buffer: String,
     pub original_text: String,
+    pub should_focus: bool,
 }
 
 impl CustomDataDialogState {
@@ -33,11 +34,13 @@ impl CustomDataDialogState {
         let text = current_data.unwrap_or("").to_string();
         self.text_buffer = text.clone();
         self.original_text = text;
+        self.should_focus = true;
     }
 
     /// Closes the dialog.
     pub fn close(&mut self) {
         self.is_open = false;
+        self.should_focus = false;
     }
 }
 
@@ -85,6 +88,13 @@ where
                 outcome = Some(CustomDataOutcome::Save(state.text_buffer.clone()));
             }
         });
+
+    // Consume background atlas keys while dialog is active
+    ctx.input_mut(|i| {
+        i.consume_key(egui::Modifiers::NONE, Key::F);
+        i.consume_key(egui::Modifiers::NONE, Key::Home);
+        i.consume_key(egui::Modifiers::NONE, Key::Space);
+    });
 
     // Handle Escape key
     if ctx.input(|i| i.key_pressed(Key::Escape)) {
@@ -197,11 +207,21 @@ where
                                             // Actual editable text buffer
                                             let text_edit =
                                                 egui::TextEdit::multiline(&mut state.text_buffer)
+                                                    .id_salt("custom_data_multiline_edit")
                                                     .font(FontId::monospace(12.0))
                                                     .text_color(t.ink)
                                                     .desired_width(f32::INFINITY)
                                                     .frame(Frame::new());
-                                            ui.add(text_edit);
+                                            let edit_resp = ui.add(text_edit);
+                                            if state.should_focus {
+                                                edit_resp.request_focus();
+                                                state.should_focus = false;
+                                            }
+                                            if !edit_resp.has_focus() {
+                                                ui.ctx().input_mut(|i| {
+                                                    i.consume_key(egui::Modifiers::NONE, Key::Enter);
+                                                });
+                                            }
                                         });
                                     });
                             });

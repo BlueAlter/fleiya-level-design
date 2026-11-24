@@ -63,18 +63,18 @@ pub fn render_tile_overlay(
 
                     painter.rect_stroke(
                         tile_rect,
-                        CornerRadius::same(1),
+                        CornerRadius::ZERO,
                         Stroke::new(2.0, Color32::BLACK),
                         StrokeKind::Outside,
                     );
                     painter.rect_stroke(
                         tile_rect,
-                        CornerRadius::same(1),
+                        CornerRadius::ZERO,
                         Stroke::new(2.0, color),
                         StrokeKind::Inside,
                     );
 
-                    // Fixed screen-space marker box (14x14) in top-left
+                    // Proportional marker box (50% of tile size) in top-left
                     draw_marker_icon(painter, ctx, tile_rect, Some(val), cx.project, cx.assets);
                 }
             }
@@ -98,7 +98,7 @@ fn draw_all_markers(
 
     painter.rect_stroke(
         tile_rect,
-        CornerRadius::same(1),
+        CornerRadius::ZERO,
         Stroke::new(2.0, Color32::BLACK),
         StrokeKind::Outside,
     );
@@ -116,7 +116,7 @@ fn draw_all_markers(
             if frame.width() > 2.0 && frame.height() > 2.0 {
                 painter.rect_stroke(
                     frame,
-                    CornerRadius::same(1),
+                    CornerRadius::ZERO,
                     Stroke::new(2.0, color),
                     StrokeKind::Inside,
                 );
@@ -125,7 +125,7 @@ fn draw_all_markers(
         }
     }
 
-    // Fixed screen-space marker box (14x14) in top-left
+    // Proportional marker box (50% of tile size) in top-left
     draw_marker_icon(
         painter,
         ctx,
@@ -136,7 +136,7 @@ fn draw_all_markers(
     );
 }
 
-/// Draws the fixed screen-space marker icon (bound tile thumbnail or solid color chip).
+/// Draws the proportional marker icon (bound tile thumbnail or solid color chip).
 fn draw_marker_icon(
     painter: &egui::Painter,
     ctx: &egui::Context,
@@ -146,23 +146,20 @@ fn draw_marker_icon(
     assets: &dyn AssetService,
 ) {
     let Some(val) = val_opt else { return };
-    let marker_box_size = 14.0;
+    let marker_box_size = (tile_rect.width() * 0.5).round().max(4.0);
     if tile_rect.width() < marker_box_size || tile_rect.height() < marker_box_size {
         return;
     }
 
+    let offset = (tile_rect.width() * 0.06).round().clamp(1.0, 3.0);
     let icon_rect = Rect::from_min_size(
-        tile_rect.min + vec2(2.0, 2.0),
+        tile_rect.min + vec2(offset, offset),
         vec2(marker_box_size, marker_box_size),
     );
-    painter.rect_filled(
-        icon_rect,
-        CornerRadius::same(2),
-        Color32::from_rgb(20, 24, 28),
-    );
+    painter.rect_filled(icon_rect, CornerRadius::ZERO, Color32::from_rgb(20, 24, 28));
     painter.rect_stroke(
         icon_rect,
-        CornerRadius::same(2),
+        CornerRadius::ZERO,
         Stroke::new(1.0, Color32::from_rgb(45, 52, 60)),
         StrokeKind::Inside,
     );
@@ -172,7 +169,7 @@ fn draw_marker_icon(
         drew_tile = paint_tile_thumbnail(painter, ctx, icon_rect, project, assets, bound_tile);
     }
     if !drew_tile {
-        let dot_size = 8.0;
+        let dot_size = (marker_box_size * 0.65).round().max(2.0);
         let dot_rect = Rect::from_min_size(
             Pos2::new(
                 icon_rect.center().x - dot_size / 2.0,
@@ -182,31 +179,32 @@ fn draw_marker_icon(
         );
         let color =
             Color32::from_rgba_unmultiplied(val.color[0], val.color[1], val.color[2], val.color[3]);
-        painter.rect_filled(dot_rect, CornerRadius::same(1), color);
+        painter.rect_filled(dot_rect, CornerRadius::ZERO, color);
     }
 }
 
 /// Draws a subtle custom data indicator badge in the bottom-right corner of the tile.
 fn draw_custom_data_badge(painter: &egui::Painter, tile_rect: Rect) {
-    let badge_size = 12.0;
+    let badge_size = (tile_rect.width() * 0.35).round().max(4.0);
     if tile_rect.width() < badge_size || tile_rect.height() < badge_size {
         return;
     }
+    let offset = (tile_rect.width() * 0.06).round().clamp(1.0, 3.0);
     let badge_rect = Rect::from_min_size(
         Pos2::new(
-            tile_rect.max.x - badge_size - 1.0,
-            tile_rect.max.y - badge_size - 1.0,
+            tile_rect.max.x - badge_size - offset,
+            tile_rect.max.y - badge_size - offset,
         ),
         vec2(badge_size, badge_size),
     );
     painter.rect_filled(
         badge_rect,
-        CornerRadius::same(2),
+        CornerRadius::ZERO,
         Color32::from_rgb(26, 32, 40),
     );
     painter.rect_stroke(
         badge_rect,
-        CornerRadius::same(2),
+        CornerRadius::ZERO,
         Stroke::new(1.0, Color32::from_rgb(100, 140, 180)),
         StrokeKind::Inside,
     );

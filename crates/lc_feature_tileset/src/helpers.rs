@@ -132,6 +132,12 @@ pub fn mode_availability(tileset: &TilesetDef) -> Vec<ModeEntry> {
             },
         },
         ModeEntry {
+            id: "Collision",
+            label: "Collision",
+            available: true,
+            hint: "",
+        },
+        ModeEntry {
             id: "Animation",
             label: "Animation",
             available: false,
