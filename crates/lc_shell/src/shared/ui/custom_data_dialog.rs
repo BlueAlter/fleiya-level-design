@@ -82,10 +82,10 @@ where
             ui.painter().rect_filled(
                 scrim_rect,
                 CornerRadius::ZERO,
-                Color32::from_rgba_unmultiplied(0, 0, 0, 180),
+                Color32::from_black_alpha(140),
             );
             if response.clicked() {
-                outcome = Some(CustomDataOutcome::Save(state.text_buffer.clone()));
+                outcome = Some(CustomDataOutcome::Cancel);
             }
         });
 
@@ -126,15 +126,24 @@ where
                         .fill(t.sunken)
                         .stroke(Stroke::new(1.0, t.line))
                         .corner_radius(CornerRadius::ZERO)
-                        .inner_margin(Margin::symmetric(16, 12));
+                        .inner_margin(Margin::symmetric(16, 10));
                     header_frame.show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.label(
-                            RichText::new(format!("TILE {} CUSTOM DATA", state.tile_id))
-                                .size(13.0)
-                                .strong()
-                                .color(t.ink_strong),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("TILE {} CUSTOM DATA", state.tile_id))
+                                    .size(13.0)
+                                    .strong()
+                                    .color(t.ink_strong),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if icon_button(ui, Icon::Close, 20.0, IconButtonStyle::ghost())
+                                    .on_hover_text("Close dialog")
+                                    .clicked()
+                                {
+                                    outcome = Some(CustomDataOutcome::Cancel);
+                                }
+                            });
+                        });
                     });
 
                     // Body contents
@@ -228,34 +237,66 @@ where
 
                             ui.add_space(14.0);
 
-                            // Bottom action buttons
+                            // Bottom action buttons matching standard Fleiya desktop dialogs
                             ui.horizontal(|ui| {
-                                let close_btn_width = ui.available_width() - 44.0;
-                                let close_btn = egui::Button::new(
-                                    RichText::new("CLOSE")
-                                        .size(12.0)
-                                        .strong()
-                                        .color(Color32::WHITE),
-                                )
-                                .fill(t.accent)
-                                .corner_radius(CornerRadius::ZERO)
-                                .min_size(vec2(close_btn_width.max(100.0), 32.0));
+                                let has_data = !state.original_text.is_empty()
+                                    || !state.text_buffer.is_empty();
+                                if has_data {
+                                    let del_btn = egui::Button::new(
+                                        RichText::new("Delete")
+                                            .size(11.5)
+                                            .color(Color32::WHITE),
+                                    )
+                                    .fill(Color32::from_rgb(220, 38, 38))
+                                    .corner_radius(CornerRadius::ZERO)
+                                    .min_size(vec2(64.0, 26.0));
 
-                                if ui.add(close_btn).clicked() {
-                                    outcome =
-                                        Some(CustomDataOutcome::Save(state.text_buffer.clone()));
+                                    if ui
+                                        .add(del_btn)
+                                        .on_hover_text("Delete custom data for this tile")
+                                        .clicked()
+                                    {
+                                        state.text_buffer.clear();
+                                        outcome = Some(CustomDataOutcome::Delete);
+                                    }
                                 }
 
-                                ui.add_space(10.0);
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        let save_btn = egui::Button::new(
+                                            RichText::new("Save")
+                                                .size(11.5)
+                                                .strong()
+                                                .color(t.invert_fg),
+                                        )
+                                        .fill(t.accent)
+                                        .corner_radius(CornerRadius::ZERO)
+                                        .min_size(vec2(76.0, 26.0));
 
-                                // Delete / Trash button
-                                let del_btn =
-                                    icon_button(ui, Icon::Delete, 32.0, IconButtonStyle::danger())
-                                        .on_hover_text("Delete custom data for this tile");
-                                if del_btn.clicked() {
-                                    state.text_buffer.clear();
-                                    outcome = Some(CustomDataOutcome::Delete);
-                                }
+                                        if ui.add(save_btn).clicked() {
+                                            outcome = Some(CustomDataOutcome::Save(
+                                                state.text_buffer.clone(),
+                                            ));
+                                        }
+
+                                        ui.add_space(8.0);
+
+                                        let cancel_btn = egui::Button::new(
+                                            RichText::new("Cancel")
+                                                .size(11.5)
+                                                .color(t.ink),
+                                        )
+                                        .fill(t.sunken)
+                                        .stroke(t.hairline())
+                                        .corner_radius(CornerRadius::ZERO)
+                                        .min_size(vec2(68.0, 26.0));
+
+                                        if ui.add(cancel_btn).clicked() {
+                                            outcome = Some(CustomDataOutcome::Cancel);
+                                        }
+                                    },
+                                );
                             });
                         });
                 });
