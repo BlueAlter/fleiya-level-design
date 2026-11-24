@@ -1,13 +1,13 @@
 //! Standardized informative callout / banner component.
 //!
-//! Renders an info callout card with a prominent question/help badge
+//! Renders an info callout card with a prominent info/help badge
 //! on the left, multi-line guidance text in the middle, and an optional custom
-//! preview slot on the right.
+//! preview slot on the right, top-aligned and matching project tokens.
 
 use egui::{
-    vec2, Align, Align2, Color32, CornerRadius, FontId, Frame, Layout, Margin, Response, RichText,
-    Sense, Stroke, Ui,
+    vec2, Align, CornerRadius, Frame, Layout, Margin, Response, RichText, Sense, StrokeKind, Ui,
 };
+use lc_canvas::icons::{paint_icon, Icon};
 use lc_canvas::theme::Tokens;
 
 /// Renders a standardized informative callout banner.
@@ -22,31 +22,30 @@ where
     F: FnOnce(&mut Ui),
 {
     let frame = Frame::new()
-        .fill(Color32::from_rgba_unmultiplied(20, 34, 28, 230))
-        .stroke(Stroke::new(1.0, Color32::from_rgb(45, 95, 65)))
+        .fill(t.sunken)
+        .stroke(t.hairline())
         .corner_radius(CornerRadius::ZERO)
         .inner_margin(Margin::symmetric(12, 10));
 
     frame
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                // 1. Left help icon (rectangular badge matching project theme)
-                let icon_size = vec2(24.0, 24.0);
+            ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                // 1. Left info icon badge (top-aligned, rectangular, project theme)
+                let icon_size = vec2(22.0, 22.0);
                 let (rect, _) = ui.allocate_exact_size(icon_size, Sense::hover());
 
-                ui.painter()
-                    .rect_filled(rect, CornerRadius::ZERO, Color32::from_rgb(40, 120, 65));
-                ui.painter().text(
-                    rect.center(),
-                    Align2::CENTER_CENTER,
-                    "?",
-                    FontId::monospace(14.0),
-                    Color32::WHITE,
+                ui.painter().rect_filled(rect, CornerRadius::ZERO, t.panel);
+                ui.painter().rect_stroke(
+                    rect,
+                    CornerRadius::ZERO,
+                    t.hairline(),
+                    StrokeKind::Inside,
                 );
+                paint_icon(ui.painter(), rect.center(), Icon::Info, 13.0, t.accent_ink);
 
-                ui.add_space(8.0);
+                ui.add_space(10.0);
 
-                // 2. Middle guidance text
+                // 2. Middle guidance text (top-aligned)
                 let text_layout_width = if preview.is_some() {
                     ui.available_width() - 56.0
                 } else {
@@ -57,29 +56,22 @@ where
                     vec2(text_layout_width.max(100.0), 0.0),
                     Layout::top_down(Align::Min),
                     |ui| {
-                        ui.label(
-                            RichText::new(text)
-                                .size(11.5)
-                                .color(Color32::from_rgb(205, 225, 215)),
-                        );
+                        ui.label(RichText::new(text).size(11.5).color(t.ink));
                     },
                 );
 
-                // 3. Optional right preview
+                // 3. Optional right preview (top-aligned)
                 if let Some(render_preview) = preview {
                     ui.add_space(8.0);
                     let (preview_rect, _) =
                         ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-                    ui.painter().rect_filled(
-                        preview_rect,
-                        CornerRadius::ZERO,
-                        Color32::from_rgba_unmultiplied(10, 18, 24, 200),
-                    );
+                    ui.painter()
+                        .rect_filled(preview_rect, CornerRadius::ZERO, t.canvas);
                     ui.painter().rect_stroke(
                         preview_rect,
                         CornerRadius::ZERO,
                         t.hairline(),
-                        egui::StrokeKind::Inside,
+                        StrokeKind::Inside,
                     );
                     ui.scope_builder(egui::UiBuilder::new().max_rect(preview_rect), |ui| {
                         render_preview(ui);

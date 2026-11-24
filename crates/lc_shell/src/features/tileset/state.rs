@@ -83,6 +83,8 @@ pub struct TilesetViewState {
     pub page_bg: Option<egui::TextureHandle>,
     /// Modal dialog state for editing tile custom data.
     pub custom_data_dialog: CustomDataDialogState,
+    /// Whether the enum for tile marking dropdown (or tool mode dropdown) is currently open.
+    pub is_enum_dropdown_open: bool,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -127,6 +129,7 @@ impl Default for TilesetViewState {
             pending_outside_copy: None,
             page_bg: None,
             custom_data_dialog: CustomDataDialogState::default(),
+            is_enum_dropdown_open: false,
         }
     }
 }

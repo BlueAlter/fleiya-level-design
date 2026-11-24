@@ -3,7 +3,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{vec2, Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText, Sense, Ui};
+use egui::{
+    vec2, Align, Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText, Sense, Ui,
+};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -16,7 +18,7 @@ use super::creation::{create_tileset_from_png, render_outside_copy_modal, Create
 use super::file_dialog::{TilesetDialogManager, TilesetDialogMessage};
 use super::i18n::{self, keys};
 use super::left_panel::render_left_panel;
-use super::right_panel::render_right_panel;
+use super::right_panel::{render_mode_selector_combo, render_right_panel};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
 use crate::shared::ui::def_workspace::def_panel_width;
@@ -383,11 +385,11 @@ fn render_detail_area(
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         let (atlas_label_rect, _) =
-                            ui.allocate_exact_size(vec2(atlas_card_w, 18.0), Sense::hover());
+                            ui.allocate_exact_size(vec2(atlas_card_w, 24.0), Sense::hover());
                         let mut child =
                             ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
-                        child
-                            .add(
+                        child.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
+                            ui.add(
                                 egui::Label::new(
                                     RichText::new("TILE ATLAS")
                                         .size(11.0)
@@ -398,18 +400,34 @@ fn render_detail_area(
                             )
                             .on_hover_text(atlas_tooltip);
 
+                            ui.add_space(14.0);
+
+                            render_mode_selector_combo(ui, tileset, &mut app.tileset_view_state);
+
+                            ui.add_space(8.0);
+
+                            ui.label(
+                                RichText::new("TOOLS")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.accent_ink),
+                            );
+                        });
+
                         ui.add_space(gap);
 
                         let (tools_label_rect, _) =
-                            ui.allocate_exact_size(vec2(mode_card_w, 18.0), Sense::hover());
+                            ui.allocate_exact_size(vec2(mode_card_w, 24.0), Sense::hover());
                         let mut child =
                             ui.new_child(egui::UiBuilder::new().max_rect(tools_label_rect));
-                        child.label(
-                            RichText::new("TOOLS")
-                                .size(11.0)
-                                .strong()
-                                .color(t.accent_ink),
-                        );
+                        child.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
+                            ui.label(
+                                RichText::new("TOOL ATTRIBUTES")
+                                    .size(11.0)
+                                    .strong()
+                                    .color(t.accent_ink),
+                            );
+                        });
                     });
 
                     ui.add_space(4.0);
@@ -421,12 +439,12 @@ fn render_detail_area(
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
 
-                        // Bordered Atlas Card
+                        // Bordered Atlas Card (rectangular corners)
                         ui.allocate_ui(vec2(atlas_card_w, card_h), |ui| {
                             Frame::new()
                                 .fill(t.canvas)
                                 .stroke(t.hairline())
-                                .corner_radius(CornerRadius::same(4))
+                                .corner_radius(CornerRadius::ZERO)
                                 .show(ui, |ui| {
                                     render_atlas_view(app, ui, t, tileset, tex.as_ref());
                                 });
@@ -434,12 +452,12 @@ fn render_detail_area(
 
                         ui.add_space(gap);
 
-                        // Bordered Tools / Mode Card
+                        // Bordered Tools / Mode Card (rectangular corners)
                         ui.allocate_ui(vec2(mode_card_w, card_h), |ui| {
                             Frame::new()
                                 .fill(t.panel)
                                 .stroke(t.hairline())
-                                .corner_radius(CornerRadius::same(4))
+                                .corner_radius(CornerRadius::ZERO)
                                 .show(ui, |ui| {
                                     render_right_panel(
                                         ui,

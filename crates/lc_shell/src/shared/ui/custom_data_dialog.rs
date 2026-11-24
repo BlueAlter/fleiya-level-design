@@ -159,7 +159,7 @@ where
                                     .show(ui, |ui| {
                                         ui.horizontal_top(|ui| {
                                             // Line numbers gutter
-                                            let count = state.text_buffer.lines().count().max(1);
+                                            let count = state.text_buffer.split('\n').count().max(1);
                                             let digits = count.max(9).to_string().len().max(2);
                                             let mut gutter_str = String::with_capacity(count * (digits + 2));
                                             for idx in 1..=count {
@@ -217,7 +217,7 @@ where
                                         .strong()
                                         .color(Color32::WHITE),
                                 )
-                                .fill(Color32::from_rgb(220, 75, 12))
+                                .fill(t.accent)
                                 .corner_radius(CornerRadius::ZERO)
                                 .min_size(vec2(close_btn_width.max(100.0), 32.0));
 

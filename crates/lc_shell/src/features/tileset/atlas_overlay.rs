@@ -31,6 +31,9 @@ pub fn render_tile_overlay(
     let has_custom_data = custom_data_opt.is_some_and(|s| !s.trim().is_empty());
 
     if !cx.is_marking_mode {
+        if !tags.is_empty() {
+            draw_all_markers(painter, ctx, tile_rect, &tags, cx.enum_def, cx);
+        }
         if has_custom_data {
             draw_custom_data_badge(painter, tile_rect);
         }
@@ -42,46 +45,7 @@ pub fn render_tile_overlay(
     if let Some(enum_def) = cx.enum_def {
         if is_custom_data_selected {
             // When "Custom data" is selected: show ALL markers (concentric nested outlines for multi-marked tiles)
-            if !tags.is_empty() {
-                painter.rect_stroke(
-                    tile_rect,
-                    CornerRadius::same(1),
-                    Stroke::new(2.0, Color32::BLACK),
-                    StrokeKind::Outside,
-                );
-
-                let mut inset = 0.0;
-                for tag in &tags {
-                    if let Some(val) = enum_def.value(tag) {
-                        let color = Color32::from_rgba_unmultiplied(
-                            val.color[0],
-                            val.color[1],
-                            val.color[2],
-                            val.color[3],
-                        );
-                        let frame = tile_rect.shrink(inset);
-                        if frame.width() > 2.0 && frame.height() > 2.0 {
-                            painter.rect_stroke(
-                                frame,
-                                CornerRadius::same(1),
-                                Stroke::new(2.0, color),
-                                StrokeKind::Inside,
-                            );
-                            inset += 2.0;
-                        }
-                    }
-                }
-
-                // Fixed screen-space marker box (14x14) in top-left
-                draw_marker_icon(
-                    painter,
-                    ctx,
-                    tile_rect,
-                    tags.first().and_then(|t| enum_def.value(t)),
-                    cx.project,
-                    cx.assets,
-                );
-            }
+            draw_all_markers(painter, ctx, tile_rect, &tags, Some(enum_def), cx);
 
             if has_custom_data {
                 draw_custom_data_badge(painter, tile_rect);
@@ -116,6 +80,60 @@ pub fn render_tile_overlay(
             }
         }
     }
+}
+
+/// Draws all concentric tag outlines and the top-left marker icon for a tile.
+fn draw_all_markers(
+    painter: &egui::Painter,
+    ctx: &egui::Context,
+    tile_rect: Rect,
+    tags: &[&str],
+    enum_def: Option<&EnumDef>,
+    cx: &TileOverlayContext<'_>,
+) {
+    let Some(enum_def) = enum_def else { return };
+    if tags.is_empty() {
+        return;
+    }
+
+    painter.rect_stroke(
+        tile_rect,
+        CornerRadius::same(1),
+        Stroke::new(2.0, Color32::BLACK),
+        StrokeKind::Outside,
+    );
+
+    let mut inset = 0.0;
+    for tag in tags {
+        if let Some(val) = enum_def.value(tag) {
+            let color = Color32::from_rgba_unmultiplied(
+                val.color[0],
+                val.color[1],
+                val.color[2],
+                val.color[3],
+            );
+            let frame = tile_rect.shrink(inset);
+            if frame.width() > 2.0 && frame.height() > 2.0 {
+                painter.rect_stroke(
+                    frame,
+                    CornerRadius::same(1),
+                    Stroke::new(2.0, color),
+                    StrokeKind::Inside,
+                );
+                inset += 2.0;
+            }
+        }
+    }
+
+    // Fixed screen-space marker box (14x14) in top-left
+    draw_marker_icon(
+        painter,
+        ctx,
+        tile_rect,
+        tags.first().and_then(|t| enum_def.value(t)),
+        cx.project,
+        cx.assets,
+    );
 }
 
 /// Draws the fixed screen-space marker icon (bound tile thumbnail or solid color chip).

@@ -183,10 +183,10 @@ pub fn render_attributes_card(
                 .color(t.accent_ink),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let chevron = if app.tileset_view_state.is_attributes_collapsed {
-                Icon::ChevronDown
+            let eye_icon = if app.tileset_view_state.is_attributes_collapsed {
+                Icon::EyeOff
             } else {
-                Icon::ChevronUp
+                Icon::Eye
             };
             let tooltip = if app.tileset_view_state.is_attributes_collapsed {
                 "Show attributes"
@@ -194,7 +194,7 @@ pub fn render_attributes_card(
                 "Hide attributes"
             };
             let btn =
-                icon_button(ui, chevron, 28.0, IconButtonStyle::bordered()).on_hover_text(tooltip);
+                icon_button(ui, eye_icon, 28.0, IconButtonStyle::bordered()).on_hover_text(tooltip);
             if btn.clicked() {
                 app.tileset_view_state.is_attributes_collapsed =
                     !app.tileset_view_state.is_attributes_collapsed;

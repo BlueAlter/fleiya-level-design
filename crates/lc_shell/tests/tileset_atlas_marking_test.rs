@@ -237,3 +237,105 @@ fn test_custom_data_dialog_freezes_atlas() {
         "Atlas zoom must remain frozen while dialog is open"
     );
 }
+
+#[test]
+fn test_none_mode_shows_overlay_markers() {
+    let project = setup_marking_project();
+    let app = ShellApp::new(project);
+    let tileset = app.project.defs.tileset(TilesetDefId(1)).unwrap();
+    let enum_def = app.project.defs.enum_def(EnumDefId(1)).unwrap();
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    let raw_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+        ..Default::default()
+    };
+
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        let painter = ui.painter();
+        let tile_rect = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(32.0, 32.0));
+
+        // When mode is "None" (is_marking_mode = false):
+        // tile 50 (has Gold tag) and tile 52 (has tags + custom data) must still draw overlay indicators!
+        let cx_none = TileOverlayContext {
+            tileset,
+            enum_def: Some(enum_def),
+            is_marking_mode: false,
+            selected_val_id: None,
+            project: &app.project,
+            assets: app.assets.as_ref(),
+        };
+
+        render_tile_overlay(painter, ui.ctx(), tile_rect, 50, &cx_none);
+        render_tile_overlay(painter, ui.ctx(), tile_rect, 52, &cx_none);
+    });
+    output.textures_delta.clear();
+    assert!(
+        !output.shapes.is_empty(),
+        "Overlay shapes must be rendered even in None mode"
+    );
+}
+
+#[test]
+fn test_enum_dropdown_freezes_atlas() {
+    let project = setup_marking_project();
+    let mut app = ShellApp::new(project);
+    app.active_mode = AppMode::Tilesets;
+    app.tileset_view_state.select_tileset(TilesetDefId(1));
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    // Initial render
+    let raw_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output.textures_delta.clear();
+
+    let initial_zoom = app
+        .tileset_view_state
+        .pan_zoom
+        .get(&TilesetDefId(1))
+        .map(|pz| pz.zoom)
+        .unwrap_or(1.0);
+
+    // Simulate dropdown being open
+    app.tileset_view_state.is_enum_dropdown_open = true;
+
+    // Simulate F key press
+    let events = vec![egui::Event::Key {
+        key: egui::Key::F,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }];
+    let raw_input_with_input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        events,
+        ..Default::default()
+    };
+    let mut output2 = ctx.run_ui(raw_input_with_input, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output2.textures_delta.clear();
+
+    let current_zoom = app
+        .tileset_view_state
+        .pan_zoom
+        .get(&TilesetDefId(1))
+        .map(|pz| pz.zoom)
+        .unwrap_or(1.0);
+    assert_eq!(
+        initial_zoom, current_zoom,
+        "Atlas zoom must remain frozen while dropdown is open"
+    );
+}

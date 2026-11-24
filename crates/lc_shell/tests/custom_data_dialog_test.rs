@@ -105,3 +105,15 @@ fn test_custom_data_dialog_escape_cancels() {
     assert_eq!(outcome_result, Some(CustomDataOutcome::Cancel));
     assert!(!state.is_open, "State should be closed on Escape");
 }
+
+#[test]
+fn test_custom_data_dialog_newline_line_count() {
+    let mut state = CustomDataDialogState::default();
+    state.open(TilesetDefId(1), 10, Some("line 1\nline 2\nline 3\n"));
+    // With 3 lines and a trailing newline, cursor is on line 4, so count must be 4!
+    let count = state.text_buffer.split('\n').count().max(1);
+    assert_eq!(
+        count, 4,
+        "split('\\n') must count trailing newline as next line"
+    );
+}

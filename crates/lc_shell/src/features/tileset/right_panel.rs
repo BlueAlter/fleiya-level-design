@@ -12,7 +12,6 @@ use lc_feature_tileset::mode_availability;
 use lc_ui_api::AssetService;
 
 use crate::features::tileset::state::{TilesetViewState, CUSTOM_DATA_VALUE_ID};
-use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
 
 /// Paints a tile graphic thumbnail inside the given rect.
 pub fn paint_tile_thumbnail(
@@ -68,7 +67,55 @@ pub fn paint_tile_thumbnail(
     false
 }
 
-/// Renders the right panel shell (mode dropdown and tool content area).
+/// Renders the mode dropdown selector (None, Marking, Animation) beside the Tile Atlas title.
+pub fn render_mode_selector_combo(ui: &mut Ui, tileset: &TilesetDef, state: &mut TilesetViewState) {
+    let modes = mode_availability(tileset);
+    let current_label = modes
+        .iter()
+        .find(|m| m.id == state.active_mode)
+        .map(|m| m.label)
+        .unwrap_or("None");
+
+    ui.spacing_mut().interact_size.y = 20.0;
+    let combo_w = 110.0;
+
+    egui::ComboBox::from_id_salt("tileset_mode_selector")
+        .selected_text(current_label)
+        .width(combo_w)
+        .icon(|ui, rect, visuals, is_open| {
+            let icon = if is_open {
+                Icon::ChevronUp
+            } else {
+                Icon::ChevronDown
+            };
+            lc_canvas::icons::paint_icon(
+                ui.painter(),
+                rect.center(),
+                icon,
+                12.0,
+                visuals.text_color(),
+            );
+        })
+        .show_ui(ui, |ui| {
+            for mode in modes {
+                if mode.available {
+                    if ui
+                        .selectable_label(state.active_mode == mode.id, mode.label)
+                        .clicked()
+                    {
+                        state.active_mode = mode.id.to_string();
+                    }
+                } else {
+                    let btn = ui.add_enabled(false, egui::Button::new(mode.label));
+                    if !mode.hint.is_empty() {
+                        btn.on_disabled_hover_text(mode.hint);
+                    }
+                }
+            }
+        });
+}
+
+/// Renders the right panel shell (tool content area).
 pub fn render_right_panel(
     ui: &mut Ui,
     t: &Tokens,
@@ -81,61 +128,18 @@ pub fn render_right_panel(
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.add_space(8.0);
 
-        // Mode dropdown toolbar (32 high, framed button with chevron icon)
-        ui.horizontal(|ui| {
-            ui.add_space(8.0);
-            let modes = mode_availability(tileset);
-            let current_label = modes
-                .iter()
-                .find(|m| m.id == state.active_mode)
-                .map(|m| m.label)
-                .unwrap_or("None");
-
-            ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
-            let combo_w = (ui.available_width() - 8.0).max(100.0);
-
-            egui::ComboBox::from_id_salt("tileset_mode_selector")
-                .selected_text(current_label)
-                .width(combo_w)
-                .icon(|ui, rect, visuals, is_open| {
-                    let icon = if is_open {
-                        Icon::ChevronUp
-                    } else {
-                        Icon::ChevronDown
-                    };
-                    lc_canvas::icons::paint_icon(
-                        ui.painter(),
-                        rect.center(),
-                        icon,
-                        12.0,
-                        visuals.text_color(),
-                    );
-                })
-                .show_ui(ui, |ui| {
-                    for mode in modes {
-                        if mode.available {
-                            if ui
-                                .selectable_label(state.active_mode == mode.id, mode.label)
-                                .clicked()
-                            {
-                                state.active_mode = mode.id.to_string();
-                            }
-                        } else {
-                            let btn = ui.add_enabled(false, egui::Button::new(mode.label));
-                            if !mode.hint.is_empty() {
-                                btn.on_disabled_hover_text(mode.hint);
-                            }
-                        }
-                    }
-                });
-        });
-
-        ui.add_space(8.0);
-
         // Content for selected mode
         match state.active_mode.as_str() {
             "None" => {
-                // Empty content for "None" mode: clicks never change data
+                ui.add_space(16.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(RichText::new("No tool active").color(t.faint));
+                    ui.label(
+                        RichText::new("Select a tool above to view options")
+                            .size(11.0)
+                            .color(t.faint),
+                    );
+                });
                 ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
             }
             "Marking" => {

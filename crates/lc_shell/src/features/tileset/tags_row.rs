@@ -73,5 +73,7 @@ pub fn render_marking_enum_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tile
                 chosen_enum,
             )));
         }
+        app.tileset_view_state.is_enum_dropdown_open =
+            crate::shared::ui::tileset_select::is_tileset_select_open(ui);
     });
 }

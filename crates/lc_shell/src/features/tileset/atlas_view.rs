@@ -1,6 +1,8 @@
 //! Atlas interactive viewport and tile grid view.
 
-use egui::{vec2, CornerRadius, PointerButton, Rect, RichText, Sense, TextureHandle, Ui};
+use egui::{
+    vec2, CornerRadius, Frame, Margin, PointerButton, Rect, RichText, Sense, TextureHandle, Ui,
+};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_feature_tileset::{compute_tileset_grid, SetTileCustomDataCommand, SetTileMarkingCommand};
@@ -118,11 +120,12 @@ pub fn render_atlas_view(
         })
     };
 
-    let is_dialog_open = app.tileset_view_state.custom_data_dialog.is_open;
+    let is_frozen = app.tileset_view_state.custom_data_dialog.is_open
+        || app.tileset_view_state.is_enum_dropdown_open;
 
     let available_rect = ui.available_rect_before_wrap();
-    let fit_key = !is_dialog_open
-        && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
+    let fit_key =
+        !is_frozen && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
     let needs_fit = app
         .tileset_view_state
         .canvas_state_mut(tileset.id)
@@ -163,7 +166,7 @@ pub fn render_atlas_view(
         render_tile_overlay(painter, &ctx_clone, tile_rect, tile_id, &overlay_cx);
     };
 
-    let (response, events) = if is_dialog_open {
+    let (response, events) = if is_frozen {
         ui.add_enabled_ui(false, |ui| {
             let canvas_state = app.tileset_view_state.canvas_state_mut(tileset.id);
             render_atlas_canvas(
@@ -194,51 +197,113 @@ pub fn render_atlas_view(
         )
     };
 
-    if !is_dialog_open && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
+    if !is_frozen && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
         let cs = app.tileset_view_state.canvas_state_mut(tileset.id);
         cs.view.zoom = fit_zoom;
         cs.view.offset = fit_offset;
     }
 
-    // Hover tooltip: "Tile N" + tag names / custom data (suppressed while dialog is open)
-    if !is_dialog_open {
+    // Hover tooltip: positioned at cursor, width-bounded and height-bounded with scrolling
+    if !is_frozen {
         if let Some(hovered_id) = app
             .tileset_view_state
             .canvas_state_mut(tileset.id)
             .hovered_tile
         {
-            let mut tooltip_lines = vec![format!("Tile {hovered_id}")];
             let tags = tileset.marking.tags_at(hovered_id);
-            if !tags.is_empty() {
-                if let Some(ref enum_def) = enum_def_opt {
-                    let tag_names: Vec<&str> = tags
-                        .iter()
-                        .filter_map(|tag| enum_def.value(tag).map(|v| v.name.as_str()))
-                        .collect();
-                    if !tag_names.is_empty() {
-                        tooltip_lines.push(tag_names.join(" + "));
-                    }
-                }
-            }
-            if let Some(custom_data) = tileset.custom_data.get(&hovered_id) {
-                if !custom_data.trim().is_empty() {
-                    tooltip_lines.push(format!("Data: {custom_data}"));
-                }
-            }
-            if tooltip_lines.len() == 1 && grid.cols > 0 {
+            let tag_names: Vec<String> = if let Some(ref enum_def) = enum_def_opt {
+                tags.iter()
+                    .filter_map(|tag| enum_def.value(tag).map(|v| v.name.clone()))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            let custom_data_text = tileset
+                .custom_data
+                .get(&hovered_id)
+                .filter(|s| !s.trim().is_empty())
+                .cloned();
+
+            let title = if grid.cols > 0 {
                 let col = hovered_id % grid.cols;
                 let row = hovered_id / grid.cols;
-                tooltip_lines[0] = format!("Tile {hovered_id} ({col}, {row})");
-            }
-            response.on_hover_text(tooltip_lines.join("\n"));
+                format!("Tile {hovered_id} ({col}, {row})")
+            } else {
+                format!("Tile {hovered_id}")
+            };
+
+            response.on_hover_ui_at_pointer(|ui| {
+                Frame::new()
+                    .fill(t.panel)
+                    .stroke(t.hairline())
+                    .corner_radius(CornerRadius::ZERO)
+                    .inner_margin(Margin::symmetric(8, 6))
+                    .show(ui, |ui| {
+                        ui.set_max_width(220.0);
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new(title).size(11.5).strong().color(t.ink_strong));
+
+                            if !tag_names.is_empty() {
+                                ui.add_space(2.0);
+                                if tag_names.len() > 5 {
+                                    egui::ScrollArea::vertical()
+                                        .max_height(80.0)
+                                        .auto_shrink([false, false])
+                                        .show(ui, |ui| {
+                                            ui.vertical(|ui| {
+                                                for name in &tag_names {
+                                                    ui.label(
+                                                        RichText::new(format!("• {name}"))
+                                                            .size(11.0)
+                                                            .color(t.ink),
+                                                    );
+                                                }
+                                            });
+                                        });
+                                } else {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
+                                        for (i, name) in tag_names.iter().enumerate() {
+                                            let sep =
+                                                if i + 1 < tag_names.len() { " +" } else { "" };
+                                            ui.label(
+                                                RichText::new(format!("{name}{sep}"))
+                                                    .size(11.0)
+                                                    .color(t.ink),
+                                            );
+                                        }
+                                    });
+                                }
+                            }
+
+                            if let Some(custom_data) = custom_data_text {
+                                ui.add_space(3.0);
+                                ui.label(
+                                    RichText::new("Data:")
+                                        .size(10.5)
+                                        .strong()
+                                        .color(t.accent_ink),
+                                );
+                                egui::ScrollArea::vertical()
+                                    .max_height(60.0)
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            RichText::new(custom_data).size(10.0).color(t.faint),
+                                        );
+                                    });
+                            }
+                        });
+                    });
+            });
         }
     }
 
-    // Process events (suppressed while dialog is open)
+    // Process events (suppressed while dialog or dropdown is open)
     let mut toggle_marking: Option<(String, u32, bool)> = None;
 
-    if !is_dialog_open {
+    if !is_frozen {
         for event in events {
             match event {
                 AtlasEvent::Clicked {

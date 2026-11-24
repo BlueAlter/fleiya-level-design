@@ -79,8 +79,8 @@ pub fn render_atlas_canvas(
             && !modifiers.command
             && (scroll_delta.x.abs() > 0.0 || scroll_delta.y.abs() > 0.0)
         {
-            if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                if viewport_rect.contains(cursor) {
+            if let Some(_cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+                if response.hovered() {
                     if modifiers.shift {
                         let dx = if scroll_delta.x.abs() > 0.0 {
                             scroll_delta.x
@@ -102,7 +102,7 @@ pub fn render_atlas_canvas(
         let zoom_delta = ui.ctx().input(|i| i.zoom_delta());
         if (zoom_delta - 1.0).abs() > 0.001 {
             if let Some(cursor) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-                if viewport_rect.contains(cursor) {
+                if response.hovered() {
                     let (new_zoom, new_offset) =
                         zoom_towards_cursor(cursor, state.view.zoom, state.view.offset, zoom_delta);
                     state.view.zoom = new_zoom;
