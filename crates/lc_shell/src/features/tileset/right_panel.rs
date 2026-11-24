@@ -423,23 +423,9 @@ pub fn render_right_panel(
                 }
             }
             "Collision" => {
-                ui.add_space(16.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("Tile Collision").strong().color(t.ink_strong));
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new("Collision boundaries and tags")
-                            .size(11.0)
-                            .color(t.faint),
-                    );
-                    ui.add_space(8.0);
-                    ui.label(
-                        RichText::new("(Coming soon)")
-                            .font(egui::FontId::proportional(11.0))
-                            .color(t.muted),
-                    );
-                });
-                ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
+                super::collision_panel::render_collision_panel(
+                    ui, t, tileset, project, assets, state, commands,
+                );
             }
             "Animation" => {
                 super::animation_panel::render_animation_panel(

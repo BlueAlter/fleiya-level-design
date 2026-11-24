@@ -12,6 +12,44 @@ use crate::shared::ui::search_picker::SearchPickerState;
 /// Special value ID used when the "Custom data" item is selected in marking mode.
 pub const CUSTOM_DATA_VALUE_ID: &str = "__custom_data__";
 
+/// Active tool for editing tile collisions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CollisionTool {
+    #[default]
+    Select,
+    Box,
+    Polygon,
+}
+
+/// Grid snapping mode for collision editing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CollisionSnapMode {
+    #[default]
+    Pixel,
+    TileSize,
+    None,
+}
+
+impl CollisionSnapMode {
+    /// Cycles to the next snap mode (Pixel -> TileSize -> None -> Pixel).
+    pub fn cycle(&mut self) {
+        *self = match self {
+            Self::Pixel => Self::TileSize,
+            Self::TileSize => Self::None,
+            Self::None => Self::Pixel,
+        };
+    }
+
+    /// Label to display on the toolbar button.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Pixel => "Pixel",
+            Self::TileSize => "Tile",
+            Self::None => "Off",
+        }
+    }
+}
+
 /// Stored pan and zoom per tileset for the editing session.
 #[derive(Debug, Clone)]
 pub struct TilesetPanZoom {
@@ -93,6 +131,18 @@ pub struct TilesetViewState {
     pub show_animation_preview: bool,
     /// Timestamp when animation playback started.
     pub animation_start_time: std::time::Instant,
+    /// Active tool in Collision mode (Select, Box, Polygon).
+    pub collision_tool: CollisionTool,
+    /// Snapping mode in Collision mode (Pixel, Tile, Off).
+    pub collision_snap: CollisionSnapMode,
+    /// Currently isolated tile ID in Collision focus mode (None if normal atlas view).
+    pub collision_focus_tile: Option<u32>,
+    /// Currently selected collision shape ID within the active tile (if any).
+    pub selected_collision_shape_id: Option<u32>,
+    /// Clipboard for copying and pasting tile collision shapes.
+    pub collision_clipboard: Option<lc_core::collision::TileCollisionDef>,
+    /// Whether collision shapes are rendered as overlay across the atlas canvas.
+    pub show_collision_overlay: bool,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -142,6 +192,12 @@ impl Default for TilesetViewState {
             is_animation_playing: true,
             show_animation_preview: true,
             animation_start_time: std::time::Instant::now(),
+            collision_tool: CollisionTool::Select,
+            collision_snap: CollisionSnapMode::Pixel,
+            collision_focus_tile: None,
+            selected_collision_shape_id: None,
+            collision_clipboard: None,
+            show_collision_overlay: true,
         }
     }
 }
@@ -153,6 +209,8 @@ impl TilesetViewState {
         if self.selected_tileset_id != Some(id) {
             self.selected_tileset_id = Some(id);
             self.selected_tile = None;
+            self.collision_focus_tile = None;
+            self.selected_collision_shape_id = None;
             self.active_mode = "None".to_string();
             self.canvas_state_mut(id).needs_initial_fit = true;
         }

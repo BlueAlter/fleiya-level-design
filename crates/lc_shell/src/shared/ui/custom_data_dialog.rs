@@ -18,6 +18,8 @@ pub struct CustomDataDialogState {
     pub is_open: bool,
     pub tileset_id: Option<TilesetDefId>,
     pub tile_id: u32,
+    pub shape_id: Option<u32>,
+    pub title_override: Option<String>,
     pub text_buffer: String,
     pub original_text: String,
     pub should_focus: bool,
@@ -29,6 +31,27 @@ impl CustomDataDialogState {
         self.is_open = true;
         self.tileset_id = Some(tileset_id);
         self.tile_id = tile_id;
+        self.shape_id = None;
+        self.title_override = None;
+        let text = current_data.unwrap_or("").to_string();
+        self.text_buffer = text.clone();
+        self.original_text = text;
+        self.should_focus = true;
+    }
+
+    /// Opens the dialog for a specific collision shape on a tile.
+    pub fn open_for_shape(
+        &mut self,
+        tileset_id: TilesetDefId,
+        tile_id: u32,
+        shape_id: u32,
+        current_data: Option<&str>,
+    ) {
+        self.is_open = true;
+        self.tileset_id = Some(tileset_id);
+        self.tile_id = tile_id;
+        self.shape_id = Some(shape_id);
+        self.title_override = Some(format!("TILE #{tile_id} SHAPE #{shape_id} CUSTOM DATA"));
         let text = current_data.unwrap_or("").to_string();
         self.text_buffer = text.clone();
         self.original_text = text;
@@ -39,6 +62,8 @@ impl CustomDataDialogState {
     pub fn close(&mut self) {
         self.is_open = false;
         self.should_focus = false;
+        self.shape_id = None;
+        self.title_override = None;
     }
 }
 
@@ -133,10 +158,14 @@ where
                     );
 
                     let title_pos = Pos2::new(header_rect.min.x + 16.0, header_rect.center().y);
+                    let title = state
+                        .title_override
+                        .clone()
+                        .unwrap_or_else(|| format!("TILE {} CUSTOM DATA", state.tile_id));
                     ui.painter().text(
                         title_pos,
                         egui::Align2::LEFT_CENTER,
-                        format!("TILE {} CUSTOM DATA", state.tile_id),
+                        title,
                         FontId::proportional(13.0),
                         t.ink_strong,
                     );

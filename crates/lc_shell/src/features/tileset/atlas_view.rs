@@ -5,8 +5,8 @@ use lc_canvas::theme::Tokens;
 use lc_core::defs::{TileAnimationDef, TilesetDef};
 use lc_feature_tileset::{
     compute_tileset_grid, AddAnimationFrameCommand, RemoveAnimationFrameCommand,
-    RemoveTileAnimationCommand, SetTileAnimationCommand, SetTileCustomDataCommand,
-    SetTileMarkingCommand,
+    RemoveTileAnimationCommand, SetTileAnimationCommand, SetTileCollisionCommand,
+    SetTileCustomDataCommand, SetTileMarkingCommand,
 };
 
 use super::animation_preview::render_animation_preview_card;
@@ -365,6 +365,9 @@ pub fn render_atlas_view(
                                 }
                             }
                         }
+                        "Collision" if button == PointerButton::Primary && modifiers.alt => {
+                            app.tileset_view_state.collision_focus_tile = Some(tile_id);
+                        }
                         _ => {}
                     }
                 }
@@ -423,6 +426,7 @@ pub fn render_atlas_view(
         && app.tileset_view_state.custom_data_dialog.tileset_id == Some(tileset.id)
     {
         let tile_id = app.tileset_view_state.custom_data_dialog.tile_id;
+        let shape_id_opt = app.tileset_view_state.custom_data_dialog.shape_id;
         if let Some(outcome) = render_custom_data_dialog(
             ui.ctx(),
             t,
@@ -432,16 +436,38 @@ pub fn render_atlas_view(
             match outcome {
                 CustomDataOutcome::Save(c) => {
                     let data = if c.trim().is_empty() { None } else { Some(c) };
-                    app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                        tileset.id, tile_id, data,
-                    )));
+                    if let Some(shape_id) = shape_id_opt {
+                        if let Some(mut col) = tileset.collision(tile_id).cloned() {
+                            if let Some(shape) = col.shapes.iter_mut().find(|s| s.id == shape_id) {
+                                shape.custom_data = data.unwrap_or_default();
+                                app.execute_command(Box::new(SetTileCollisionCommand::new(
+                                    tileset.id, tile_id, col,
+                                )));
+                            }
+                        }
+                    } else {
+                        app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                            tileset.id, tile_id, data,
+                        )));
+                    }
                 }
                 CustomDataOutcome::Delete => {
-                    app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                        tileset.id,
-                        tile_id,
-                        None::<String>,
-                    )));
+                    if let Some(shape_id) = shape_id_opt {
+                        if let Some(mut col) = tileset.collision(tile_id).cloned() {
+                            if let Some(shape) = col.shapes.iter_mut().find(|s| s.id == shape_id) {
+                                shape.custom_data.clear();
+                                app.execute_command(Box::new(SetTileCollisionCommand::new(
+                                    tileset.id, tile_id, col,
+                                )));
+                            }
+                        }
+                    } else {
+                        app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                            tileset.id,
+                            tile_id,
+                            None::<String>,
+                        )));
+                    }
                 }
                 CustomDataOutcome::Cancel => {}
             }

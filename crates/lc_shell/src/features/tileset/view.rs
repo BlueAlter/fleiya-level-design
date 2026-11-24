@@ -15,6 +15,7 @@ use lc_ui_api::AssetService;
 use super::animation_toolbar::render_animation_toolbar;
 use super::atlas_view::render_atlas_view;
 use super::attributes_card::render_attributes_card;
+use super::collision_toolbar::render_collision_toolbar;
 use super::creation::{create_tileset_from_png, render_outside_copy_modal, CreateTilesetError};
 use super::file_dialog::{TilesetDialogManager, TilesetDialogMessage};
 use super::i18n::{self, keys};
@@ -417,6 +418,9 @@ fn render_detail_area(
                             if app.tileset_view_state.active_mode == "Animation" {
                                 ui.add_space(10.0);
                                 render_animation_toolbar(app, ui, t, tileset);
+                            } else if app.tileset_view_state.active_mode == "Collision" {
+                                ui.add_space(10.0);
+                                render_collision_toolbar(app, ui, t, tileset);
                             }
                         });
 
