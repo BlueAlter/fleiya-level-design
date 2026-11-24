@@ -404,14 +404,15 @@ fn render_detail_area(
 
                             render_mode_selector_combo(ui, tileset, &mut app.tileset_view_state);
 
-                            ui.add_space(8.0);
-
-                            ui.label(
-                                RichText::new("TOOLS")
-                                    .size(11.0)
-                                    .strong()
-                                    .color(t.accent_ink),
-                            );
+                            if app.tileset_view_state.active_mode == "Animation" {
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new("TOOLS")
+                                        .size(11.0)
+                                        .strong()
+                                        .color(t.accent_ink),
+                                );
+                            }
                         });
 
                         ui.add_space(gap);

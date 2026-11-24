@@ -247,36 +247,27 @@ pub fn render_atlas_view(
 
                             if !tag_names.is_empty() {
                                 ui.add_space(2.0);
-                                if tag_names.len() > 5 {
-                                    egui::ScrollArea::vertical()
-                                        .id_salt("tile_hover_tags_scroll")
-                                        .max_height(80.0)
-                                        .auto_shrink([false, false])
-                                        .show(ui, |ui| {
-                                            ui.vertical(|ui| {
-                                                for name in &tag_names {
-                                                    ui.label(
-                                                        RichText::new(format!("• {name}"))
-                                                            .size(11.0)
-                                                            .color(t.ink),
-                                                    );
-                                                }
-                                            });
-                                        });
-                                } else {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
-                                        for (i, name) in tag_names.iter().enumerate() {
-                                            let sep =
-                                                if i + 1 < tag_names.len() { " +" } else { "" };
-                                            ui.label(
-                                                RichText::new(format!("{name}{sep}"))
-                                                    .size(11.0)
-                                                    .color(t.ink),
-                                            );
-                                        }
-                                    });
-                                }
+                                let limit = 6;
+                                let display_tags = &tag_names[..tag_names.len().min(limit)];
+                                ui.vertical(|ui| {
+                                    for name in display_tags {
+                                        ui.label(
+                                            RichText::new(format!("• {name}"))
+                                                .size(11.0)
+                                                .color(t.ink),
+                                        );
+                                    }
+                                    if tag_names.len() > limit {
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "+ {} more tags",
+                                                tag_names.len() - limit
+                                            ))
+                                            .size(9.5)
+                                            .color(t.muted),
+                                        );
+                                    }
+                                });
                             }
 
                             if let Some(custom_data) = custom_data_text {
@@ -287,15 +278,22 @@ pub fn render_atlas_view(
                                         .strong()
                                         .color(t.accent_ink),
                                 );
-                                egui::ScrollArea::vertical()
-                                    .id_salt("tile_hover_data_scroll")
-                                    .max_height(60.0)
-                                    .auto_shrink([false, false])
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            RichText::new(custom_data).size(10.0).color(t.faint),
-                                        );
-                                    });
+                                let lines: Vec<&str> = custom_data.lines().collect();
+                                let line_limit = 6;
+                                let display_count = lines.len().min(line_limit);
+                                let preview_snippet = lines[..display_count].join("\n");
+                                ui.label(RichText::new(preview_snippet).size(10.0).color(t.faint));
+                                if lines.len() > line_limit {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "... (+{} more lines, click to view)",
+                                            lines.len() - line_limit
+                                        ))
+                                        .size(9.5)
+                                        .italics()
+                                        .color(t.muted),
+                                    );
+                                }
                             }
                         });
                     });

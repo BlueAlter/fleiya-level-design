@@ -29,6 +29,7 @@ where
 
     frame
         .show(ui, |ui| {
+            ui.set_width(ui.available_width());
             ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
                 // 1. Left info icon badge (top-aligned, rectangular, project theme)
                 let icon_size = vec2(22.0, 22.0);
