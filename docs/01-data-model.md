@@ -18,6 +18,8 @@ pub struct TilesetDef {
     pub tags: Vec<String>,
     pub marking: TileMarking,
     pub custom_data: BTreeMap<u32, String>,
+    pub animations: BTreeMap<u32, TileAnimationDef>,
+    pub collisions: BTreeMap<u32, TileCollisionDef>,
 }
 
 pub struct TileMarking {
