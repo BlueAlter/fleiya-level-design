@@ -251,7 +251,15 @@ pub fn render_fast_custom_properties(
                             .font(FontId::monospace(10.0)),
                     );
                     if val_edit.changed() {
+                        prop.value = sanitize_int_input(&prop.value);
                         modified = true;
+                    }
+                    if val_edit.lost_focus() {
+                        let finalized = finalize_int_input(&prop.value);
+                        if finalized != prop.value {
+                            prop.value = finalized;
+                            modified = true;
+                        }
                     }
                 }
                 CustomPropType::Float => {
@@ -262,7 +270,15 @@ pub fn render_fast_custom_properties(
                             .font(FontId::monospace(10.0)),
                     );
                     if val_edit.changed() {
+                        prop.value = sanitize_float_input(&prop.value);
                         modified = true;
+                    }
+                    if val_edit.lost_focus() {
+                        let finalized = finalize_float_input(&prop.value);
+                        if finalized != prop.value {
+                            prop.value = finalized;
+                            modified = true;
+                        }
                     }
                 }
                 CustomPropType::Bool => {
@@ -293,6 +309,62 @@ pub fn render_fast_custom_properties(
     }
 
     modified
+}
+
+/// Filters an integer string to optional leading `-` and ASCII digits only.
+pub fn sanitize_int_input(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for (idx, ch) in raw.chars().enumerate() {
+        if ch.is_ascii_digit() || (ch == '-' && idx == 0) {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// Normalizes a finalized integer string when editing ends.
+pub fn finalize_int_input(raw: &str) -> String {
+    let sanitized = sanitize_int_input(raw);
+    if sanitized.is_empty() || sanitized == "-" {
+        "0".to_string()
+    } else if let Ok(v) = sanitized.parse::<i64>() {
+        v.to_string()
+    } else {
+        sanitized
+    }
+}
+
+/// Filters a decimal/float string to optional leading `-`, digits, and at most one `.`
+/// (accepting `,` or `.` as the decimal separator and fixing `,` to `.`).
+pub fn sanitize_float_input(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut has_dot = false;
+    for (idx, ch) in raw.chars().enumerate() {
+        if ch.is_ascii_digit() || (ch == '-' && idx == 0) {
+            out.push(ch);
+        } else if (ch == '.' || ch == ',') && !has_dot {
+            has_dot = true;
+            out.push('.');
+        }
+    }
+    out
+}
+
+/// Normalizes a finalized float string when editing ends.
+pub fn finalize_float_input(raw: &str) -> String {
+    let sanitized = sanitize_float_input(raw);
+    if sanitized.is_empty() || sanitized == "-" || sanitized == "." || sanitized == "-." {
+        return "0.0".to_string();
+    }
+    if sanitized.starts_with('.') {
+        format!("0{sanitized}")
+    } else if let Some(rest) = sanitized.strip_prefix("-.") {
+        format!("-0.{rest}")
+    } else if sanitized.ends_with('.') {
+        format!("{sanitized}0")
+    } else {
+        sanitized
+    }
 }
 
 #[cfg(test)]
@@ -336,5 +408,28 @@ mod tests {
         assert_eq!(props[1].name, "solid");
         assert_eq!(props[1].prop_type, CustomPropType::String);
         assert_eq!(props[1].value, "");
+    }
+
+    #[test]
+    fn test_sanitize_and_finalize_int_input() {
+        assert_eq!(sanitize_int_input("abc123def"), "123");
+        assert_eq!(sanitize_int_input("-42xyz"), "-42");
+        assert_eq!(sanitize_int_input("12-3.5"), "1235");
+        assert_eq!(finalize_int_input(""), "0");
+        assert_eq!(finalize_int_input("-"), "0");
+        assert_eq!(finalize_int_input("-007"), "-7");
+    }
+
+    #[test]
+    fn test_sanitize_and_finalize_float_input() {
+        assert_eq!(sanitize_float_input("1,5"), "1.5");
+        assert_eq!(sanitize_float_input("1.5"), "1.5");
+        assert_eq!(sanitize_float_input("-12,34abc"), "-12.34");
+        assert_eq!(sanitize_float_input("1,5.2,9"), "1.529");
+        assert_eq!(finalize_float_input(""), "0.0");
+        assert_eq!(finalize_float_input("."), "0.0");
+        assert_eq!(finalize_float_input(",5"), "0.5");
+        assert_eq!(finalize_float_input("-.5"), "-0.5");
+        assert_eq!(finalize_float_input("3,"), "3.0");
     }
 }
