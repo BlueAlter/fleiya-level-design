@@ -62,7 +62,6 @@ pub fn render_left_panel(
             DefLeftPanelAction::Selected(id) => {
                 app.selected_tileset_def = Some(id);
                 app.tileset_view_state.select_tileset(id);
-                app.tileset_view_state.reset_atlas_fit(id);
             }
             DefLeftPanelAction::ContextMenu { id, pos } => {
                 app.tileset_view_state.context_menu = Some((id, pos));

@@ -180,12 +180,41 @@ fn test_b4_atlas_fit_and_centering_on_frame_1_and_switch() {
         expected_center
     );
 
-    // Pan and zoom away
+    // Pan and zoom away inside valid viewport bounds
     {
         let cs = app.tileset_view_state.canvas_state_mut(ts_b);
         cs.view.zoom = 2.0;
-        cs.view.offset = vec2(50.0, 50.0);
+        cs.view.offset = vec2(600.0, 400.0);
     }
+
+    // Pressing Enter must NOT reset fit or pan/zoom of the active tileset
+    let mut input_enter = egui::RawInput {
+        screen_rect: Some(full_rect),
+        ..Default::default()
+    };
+    input_enter.events.push(egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    let mut output_enter = ctx.run_ui(input_enter, |ui| {
+        render_tileset_view(&mut app, ui);
+    });
+    output_enter.textures_delta.clear();
+
+    let cs_enter = app.tileset_view_state.canvas_state_mut(ts_b);
+    assert!(
+        (cs_enter.view.zoom - 2.0).abs() < 0.01,
+        "Enter key must NOT reset zoom: actual={}",
+        cs_enter.view.zoom
+    );
+    assert!(
+        (cs_enter.view.offset - vec2(600.0, 400.0)).length() < 0.5,
+        "Enter key must NOT reset pan: actual={:?}",
+        cs_enter.view.offset
+    );
 
     // Press 'F' key to reset fit
     let mut input_f = egui::RawInput {
