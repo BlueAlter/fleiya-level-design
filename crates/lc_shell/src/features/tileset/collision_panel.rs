@@ -1,12 +1,12 @@
 //! Right panel content for managing tile collision shapes, custom properties, and tags.
 
 use egui::{
-    vec2, Align, Align2, Color32, CornerRadius, FontId, Rect, RichText, ScrollArea, Sense, Stroke,
-    StrokeKind, Ui,
+    vec2, Align, Align2, Color32, CornerRadius, FontId, Frame, Margin, Rect, RichText, ScrollArea,
+    Sense, Stroke, StrokeKind, Ui,
 };
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
-use lc_core::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
+use lc_core::collision::{CollisionShapeGeometry, TileCollisionDef};
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
 use lc_core::layer::TileRef;
@@ -40,22 +40,24 @@ pub fn render_collision_panel(
             .and_then(|cs| cs.hovered_tile))
         .or(state.selected_tile);
 
-    ui.add_space(4.0);
+    Frame::new()
+        .inner_margin(Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            // 1. Header with active tile ID badge and thumbnail (isolate toggle is on toolbar)
+            render_header_card(ui, t, tileset, project, assets, active_tile_id);
 
-    // 1. Header with active tile ID badge and thumbnail (isolate toggle is on toolbar)
-    render_header_card(ui, t, tileset, project, assets, active_tile_id);
+            ui.add_space(10.0);
 
-    ui.add_space(8.0);
+            let Some(tile_id) = active_tile_id else {
+                render_no_tile_selected(ui, t);
+                return;
+            };
 
-    let Some(tile_id) = active_tile_id else {
-        render_no_tile_selected(ui, t);
-        return;
-    };
+            let col_def = tileset.collision(tile_id).cloned().unwrap_or_default();
 
-    let col_def = tileset.collision(tile_id).cloned().unwrap_or_default();
-
-    // 2. Shapes list section with fast inline custom data properties
-    render_shapes_section(ui, t, tileset, tile_id, col_def, state, commands);
+            // 2. Shapes list section with fast inline custom data properties
+            render_shapes_section(ui, t, tileset, tile_id, col_def, state, commands);
+        });
 }
 
 /// Renders the active tile info card at the top of the collision panel.
@@ -133,6 +135,13 @@ fn render_shapes_section(
     commands: &mut Vec<Box<dyn Command>>,
 ) {
     // Shapes section header
+    ui.painter().hline(
+        ui.available_rect_before_wrap().x_range(),
+        ui.cursor().min.y,
+        Stroke::new(1.0, t.hairline().color),
+    );
+    ui.add_space(8.0);
+
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(format!("SHAPES ({})", col_def.shapes.len()))
@@ -140,45 +149,9 @@ fn render_shapes_section(
                 .strong()
                 .color(t.ink_strong),
         );
-
-        ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            if icon_button(ui, Icon::Shape, 20.0, IconButtonStyle::bordered().square())
-                .on_hover_text("Add polygon shape (+ Poly)")
-                .clicked()
-            {
-                let next_id = col_def.next_shape_id();
-                col_def
-                    .shapes
-                    .push(CollisionShape::slope_up(next_id, tileset.tile_size));
-                state.selected_collision_shape_id = Some(next_id);
-                push_col(commands, tileset.id, tile_id, col_def.clone());
-            }
-
-            if icon_button(
-                ui,
-                Icon::Rectangle,
-                20.0,
-                IconButtonStyle::bordered().square(),
-            )
-            .on_hover_text("Add rectangle shape (+ Box)")
-            .clicked()
-            {
-                let next_id = col_def.next_shape_id();
-                let sz = tileset.tile_size;
-                col_def.shapes.push(CollisionShape::new_rect(
-                    next_id,
-                    0.0,
-                    0.0,
-                    sz.x as f32,
-                    sz.y as f32,
-                ));
-                state.selected_collision_shape_id = Some(next_id);
-                push_col(commands, tileset.id, tile_id, col_def.clone());
-            }
-        });
     });
 
-    ui.add_space(6.0);
+    ui.add_space(8.0);
 
     if col_def.shapes.is_empty() {
         render_empty_shapes(ui, t);
