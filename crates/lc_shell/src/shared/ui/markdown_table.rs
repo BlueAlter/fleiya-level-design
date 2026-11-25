@@ -181,9 +181,9 @@ pub(crate) fn render_markdown_table(ui: &mut Ui, t: &Tokens, table: &ParsedTable
         |cells: &[String], is_header: bool| -> (Vec<std::sync::Arc<egui::Galley>>, f32) {
             let mut galleys = Vec::with_capacity(ncols);
             let mut max_h = 0.0f32;
-            for c in 0..ncols {
+            for (c, &col_w) in col_widths.iter().enumerate().take(ncols) {
                 let txt = cells.get(c).map(String::as_str).unwrap_or("");
-                let wrap_w = (col_widths[c] - CELL_PAD_X * 2.0).max(16.0);
+                let wrap_w = (col_w - CELL_PAD_X * 2.0).max(16.0);
                 let galley = ui
                     .painter()
                     .layout_job(build_cell_layout_job(txt, t, is_header, wrap_w));
