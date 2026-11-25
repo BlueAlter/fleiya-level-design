@@ -143,6 +143,12 @@ pub struct TilesetViewState {
     pub collision_clipboard: Option<lc_core::collision::TileCollisionDef>,
     /// Whether collision shapes are rendered as overlay across the atlas canvas.
     pub show_collision_overlay: bool,
+    /// Drag start point in tile local coordinates for drawing or moving shapes.
+    pub collision_drag_start: Option<glam::Vec2>,
+    /// Drag current point in tile local coordinates.
+    pub collision_drag_current: Option<glam::Vec2>,
+    /// Draft vertices for in-progress polygon creation in focus mode.
+    pub collision_poly_draft: Vec<glam::Vec2>,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -198,11 +204,28 @@ impl Default for TilesetViewState {
             selected_collision_shape_id: None,
             collision_clipboard: None,
             show_collision_overlay: true,
+            collision_drag_start: None,
+            collision_drag_current: None,
+            collision_poly_draft: Vec::new(),
         }
     }
 }
 
 impl TilesetViewState {
+    /// Exits collision isolate/focus mode and clears in-progress draft vertices.
+    pub fn exit_collision_focus(&mut self) {
+        self.collision_focus_tile = None;
+        self.selected_collision_shape_id = None;
+        self.collision_drag_start = None;
+        self.collision_drag_current = None;
+        self.collision_poly_draft.clear();
+    }
+
+    /// Returns true if a specific tile is currently isolated in collision focus mode.
+    pub fn is_collision_focused(&self, tile_id: u32) -> bool {
+        self.active_mode == "Collision" && self.collision_focus_tile == Some(tile_id)
+    }
+
     /// Selects a new tileset, resetting tile selection and mode to "None",
     /// while preserving pan and zoom per tileset ID.
     pub fn select_tileset(&mut self, id: TilesetDefId) {

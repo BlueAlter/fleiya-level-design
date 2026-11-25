@@ -175,7 +175,7 @@ pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
                 .on_hover_text("Exit Isolate Mode (or press ESC)")
                 .clicked()
             {
-                app.tileset_view_state.collision_focus_tile = None;
+                app.tileset_view_state.exit_collision_focus();
             }
         }
     });
@@ -255,7 +255,7 @@ fn handle_collision_shortcuts(app: &mut ShellApp, ui: &Ui, tileset: &TilesetDef)
 
     // ESC: Exit focus mode
     if ctx.input(|i| i.key_pressed(Key::Escape)) {
-        app.tileset_view_state.collision_focus_tile = None;
+        app.tileset_view_state.exit_collision_focus();
     }
 
     // Ctrl+C: Copy collision

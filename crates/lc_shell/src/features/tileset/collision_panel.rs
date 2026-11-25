@@ -7,6 +7,7 @@ use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 use lc_core::defs::TilesetDef;
+use lc_core::id::TilesetDefId;
 use lc_core::layer::TileRef;
 use lc_core::project::Project;
 use lc_core::Command;
@@ -142,7 +143,7 @@ fn render_header_card(
                     .on_hover_text("Click to exit isolate mode (or press ESC)")
                     .clicked()
                 {
-                    state.collision_focus_tile = None;
+                    state.exit_collision_focus();
                 }
             } else {
                 let iso_btn = egui::Button::new(RichText::new("Isolate").size(10.0).color(t.muted))
@@ -179,22 +180,18 @@ fn render_presets_section(
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
 
-        // Full Box
         if ui
             .button(RichText::new("Full Box").size(10.5))
-            .on_hover_text("Set collision to a solid box covering the entire tile")
+            .on_hover_text("Solid box covering entire tile")
             .clicked()
         {
             let col = TileCollisionDef::full_tile(tileset.tile_size);
-            commands.push(Box::new(SetTileCollisionCommand::new(
-                tileset.id, tile_id, col,
-            )));
+            push_col(commands, tileset.id, tile_id, col);
         }
 
-        // Slope /
         if ui
             .button(RichText::new("Slope /").size(10.5))
-            .on_hover_text("Set collision to an upward 45-degree slope triangle")
+            .on_hover_text("Upward 45-degree slope triangle")
             .clicked()
         {
             let mut col = TileCollisionDef::new();
@@ -202,15 +199,12 @@ fn render_presets_section(
                 col.next_shape_id(),
                 tileset.tile_size,
             ));
-            commands.push(Box::new(SetTileCollisionCommand::new(
-                tileset.id, tile_id, col,
-            )));
+            push_col(commands, tileset.id, tile_id, col);
         }
 
-        // Slope \
         if ui
             .button(RichText::new("Slope \\").size(10.5))
-            .on_hover_text("Set collision to a downward 45-degree slope triangle")
+            .on_hover_text("Downward 45-degree slope triangle")
             .clicked()
         {
             let mut col = TileCollisionDef::new();
@@ -218,12 +212,9 @@ fn render_presets_section(
                 col.next_shape_id(),
                 tileset.tile_size,
             ));
-            commands.push(Box::new(SetTileCollisionCommand::new(
-                tileset.id, tile_id, col,
-            )));
+            push_col(commands, tileset.id, tile_id, col);
         }
 
-        // Clear
         if ui
             .button(
                 RichText::new("Clear")
@@ -233,9 +224,7 @@ fn render_presets_section(
             .on_hover_text("Remove all collision shapes from this tile")
             .clicked()
         {
-            commands.push(Box::new(RemoveTileCollisionCommand::new(
-                tileset.id, tile_id,
-            )));
+            push_rem(commands, tileset.id, tile_id);
         }
     });
 }
@@ -260,10 +249,9 @@ fn render_shapes_section(
         );
 
         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            // Add Poly button
             if ui
                 .button(RichText::new("+ Poly").size(10.5))
-                .on_hover_text("Add a new polygon shape")
+                .on_hover_text("Add polygon")
                 .clicked()
             {
                 let next_id = col_def.next_shape_id();
@@ -271,33 +259,24 @@ fn render_shapes_section(
                     .shapes
                     .push(CollisionShape::slope_up(next_id, tileset.tile_size));
                 state.selected_collision_shape_id = Some(next_id);
-                commands.push(Box::new(SetTileCollisionCommand::new(
-                    tileset.id,
-                    tile_id,
-                    col_def.clone(),
-                )));
+                push_col(commands, tileset.id, tile_id, col_def.clone());
             }
-
-            // Add Box button
             if ui
                 .button(RichText::new("+ Box").size(10.5))
-                .on_hover_text("Add a new rectangle shape")
+                .on_hover_text("Add rectangle")
                 .clicked()
             {
                 let next_id = col_def.next_shape_id();
+                let sz = tileset.tile_size;
                 col_def.shapes.push(CollisionShape::new_rect(
                     next_id,
                     0.0,
                     0.0,
-                    tileset.tile_size.x as f32,
-                    tileset.tile_size.y as f32,
+                    sz.x as f32,
+                    sz.y as f32,
                 ));
                 state.selected_collision_shape_id = Some(next_id);
-                commands.push(Box::new(SetTileCollisionCommand::new(
-                    tileset.id,
-                    tile_id,
-                    col_def.clone(),
-                )));
+                push_col(commands, tileset.id, tile_id, col_def.clone());
             }
         });
     });
@@ -454,56 +433,59 @@ fn render_shapes_section(
     if let Some(id_to_del) = shape_to_remove {
         col_def.shapes.retain(|s| s.id != id_to_del);
         if col_def.shapes.is_empty() {
-            commands.push(Box::new(RemoveTileCollisionCommand::new(
-                tileset.id, tile_id,
-            )));
+            push_rem(commands, tileset.id, tile_id);
         } else {
-            commands.push(Box::new(SetTileCollisionCommand::new(
-                tileset.id, tile_id, col_def,
-            )));
+            push_col(commands, tileset.id, tile_id, col_def);
         }
     } else if shape_modified {
-        commands.push(Box::new(SetTileCollisionCommand::new(
-            tileset.id, tile_id, col_def,
-        )));
+        push_col(commands, tileset.id, tile_id, col_def);
     }
+}
+
+fn push_col(cmds: &mut Vec<Box<dyn Command>>, tid: TilesetDefId, tile: u32, def: TileCollisionDef) {
+    cmds.push(Box::new(SetTileCollisionCommand::new(tid, tile, def)));
+}
+
+fn push_rem(cmds: &mut Vec<Box<dyn Command>>, tid: TilesetDefId, tile: u32) {
+    cmds.push(Box::new(RemoveTileCollisionCommand::new(tid, tile)));
 }
 
 /// Renders placeholder when no tile is selected.
 fn render_no_tile_selected(ui: &mut Ui, t: &Tokens) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(30.0);
-        ui.label(
-            RichText::new("No tile selected")
-                .size(12.0)
-                .strong()
-                .color(t.ink_strong),
-        );
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new(
-                "Click any tile in the atlas to inspect or edit its collision boundaries.",
-            )
-            .size(10.5)
-            .color(t.muted),
-        );
-    });
+    render_centered_hint(
+        ui,
+        30.0,
+        "No tile selected",
+        t.ink_strong,
+        "Click any tile in the atlas to inspect or edit its collision.",
+        t.muted,
+    );
 }
 
 /// Renders message when tile has no collision shapes.
 fn render_empty_shapes(ui: &mut Ui, t: &Tokens) {
+    render_centered_hint(
+        ui,
+        20.0,
+        "No collision on this tile",
+        t.faint,
+        "Click a preset above or '+ Box' to add collision boundaries.",
+        t.muted,
+    );
+}
+
+fn render_centered_hint(
+    ui: &mut Ui,
+    top_pad: f32,
+    title: &str,
+    title_color: Color32,
+    hint: &str,
+    hint_color: Color32,
+) {
     ui.vertical_centered(|ui| {
-        ui.add_space(20.0);
-        ui.label(
-            RichText::new("No collision on this tile")
-                .size(11.0)
-                .color(t.faint),
-        );
+        ui.add_space(top_pad);
+        ui.label(RichText::new(title).size(11.5).strong().color(title_color));
         ui.add_space(4.0);
-        ui.label(
-            RichText::new("Click a preset above or '+ Box' to add collision boundaries.")
-                .size(10.5)
-                .color(t.muted),
-        );
+        ui.label(RichText::new(hint).size(10.5).color(hint_color));
     });
 }

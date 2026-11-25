@@ -6,6 +6,8 @@ pub mod animation_toolbar;
 pub mod atlas_overlay;
 pub mod atlas_view;
 pub mod attributes_card;
+pub mod collision_interaction;
+pub mod collision_overlay;
 pub mod collision_panel;
 pub mod collision_toolbar;
 pub mod creation;

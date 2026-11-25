@@ -147,40 +147,55 @@ pub fn render_atlas_view(
         assets: assets.as_ref(),
     };
 
+    let col_cx =
+        super::collision_overlay::CollisionOverlayContext::from_state(&app.tileset_view_state);
+
+    let focus_tile = app.tileset_view_state.collision_focus_tile;
+    let in_collision = app.tileset_view_state.active_mode == "Collision";
+    let dim_fn = move |(col, row): (u32, u32)| -> bool {
+        if in_collision {
+            if let Some(focus_id) = focus_tile {
+                let tid = row * grid.cols + col;
+                return tid != focus_id;
+            }
+        }
+        false
+    };
+    let dim_pred: Option<&crate::shared::ui::atlas_canvas::TileDimPredicate<'_>> =
+        if in_collision && focus_tile.is_some() {
+            Some(&dim_fn)
+        } else {
+            None
+        };
+
     let mut overlay = |painter: &egui::Painter, (col, row): (u32, u32), tile_rect: Rect| {
         let tile_id = row * grid.cols + col;
         render_tile_overlay(painter, &ctx_clone, tile_rect, tile_id, &overlay_cx);
+        super::collision_overlay::render_tile_collision_overlay(
+            painter, tile_rect, tile_id, tileset, &col_cx, t,
+        );
     };
 
-    let (response, events) = if is_frozen {
-        ui.add_enabled_ui(false, |ui| {
-            let canvas_state = app.tileset_view_state.canvas_state_mut(tileset.id);
+    let (response, events) = {
+        let cs = app.tileset_view_state.canvas_state_mut(tileset.id);
+        let mut render_fn = |ui: &mut Ui| {
             render_atlas_canvas(
                 ui,
                 t,
-                canvas_state,
+                cs,
                 tex,
                 page_bg.as_ref(),
                 &grid,
                 vec2(img_w as f32, img_h as f32),
                 Some(&mut overlay as &mut TileOverlayCallback<'_>),
-                None,
+                dim_pred,
             )
-        })
-        .inner
-    } else {
-        let canvas_state = app.tileset_view_state.canvas_state_mut(tileset.id);
-        render_atlas_canvas(
-            ui,
-            t,
-            canvas_state,
-            tex,
-            page_bg.as_ref(),
-            &grid,
-            vec2(img_w as f32, img_h as f32),
-            Some(&mut overlay as &mut TileOverlayCallback<'_>),
-            None,
-        )
+        };
+        if is_frozen {
+            ui.add_enabled_ui(false, |ui| render_fn(ui)).inner
+        } else {
+            render_fn(ui)
+        }
     };
 
     render_animation_preview_card(
@@ -192,6 +207,21 @@ pub fn render_atlas_view(
         app.assets.as_ref(),
         &app.tileset_view_state,
     );
+
+    if !is_frozen && app.tileset_view_state.active_mode == "Collision" {
+        let canvas_view = app.tileset_view_state.canvas_state_mut(tileset.id).view;
+        let cmds = super::collision_interaction::handle_collision_focus_interaction(
+            ui,
+            &response,
+            tileset,
+            &grid,
+            canvas_view,
+            &mut app.tileset_view_state,
+        );
+        for cmd in cmds {
+            app.execute_command(cmd);
+        }
+    }
 
     if !is_frozen && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
@@ -208,13 +238,11 @@ pub fn render_atlas_view(
             .hovered_tile
         {
             let tags = tileset.marking.tags_at(hovered_id);
-            let tag_names: Vec<String> = if let Some(ref enum_def) = enum_def_opt {
+            let tag_names: Vec<String> = enum_def_opt.as_ref().map_or_else(Vec::new, |ed| {
                 tags.iter()
-                    .filter_map(|tag| enum_def.value(tag).map(|v| v.name.clone()))
+                    .filter_map(|tag| ed.value(tag).map(|v| v.name.clone()))
                     .collect()
-            } else {
-                Vec::new()
-            };
+            });
             let custom_data_text = tileset
                 .custom_data
                 .get(&hovered_id)
@@ -222,9 +250,11 @@ pub fn render_atlas_view(
                 .cloned();
 
             let title = if grid.cols > 0 {
-                let col = hovered_id % grid.cols;
-                let row = hovered_id / grid.cols;
-                format!("Tile {hovered_id} ({col}, {row})")
+                format!(
+                    "Tile {hovered_id} ({}, {})",
+                    hovered_id % grid.cols,
+                    hovered_id / grid.cols
+                )
             } else {
                 format!("Tile {hovered_id}")
             };
@@ -256,119 +286,111 @@ pub fn render_atlas_view(
                         .canvas_state_mut(tileset.id)
                         .selected_tile_rect = Some(TileRect::single(cell.0, cell.1));
 
-                    match app.tileset_view_state.active_mode.as_str() {
-                        "None" => {
-                            if button == PointerButton::Primary {
-                                let existing =
-                                    tileset.custom_data.get(&tile_id).map(|s| s.as_str());
-                                app.tileset_view_state
-                                    .custom_data_dialog
-                                    .open(tileset.id, tile_id, existing);
-                            } else if button == PointerButton::Secondary
-                                && tileset.custom_data.contains_key(&tile_id)
-                            {
-                                app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                                    tileset.id,
-                                    tile_id,
-                                    None::<String>,
-                                )));
-                            }
+                    let is_cd_target = app.tileset_view_state.active_mode == "None"
+                        || (app.tileset_view_state.active_mode == "Marking"
+                            && app.tileset_view_state.selected_marking_value.as_deref()
+                                == Some(CUSTOM_DATA_VALUE_ID));
+
+                    if is_cd_target {
+                        if button == PointerButton::Primary {
+                            let existing = tileset.custom_data.get(&tile_id).map(|s| s.as_str());
+                            app.tileset_view_state
+                                .custom_data_dialog
+                                .open(tileset.id, tile_id, existing);
+                        } else if button == PointerButton::Secondary
+                            && tileset.custom_data.contains_key(&tile_id)
+                        {
+                            app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                                tileset.id,
+                                tile_id,
+                                None::<String>,
+                            )));
                         }
-                        "Marking" => {
-                            if let Some(ref val_id) = app.tileset_view_state.selected_marking_value
-                            {
-                                if val_id == CUSTOM_DATA_VALUE_ID {
+                    } else {
+                        match app.tileset_view_state.active_mode.as_str() {
+                            "Marking" => {
+                                if let Some(ref val_id) =
+                                    app.tileset_view_state.selected_marking_value
+                                {
+                                    let has = tileset.marking.has_tag(val_id, tile_id);
+                                    if button == PointerButton::Primary && !has {
+                                        toggle_marking = Some((val_id.clone(), tile_id, true));
+                                    } else if button == PointerButton::Secondary && has {
+                                        toggle_marking = Some((val_id.clone(), tile_id, false));
+                                    }
+                                }
+                            }
+                            "Animation" => {
+                                let is_ctrl = modifiers.command || modifiers.ctrl;
+                                if is_ctrl {
                                     if button == PointerButton::Primary {
-                                        let existing =
-                                            tileset.custom_data.get(&tile_id).map(|s| s.as_str());
-                                        app.tileset_view_state
-                                            .custom_data_dialog
-                                            .open(tileset.id, tile_id, existing);
-                                    } else if button == PointerButton::Secondary
-                                        && tileset.custom_data.contains_key(&tile_id)
-                                    {
                                         app.execute_command(Box::new(
-                                            SetTileCustomDataCommand::new(
+                                            SetTileAnimationCommand::new(
                                                 tileset.id,
-                                                tile_id,
-                                                None::<String>,
+                                                TileAnimationDef::new(tile_id),
                                             ),
                                         ));
+                                        app.tileset_view_state.selected_animation_anchor =
+                                            Some(tile_id);
+                                    } else if button == PointerButton::Secondary
+                                        && tileset.animations.contains_key(&tile_id)
+                                    {
+                                        app.execute_command(Box::new(
+                                            RemoveTileAnimationCommand::new(tileset.id, tile_id),
+                                        ));
+                                        if app.tileset_view_state.selected_animation_anchor
+                                            == Some(tile_id)
+                                        {
+                                            app.tileset_view_state.selected_animation_anchor =
+                                                tileset
+                                                    .animations
+                                                    .keys()
+                                                    .copied()
+                                                    .find(|&id| id != tile_id);
+                                        }
                                     }
                                 } else if button == PointerButton::Primary {
-                                    if !tileset.marking.has_tag(val_id, tile_id) {
-                                        toggle_marking = Some((val_id.clone(), tile_id, true));
-                                    }
-                                } else if button == PointerButton::Secondary
-                                    && tileset.marking.has_tag(val_id, tile_id)
-                                {
-                                    toggle_marking = Some((val_id.clone(), tile_id, false));
-                                }
-                            }
-                        }
-                        "Animation" => {
-                            let is_ctrl = modifiers.command || modifiers.ctrl;
-                            if is_ctrl {
-                                if button == PointerButton::Primary {
-                                    let anim = TileAnimationDef::new(tile_id);
-                                    app.execute_command(Box::new(SetTileAnimationCommand::new(
-                                        tileset.id, anim,
-                                    )));
-                                    app.tileset_view_state.selected_animation_anchor =
-                                        Some(tile_id);
-                                } else if button == PointerButton::Secondary
-                                    && tileset.animations.contains_key(&tile_id)
-                                {
-                                    app.execute_command(Box::new(RemoveTileAnimationCommand::new(
-                                        tileset.id, tile_id,
-                                    )));
-                                    if app.tileset_view_state.selected_animation_anchor
-                                        == Some(tile_id)
+                                    if let Some(anchor_id) =
+                                        app.tileset_view_state.selected_animation_anchor
                                     {
-                                        app.tileset_view_state.selected_animation_anchor = tileset
-                                            .animations
-                                            .keys()
-                                            .copied()
-                                            .find(|&id| id != tile_id);
+                                        app.execute_command(Box::new(
+                                            AddAnimationFrameCommand::new(
+                                                tileset.id, anchor_id, tile_id,
+                                            ),
+                                        ));
+                                    } else {
+                                        app.execute_command(Box::new(
+                                            SetTileAnimationCommand::new(
+                                                tileset.id,
+                                                TileAnimationDef::new(tile_id),
+                                            ),
+                                        ));
+                                        app.tileset_view_state.selected_animation_anchor =
+                                            Some(tile_id);
                                     }
-                                }
-                            } else if button == PointerButton::Primary {
-                                if let Some(anchor_id) =
-                                    app.tileset_view_state.selected_animation_anchor
-                                {
-                                    app.execute_command(Box::new(AddAnimationFrameCommand::new(
-                                        tileset.id, anchor_id, tile_id,
-                                    )));
-                                } else {
-                                    let anim = TileAnimationDef::new(tile_id);
-                                    app.execute_command(Box::new(SetTileAnimationCommand::new(
-                                        tileset.id, anim,
-                                    )));
-                                    app.tileset_view_state.selected_animation_anchor =
-                                        Some(tile_id);
-                                }
-                            } else if button == PointerButton::Secondary {
-                                if let Some(anchor_id) =
-                                    app.tileset_view_state.selected_animation_anchor
-                                {
-                                    if let Some(anim) = tileset.animations.get(&anchor_id) {
-                                        if let Some(pos) =
-                                            anim.frames.iter().rposition(|&f| f == tile_id)
-                                        {
-                                            app.execute_command(Box::new(
-                                                RemoveAnimationFrameCommand::new(
-                                                    tileset.id, anchor_id, pos,
-                                                ),
-                                            ));
+                                } else if button == PointerButton::Secondary {
+                                    if let Some(anchor_id) =
+                                        app.tileset_view_state.selected_animation_anchor
+                                    {
+                                        if let Some(anim) = tileset.animations.get(&anchor_id) {
+                                            if let Some(pos) =
+                                                anim.frames.iter().rposition(|&f| f == tile_id)
+                                            {
+                                                app.execute_command(Box::new(
+                                                    RemoveAnimationFrameCommand::new(
+                                                        tileset.id, anchor_id, pos,
+                                                    ),
+                                                ));
+                                            }
                                         }
                                     }
                                 }
                             }
+                            "Collision" if button == PointerButton::Primary && modifiers.alt => {
+                                app.tileset_view_state.collision_focus_tile = Some(tile_id);
+                            }
+                            _ => {}
                         }
-                        "Collision" if button == PointerButton::Primary && modifiers.alt => {
-                            app.tileset_view_state.collision_focus_tile = Some(tile_id);
-                        }
-                        _ => {}
                     }
                 }
                 AtlasEvent::DragRectEnd(rect) => {
@@ -433,55 +455,33 @@ pub fn render_atlas_view(
             &mut app.tileset_view_state.custom_data_dialog,
             None::<fn(&mut Ui)>,
         ) {
-            match outcome {
-                CustomDataOutcome::Save(c) => {
-                    let data = if c.trim().is_empty() { None } else { Some(c) };
-                    if let Some(shape_id) = shape_id_opt {
-                        if let Some(mut col) = tileset.collision(tile_id).cloned() {
-                            if let Some(shape) = col.shapes.iter_mut().find(|s| s.id == shape_id) {
-                                shape.custom_data = data.unwrap_or_default();
-                                app.execute_command(Box::new(SetTileCollisionCommand::new(
-                                    tileset.id, tile_id, col,
-                                )));
-                            }
-                        }
-                    } else {
-                        app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                            tileset.id, tile_id, data,
+            let data = match outcome {
+                CustomDataOutcome::Save(c) if !c.trim().is_empty() => Some(c),
+                CustomDataOutcome::Cancel => return,
+                _ => None,
+            };
+
+            if let Some(shape_id) = shape_id_opt {
+                if let Some(mut col) = tileset.collision(tile_id).cloned() {
+                    if let Some(shape) = col.shapes.iter_mut().find(|s| s.id == shape_id) {
+                        shape.custom_data = data.unwrap_or_default();
+                        app.execute_command(Box::new(SetTileCollisionCommand::new(
+                            tileset.id, tile_id, col,
                         )));
                     }
                 }
-                CustomDataOutcome::Delete => {
-                    if let Some(shape_id) = shape_id_opt {
-                        if let Some(mut col) = tileset.collision(tile_id).cloned() {
-                            if let Some(shape) = col.shapes.iter_mut().find(|s| s.id == shape_id) {
-                                shape.custom_data.clear();
-                                app.execute_command(Box::new(SetTileCollisionCommand::new(
-                                    tileset.id, tile_id, col,
-                                )));
-                            }
-                        }
-                    } else {
-                        app.execute_command(Box::new(SetTileCustomDataCommand::new(
-                            tileset.id,
-                            tile_id,
-                            None::<String>,
-                        )));
-                    }
-                }
-                CustomDataOutcome::Cancel => {}
+            } else {
+                app.execute_command(Box::new(SetTileCustomDataCommand::new(
+                    tileset.id, tile_id, data,
+                )));
             }
         }
     }
 
-    // Synchronize pan and zoom settings in view state
-    let (zoom, offset) = {
-        let cs = app.tileset_view_state.canvas_state_mut(tileset.id);
-        (cs.view.zoom, cs.view.offset)
-    };
+    let view = app.tileset_view_state.canvas_state_mut(tileset.id).view;
     let pz = app.tileset_view_state.pan_zoom_mut(tileset.id);
-    pz.zoom = zoom;
-    pz.pan = offset;
+    pz.zoom = view.zoom;
+    pz.pan = view.offset;
 }
 
 fn render_empty_placeholder(ui: &mut Ui, t: &Tokens, message: &str) {
