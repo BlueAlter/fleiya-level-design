@@ -37,12 +37,15 @@ Switch tools using the selector next to the **Tile Atlas** header:
 Tile animations allow any tile on the atlas to act as an **anchor** that cycles through a sequence of **frame tiles**. Anchors animate in real time on the atlas canvas and in the docked preview card.
 
 ### Canvas Shortcuts
-- **Ctrl + Left-Click**: Create a new animation anchor from the clicked tile.
-- **Ctrl + Right-Click**: Delete the animation anchor on the clicked tile.
-- **Left-Click**: Append the clicked tile as a frame to the currently selected anchor.
-- **Right-Click**: Remove the clicked tile from the selected anchor's frame list.
-- **Left-Click + Drag**: Box-select a rectangular region to append all enclosed tiles as frames.
-- **Right-Click + Drag**: Box-select a rectangular region to remove all enclosed tiles from frames.
+
+| Shortcut | Action | Description |
+|---|---|---|
+| `Ctrl + Left-Click` | Create Anchor | Creates a new animation anchor from the clicked tile |
+| `Ctrl + Right-Click` | Delete Anchor | Deletes the animation anchor on the clicked tile |
+| `Left-Click` | Add Frame | Appends clicked tile as a frame to the active anchor |
+| `Right-Click` | Remove Frame | Removes clicked tile from the active anchor's frames |
+| `Left-Click + Drag` | Box Add Frames | Enclosed tiles are appended as animation frames |
+| `Right-Click + Drag` | Box Remove Frames | Enclosed tiles are removed from animation frames |
 
 ### Animation Toolbar
 The toolbar appears in the header row when the Animation tool is active:
@@ -62,18 +65,23 @@ The right panel provides dedicated inspectors for animation data:
 Collision mode allows defining exact physics boundaries (hitboxes) per tile using rectangles or polygons.
 
 ### Canvas Shortcuts & Isolate Focus Mode
-- **Alt + Left-Click**: Focus and isolate the clicked tile. Non-focused tiles are dimmed, activating an accent frame, sub-grid guide, and interactive drawing tools.
-- **Escape**: Exit isolate focus mode and return to full atlas view.
-- **G**: Cycle grid snapping between `None` (freeform), `Pixel` (1px precision), and `TileSize` (half/full tile).
-- **V / B / P**: Switch active collision tool (`V` = Select, `B` = Box, `P` = Polygon).
-- **Delete / Backspace**: Delete the currently selected shape.
-- **Ctrl + C**: Copy collision shapes from the active tile.
-- **Ctrl + V**: Paste copied collision shapes onto the active tile (or batch paste across multi-selected tiles).
+
+| Shortcut | Action | Description |
+|---|---|---|
+| `Alt + Left-Click` | Isolate Tile | Focuses and isolates the clicked tile with background dimming |
+| `Escape` | Exit Focus | Exits isolate mode and returns to full atlas view |
+| `G` | Cycle Snapping | Cycles grid snap mode (`Pixel` -> `Tile` -> `Off`) |
+| `V` | Select Tool | Selects shapes and allows dragging vertex / corner handle dots |
+| `B` | Box Tool | Click-and-drag to create an aligned rectangle boundary |
+| `P` | Polygon Tool | Click to place points; double-click, click start dot, or `Enter` to close |
+| `Delete` / `Backspace` | Delete Shape | Deletes the currently selected collision shape |
+| `Ctrl + C` | Copy Collision | Copies all collision shapes from active tile to clipboard |
+| `Ctrl + V` | Paste Collision | Pastes collision shapes onto active or multi-selected tiles |
 
 ### Collision Tools
-- **Select (V)**: Click any shape to select and inspect its properties in the right panel. Selected shapes display yellow accent outlines with corner resize handles.
+- **Select (V)**: Click any shape to select and inspect its properties in the right panel. Selected shapes display yellow accent outlines with interactive handle dots on every vertex and corner. Drag handle dots with the cursor to reshape geometry freely.
 - **Box (B)**: Click and drag within the isolated tile to draw an aligned rectangle boundary. Snapping applies dynamically to bounds.
-- **Polygon (P)**: Click to place successive vertices. Double-click, press `Enter`, or click within 12px of the starting vertex to close the loop.
+- **Polygon (P)**: Click to place successive vertices. Double-click, press `Enter`, or click within 16px of the starting vertex to close the loop.
 
 ### Collision Toolbar & Properties Panel
 The right panel provides tools, presets, and individual shape parameters:

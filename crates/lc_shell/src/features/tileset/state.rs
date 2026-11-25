@@ -66,6 +66,15 @@ impl Default for TilesetPanZoom {
     }
 }
 
+/// Target handle being dragged to reshape a collision geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollisionHandleTarget {
+    /// Dragging a vertex of a polygon shape: (shape_id, vertex_index).
+    PolygonVertex { shape_id: u32, vertex_idx: usize },
+    /// Dragging a corner of a rectangle shape: (shape_id, corner_index 0..=3).
+    RectCorner { shape_id: u32, corner_idx: usize },
+}
+
 /// View state for the Tilesets workspace page.
 #[derive(Clone)]
 pub struct TilesetViewState {
@@ -147,6 +156,8 @@ pub struct TilesetViewState {
     pub collision_drag_start: Option<glam::Vec2>,
     /// Drag current point in tile local coordinates.
     pub collision_drag_current: Option<glam::Vec2>,
+    /// Active handle target currently being dragged (if any).
+    pub collision_drag_handle: Option<CollisionHandleTarget>,
     /// Draft vertices for in-progress polygon creation in focus mode.
     pub collision_poly_draft: Vec<glam::Vec2>,
 }
@@ -206,6 +217,7 @@ impl Default for TilesetViewState {
             show_collision_overlay: true,
             collision_drag_start: None,
             collision_drag_current: None,
+            collision_drag_handle: None,
             collision_poly_draft: Vec::new(),
         }
     }
@@ -218,6 +230,7 @@ impl TilesetViewState {
         self.selected_collision_shape_id = None;
         self.collision_drag_start = None;
         self.collision_drag_current = None;
+        self.collision_drag_handle = None;
         self.collision_poly_draft.clear();
     }
 
@@ -277,5 +290,25 @@ impl TilesetViewState {
         } else {
             anchor_id
         }
+    }
+
+    /// Lazily loads and returns the neutral page background texture.
+    pub fn ensure_page_bg(&mut self, ctx: &egui::Context) -> Option<egui::TextureHandle> {
+        if let Some(ref bg) = self.page_bg {
+            return Some(bg.clone());
+        }
+        const PAGE_BG: &[u8] =
+            include_bytes!("../../../../../assets/Bg/tileset_picker_bg_netral.png");
+        let img = image::load_from_memory(PAGE_BG).ok()?.to_rgba8();
+        let (w, h) = img.dimensions();
+        let color_image =
+            egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &img.into_raw());
+        let handle = ctx.load_texture(
+            "tileset_atlas_page_bg",
+            color_image,
+            egui::TextureOptions::NEAREST_REPEAT,
+        );
+        self.page_bg = Some(handle.clone());
+        Some(handle)
     }
 }

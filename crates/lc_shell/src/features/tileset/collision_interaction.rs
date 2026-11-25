@@ -1,13 +1,13 @@
 //! Canvas input handling and shape manipulation for collision focus mode.
 
-use egui::{Key, PointerButton, Response, Ui};
+use egui::{CursorIcon, Key, PointerButton, Pos2, Rect, Response, Ui};
 use glam::Vec2;
 use lc_core::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 use lc_core::defs::TilesetDef;
 use lc_feature_tileset::collision_commands::{RemoveTileCollisionCommand, SetTileCollisionCommand};
 
 use super::collision_overlay::{local_to_screen, screen_to_local, snap_local_point};
-use super::state::{CollisionTool, TilesetViewState};
+use super::state::{CollisionHandleTarget, CollisionTool, TilesetViewState};
 use crate::shared::ui::atlas_canvas::PickerView;
 use crate::shared::ui::tile_bounds::TileGrid;
 
@@ -58,6 +58,47 @@ pub fn hit_test_shapes(local_pos: Vec2, col_def: &TileCollisionDef) -> Option<u3
         if hit {
             return Some(shape.id);
         }
+    }
+    None
+}
+
+/// Hit-tests handle dots of a selected shape, returning the matching target if within 8px.
+pub fn hit_test_handles(
+    pos: Pos2,
+    shape: &CollisionShape,
+    tile_rect: Rect,
+    tile_size: glam::UVec2,
+) -> Option<CollisionHandleTarget> {
+    const RADIUS: f32 = 8.0;
+    match &shape.geometry {
+        CollisionShapeGeometry::Polygon { points } => {
+            for (idx, &pt) in points.iter().enumerate() {
+                let screen_pt = local_to_screen(pt, tile_rect, tile_size);
+                if pos.distance(screen_pt) <= RADIUS {
+                    return Some(CollisionHandleTarget::PolygonVertex {
+                        shape_id: shape.id,
+                        vertex_idx: idx,
+                    });
+                }
+            }
+        }
+        CollisionShapeGeometry::Rectangle { x, y, w, h } => {
+            let corners = [
+                local_to_screen(Vec2::new(*x, *y), tile_rect, tile_size),
+                local_to_screen(Vec2::new(*x + *w, *y), tile_rect, tile_size),
+                local_to_screen(Vec2::new(*x + *w, *y + *h), tile_rect, tile_size),
+                local_to_screen(Vec2::new(*x, *y + *h), tile_rect, tile_size),
+            ];
+            for (idx, &c_pt) in corners.iter().enumerate() {
+                if pos.distance(c_pt) <= RADIUS {
+                    return Some(CollisionHandleTarget::RectCorner {
+                        shape_id: shape.id,
+                        corner_idx: idx,
+                    });
+                }
+            }
+        }
+        _ => {}
     }
     None
 }
@@ -149,38 +190,120 @@ pub fn handle_collision_focus_interaction(
                 close_polygon_draft(focus_tile_id, tileset, state, &mut commands);
             } else if primary_clicked {
                 if let Some(pos) = pointer_pos {
+                    // If clicking near first draft point and >= 3 points, close loop
+                    if state.collision_poly_draft.len() >= 3 {
+                        let first_screen = local_to_screen(
+                            state.collision_poly_draft[0],
+                            tile_screen,
+                            tileset.tile_size,
+                        );
+                        if pos.distance(first_screen) <= 16.0 {
+                            close_polygon_draft(focus_tile_id, tileset, state, &mut commands);
+                            return commands;
+                        }
+                    }
+
                     if tile_screen.contains(pos) {
                         let local_raw = screen_to_local(pos, tile_screen, tileset.tile_size);
                         let snapped =
                             snap_local_point(local_raw, tileset.tile_size, state.collision_snap);
-
-                        // If clicking near first draft point and >= 3 points, close loop
-                        if state.collision_poly_draft.len() >= 3 {
-                            let first_screen = local_to_screen(
-                                state.collision_poly_draft[0],
-                                tile_screen,
-                                tileset.tile_size,
-                            );
-                            if pos.distance(first_screen) < 12.0 {
-                                close_polygon_draft(focus_tile_id, tileset, state, &mut commands);
-                                return commands;
-                            }
-                        }
-
                         state.collision_poly_draft.push(snapped);
                     }
                 }
             }
         }
         CollisionTool::Select => {
-            if primary_clicked {
-                if let Some(pos) = pointer_pos {
-                    if tile_screen.contains(pos) {
+            let col_def_opt = tileset.collisions.get(&focus_tile_id);
+            let selected_shape = state
+                .selected_collision_shape_id
+                .and_then(|sid| col_def_opt.and_then(|cd| cd.shapes.iter().find(|s| s.id == sid)));
+
+            // 1. Check if hovering/clicking on an interactive handle dot of the selected shape
+            let hovered_handle = if let (Some(shape), Some(pos)) = (selected_shape, pointer_pos) {
+                hit_test_handles(pos, shape, tile_screen, tileset.tile_size)
+            } else {
+                None
+            };
+
+            if hovered_handle.is_some() || state.collision_drag_handle.is_some() {
+                ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
+            }
+
+            if primary_down && state.collision_drag_handle.is_none() {
+                if let Some(handle) = hovered_handle {
+                    state.collision_drag_handle = Some(handle);
+                }
+            }
+
+            // 2. Drag release commits edited shape geometry
+            if !primary_down {
+                if let Some(target) = state.collision_drag_handle.take() {
+                    if let (Some(pos), Some(mut col_def)) = (pointer_pos, col_def_opt.cloned()) {
                         let local_raw = screen_to_local(pos, tile_screen, tileset.tile_size);
-                        if let Some(col_def) = tileset.collisions.get(&focus_tile_id) {
-                            state.selected_collision_shape_id = hit_test_shapes(local_raw, col_def);
-                        } else {
-                            state.selected_collision_shape_id = None;
+                        let snapped =
+                            snap_local_point(local_raw, tileset.tile_size, state.collision_snap);
+                        match target {
+                            CollisionHandleTarget::PolygonVertex {
+                                shape_id,
+                                vertex_idx,
+                            } => {
+                                if let Some(s) =
+                                    col_def.shapes.iter_mut().find(|s| s.id == shape_id)
+                                {
+                                    if let CollisionShapeGeometry::Polygon { points } =
+                                        &mut s.geometry
+                                    {
+                                        if vertex_idx < points.len() {
+                                            points[vertex_idx] = snapped;
+                                            commands.push(Box::new(SetTileCollisionCommand::new(
+                                                tileset.id,
+                                                focus_tile_id,
+                                                col_def,
+                                            )));
+                                        }
+                                    }
+                                }
+                            }
+                            CollisionHandleTarget::RectCorner {
+                                shape_id,
+                                corner_idx,
+                            } => {
+                                if let Some(s) =
+                                    col_def.shapes.iter_mut().find(|s| s.id == shape_id)
+                                {
+                                    if let CollisionShapeGeometry::Rectangle { x, y, w, h } =
+                                        &mut s.geometry
+                                    {
+                                        let opp = match corner_idx {
+                                            0 => Vec2::new(*x + *w, *y + *h),
+                                            1 => Vec2::new(*x, *y + *h),
+                                            2 => Vec2::new(*x, *y),
+                                            _ => Vec2::new(*x + *w, *y),
+                                        };
+                                        *x = opp.x.min(snapped.x);
+                                        *y = opp.y.min(snapped.y);
+                                        *w = (opp.x - snapped.x).abs().max(1.0);
+                                        *h = (opp.y - snapped.y).abs().max(1.0);
+                                        commands.push(Box::new(SetTileCollisionCommand::new(
+                                            tileset.id,
+                                            focus_tile_id,
+                                            col_def,
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if primary_clicked {
+                    if let Some(pos) = pointer_pos {
+                        if tile_screen.contains(pos) {
+                            let local_raw = screen_to_local(pos, tile_screen, tileset.tile_size);
+                            if let Some(col_def) = col_def_opt {
+                                state.selected_collision_shape_id =
+                                    hit_test_shapes(local_raw, col_def);
+                            } else {
+                                state.selected_collision_shape_id = None;
+                            }
                         }
                     }
                 }

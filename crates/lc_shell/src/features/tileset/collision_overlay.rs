@@ -6,7 +6,7 @@ use lc_canvas::theme::Tokens;
 use lc_core::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 use lc_core::defs::TilesetDef;
 
-use super::state::{CollisionSnapMode, CollisionTool, TilesetViewState};
+use super::state::{CollisionHandleTarget, CollisionSnapMode, CollisionTool, TilesetViewState};
 
 /// Context parameters for rendering collision shapes and isolate/focus overlays.
 #[derive(Debug, Clone)]
@@ -27,6 +27,8 @@ pub struct CollisionOverlayContext {
     pub drag_start: Option<Vec2>,
     /// In-progress drag current coordinate.
     pub drag_current: Option<Vec2>,
+    /// In-progress drag handle target.
+    pub drag_handle: Option<CollisionHandleTarget>,
     /// In-progress polygon draft points.
     pub poly_draft: Vec<Vec2>,
 }
@@ -43,6 +45,7 @@ impl CollisionOverlayContext {
             tool: state.collision_tool,
             drag_start: state.collision_drag_start,
             drag_current: state.collision_drag_current,
+            drag_handle: state.collision_drag_handle,
             poly_draft: state.collision_poly_draft.clone(),
         }
     }
@@ -372,7 +375,17 @@ fn render_in_progress_preview(
                 }
             }
         }
-        CollisionTool::Select => {}
+        CollisionTool::Select => {
+            if let (Some(_), Some(curr)) = (cx.drag_handle, cx.drag_current) {
+                let curr_screen = local_to_screen(curr, tile_rect, tile_size);
+                painter.circle_filled(curr_screen, 5.0, Color32::from_rgb(255, 230, 90));
+                painter.circle_stroke(
+                    curr_screen,
+                    5.0,
+                    Stroke::new(2.0, Color32::from_rgb(20, 24, 30)),
+                );
+            }
+        }
     }
 }
 
@@ -398,19 +411,10 @@ fn draw_rect_handles(painter: &egui::Painter, rect: Rect) {
     draw_handle(painter, rect.left_bottom());
 }
 
-/// Draws a single square resize handle.
+/// Draws a single circular resize handle dot.
 fn draw_handle(painter: &egui::Painter, center: Pos2) {
-    painter.rect_filled(
-        Rect::from_center_size(center, vec2(6.0, 6.0)),
-        CornerRadius::ZERO,
-        Color32::WHITE,
-    );
-    painter.rect_stroke(
-        Rect::from_center_size(center, vec2(6.0, 6.0)),
-        CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::BLACK),
-        StrokeKind::Outside,
-    );
+    painter.circle_filled(center, 4.0, Color32::WHITE);
+    painter.circle_stroke(center, 4.0, Stroke::new(1.5, Color32::from_rgb(20, 24, 30)));
 }
 
 /// Draws a tiny text pill badge showing the shape's semantic tag.

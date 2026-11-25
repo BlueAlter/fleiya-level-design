@@ -17,9 +17,6 @@ use crate::shared::ui::atlas_canvas::{render_atlas_canvas, AtlasEvent, TileOverl
 use crate::shared::ui::custom_data_dialog::{render_custom_data_dialog, CustomDataOutcome};
 use crate::shared::ui::tile_bounds::{TileGrid, TileRect};
 
-const PAGE_BG_BYTES: &[u8] =
-    include_bytes!("../../../../../assets/Bg/tileset_picker_bg_netral.png");
-
 /// Fit rule from workspace spec:
 /// zoom = min((avail_w - 32) / img_w, (avail_h - 32) / img_h, 8.0). Clamped to min 0.1, max 8.0.
 /// pan = center of available rect - (img_size * zoom) / 2.
@@ -77,25 +74,7 @@ pub fn render_atlas_view(
         metrics.rows,
     );
 
-    let page_bg = if let Some(ref bg) = app.tileset_view_state.page_bg {
-        Some(bg.clone())
-    } else {
-        image::load_from_memory(PAGE_BG_BYTES).ok().map(|img| {
-            let rgba = img.to_rgba8();
-            let (w, h) = rgba.dimensions();
-            let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                [w as usize, h as usize],
-                &rgba.into_raw(),
-            );
-            let handle = ui.ctx().load_texture(
-                "tileset_atlas_page_bg",
-                color_image,
-                egui::TextureOptions::NEAREST_REPEAT,
-            );
-            app.tileset_view_state.page_bg = Some(handle.clone());
-            handle
-        })
-    };
+    let page_bg = app.tileset_view_state.ensure_page_bg(ui.ctx());
 
     let is_frozen = app.tileset_view_state.custom_data_dialog.is_open
         || app.tileset_view_state.is_enum_dropdown_open;
@@ -223,7 +202,15 @@ pub fn render_atlas_view(
         }
     }
 
-    if !is_frozen && (response.double_clicked() || fit_key) && img_w > 0 && img_h > 0 {
+    let is_collision_isolated = app.tileset_view_state.active_mode == "Collision"
+        && app.tileset_view_state.collision_focus_tile.is_some();
+
+    if !is_frozen
+        && !is_collision_isolated
+        && (response.double_clicked() || fit_key)
+        && img_w > 0
+        && img_h > 0
+    {
         let (fit_zoom, fit_offset) = compute_atlas_fit(available_rect, img_w as f32, img_h as f32);
         let cs = app.tileset_view_state.canvas_state_mut(tileset.id);
         cs.view.zoom = fit_zoom;
@@ -231,7 +218,7 @@ pub fn render_atlas_view(
     }
 
     // Hover tooltip: positioned at cursor, width-bounded and height-bounded with scrolling
-    if !is_frozen {
+    if !is_frozen && !is_collision_isolated {
         if let Some(hovered_id) = app
             .tileset_view_state
             .canvas_state_mut(tileset.id)
@@ -281,6 +268,9 @@ pub fn render_atlas_view(
                     button,
                     modifiers,
                 } => {
+                    if is_collision_isolated {
+                        continue;
+                    }
                     app.tileset_view_state.selected_tile = Some(tile_id);
                     app.tileset_view_state
                         .canvas_state_mut(tileset.id)
@@ -394,6 +384,9 @@ pub fn render_atlas_view(
                     }
                 }
                 AtlasEvent::DragRectEnd(rect) => {
+                    if is_collision_isolated {
+                        continue;
+                    }
                     let btn = app
                         .tileset_view_state
                         .canvas_state_mut(tileset.id)
@@ -406,21 +399,21 @@ pub fn render_atlas_view(
                             .tileset_view_state
                             .selected_animation_anchor
                             .or_else(|| tileset.animations.keys().next().copied());
-                        if let Some(anchor_id) = anchor_opt {
+                        if let Some(aid) = anchor_opt {
                             for (c, r) in rect.cells() {
                                 let tid = grid.tile_id(c, r);
                                 if btn == PointerButton::Primary {
                                     app.execute_command(Box::new(AddAnimationFrameCommand::new(
-                                        tileset.id, anchor_id, tid,
+                                        tileset.id, aid, tid,
                                     )));
                                 } else if btn == PointerButton::Secondary {
-                                    if let Some(anim) = tileset.animations.get(&anchor_id) {
+                                    if let Some(anim) = tileset.animations.get(&aid) {
                                         if let Some(pos) =
                                             anim.frames.iter().rposition(|&f| f == tid)
                                         {
                                             app.execute_command(Box::new(
                                                 RemoveAnimationFrameCommand::new(
-                                                    tileset.id, anchor_id, pos,
+                                                    tileset.id, aid, pos,
                                                 ),
                                             ));
                                         }

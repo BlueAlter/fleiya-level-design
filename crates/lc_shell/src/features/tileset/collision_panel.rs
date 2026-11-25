@@ -125,38 +125,44 @@ fn render_header_card(
                     .color(t.ink_strong),
             );
 
-            // Isolate mode toggle / badge
-            let is_isolated = state.collision_focus_tile == Some(tid);
-            if is_isolated {
-                let badge_btn = egui::Button::new(
-                    RichText::new("ISOLATED")
-                        .size(10.0)
-                        .strong()
-                        .color(t.accent_ink),
-                )
-                .fill(t.accent.gamma_multiply(0.25))
-                .stroke(Stroke::new(1.0, t.accent))
-                .corner_radius(CornerRadius::ZERO);
-
-                if ui
-                    .add(badge_btn)
-                    .on_hover_text("Click to exit isolate mode (or press ESC)")
-                    .clicked()
-                {
-                    state.exit_collision_focus();
-                }
-            } else {
-                let iso_btn = egui::Button::new(RichText::new("Isolate").size(10.0).color(t.muted))
+            // Isolate mode toggle / badge pinned to far right
+            ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                let is_isolated = state.collision_focus_tile == Some(tid);
+                if is_isolated {
+                    let badge_btn = egui::Button::new(
+                        RichText::new(format!("{} ISOLATED", Icon::Select.glyph()))
+                            .font(egui::FontId::new(10.0, lc_canvas::icons::family(ui.ctx())))
+                            .strong()
+                            .color(t.accent_ink),
+                    )
+                    .fill(t.accent.gamma_multiply(0.25))
+                    .stroke(Stroke::new(1.0, t.accent))
                     .corner_radius(CornerRadius::ZERO);
 
-                if ui
-                    .add(iso_btn)
-                    .on_hover_text("Isolate this tile on canvas (Alt + Click)")
-                    .clicked()
-                {
-                    state.collision_focus_tile = Some(tid);
+                    if ui
+                        .add(badge_btn)
+                        .on_hover_text("Click to exit isolate mode (or press ESC)")
+                        .clicked()
+                    {
+                        state.exit_collision_focus();
+                    }
+                } else {
+                    let iso_btn = egui::Button::new(
+                        RichText::new(format!("{} Isolate", Icon::Fit.glyph()))
+                            .font(egui::FontId::new(10.0, lc_canvas::icons::family(ui.ctx())))
+                            .color(t.muted),
+                    )
+                    .corner_radius(CornerRadius::ZERO);
+
+                    if ui
+                        .add(iso_btn)
+                        .on_hover_text("Isolate this tile on canvas (Alt + Click)")
+                        .clicked()
+                    {
+                        state.collision_focus_tile = Some(tid);
+                    }
                 }
-            }
+            });
         } else {
             ui.label(RichText::new("No tile selected").size(11.0).color(t.muted));
         }
@@ -180,8 +186,10 @@ fn render_presets_section(
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
 
+        let f_box = RichText::new(format!("{} Box", Icon::Rectangle.glyph()))
+            .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())));
         if ui
-            .button(RichText::new("Full Box").size(10.5))
+            .button(f_box)
             .on_hover_text("Solid box covering entire tile")
             .clicked()
         {
@@ -189,8 +197,10 @@ fn render_presets_section(
             push_col(commands, tileset.id, tile_id, col);
         }
 
+        let s_up = RichText::new(format!("{} Slope /", Icon::Shape.glyph()))
+            .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())));
         if ui
-            .button(RichText::new("Slope /").size(10.5))
+            .button(s_up)
             .on_hover_text("Upward 45-degree slope triangle")
             .clicked()
         {
@@ -202,8 +212,10 @@ fn render_presets_section(
             push_col(commands, tileset.id, tile_id, col);
         }
 
+        let s_dn = RichText::new(format!("{} Slope \\", Icon::Shape.glyph()))
+            .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())));
         if ui
-            .button(RichText::new("Slope \\").size(10.5))
+            .button(s_dn)
             .on_hover_text("Downward 45-degree slope triangle")
             .clicked()
         {
@@ -215,12 +227,11 @@ fn render_presets_section(
             push_col(commands, tileset.id, tile_id, col);
         }
 
+        let clr = RichText::new(format!("{} Clear", Icon::Clear.glyph()))
+            .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())))
+            .color(Color32::from_rgb(220, 80, 80));
         if ui
-            .button(
-                RichText::new("Clear")
-                    .size(10.5)
-                    .color(Color32::from_rgb(220, 80, 80)),
-            )
+            .button(clr)
             .on_hover_text("Remove all collision shapes from this tile")
             .clicked()
         {
@@ -249,11 +260,9 @@ fn render_shapes_section(
         );
 
         ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-            if ui
-                .button(RichText::new("+ Poly").size(10.5))
-                .on_hover_text("Add polygon")
-                .clicked()
-            {
+            let p_lbl = RichText::new(format!("{} Poly", Icon::Add.glyph()))
+                .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())));
+            if ui.button(p_lbl).on_hover_text("Add polygon").clicked() {
                 let next_id = col_def.next_shape_id();
                 col_def
                     .shapes
@@ -261,11 +270,10 @@ fn render_shapes_section(
                 state.selected_collision_shape_id = Some(next_id);
                 push_col(commands, tileset.id, tile_id, col_def.clone());
             }
-            if ui
-                .button(RichText::new("+ Box").size(10.5))
-                .on_hover_text("Add rectangle")
-                .clicked()
-            {
+
+            let b_lbl = RichText::new(format!("{} Box", Icon::Add.glyph()))
+                .font(egui::FontId::new(10.5, lc_canvas::icons::family(ui.ctx())));
+            if ui.button(b_lbl).on_hover_text("Add rectangle").clicked() {
                 let next_id = col_def.next_shape_id();
                 let sz = tileset.tile_size;
                 col_def.shapes.push(CollisionShape::new_rect(
@@ -408,9 +416,10 @@ fn render_shapes_section(
 
                     // Tag and One-Way row
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Tag:").size(10.0).color(t.muted));
+                        ui.label(Icon::Tag.rich(ui.ctx(), 11.0, t.muted));
                         let tag_edit = ui.add(
                             egui::TextEdit::singleline(&mut shape.tag)
+                                .hint_text("tag...")
                                 .desired_width(75.0)
                                 .font(egui::FontId::proportional(11.0)),
                         );
@@ -452,40 +461,37 @@ fn push_rem(cmds: &mut Vec<Box<dyn Command>>, tid: TilesetDefId, tile: u32) {
 
 /// Renders placeholder when no tile is selected.
 fn render_no_tile_selected(ui: &mut Ui, t: &Tokens) {
-    render_centered_hint(
-        ui,
-        30.0,
-        "No tile selected",
-        t.ink_strong,
-        "Click any tile in the atlas to inspect or edit its collision.",
-        t.muted,
-    );
+    ui.vertical_centered(|ui| {
+        ui.add_space(30.0);
+        ui.label(
+            RichText::new("No tile selected")
+                .size(11.5)
+                .strong()
+                .color(t.ink_strong),
+        );
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new("Click any tile in atlas to inspect collision.")
+                .size(10.5)
+                .color(t.muted),
+        );
+    });
 }
 
 /// Renders message when tile has no collision shapes.
 fn render_empty_shapes(ui: &mut Ui, t: &Tokens) {
-    render_centered_hint(
-        ui,
-        20.0,
-        "No collision on this tile",
-        t.faint,
-        "Click a preset above or '+ Box' to add collision boundaries.",
-        t.muted,
-    );
-}
-
-fn render_centered_hint(
-    ui: &mut Ui,
-    top_pad: f32,
-    title: &str,
-    title_color: Color32,
-    hint: &str,
-    hint_color: Color32,
-) {
     ui.vertical_centered(|ui| {
-        ui.add_space(top_pad);
-        ui.label(RichText::new(title).size(11.5).strong().color(title_color));
+        ui.add_space(20.0);
+        ui.label(
+            RichText::new("No collision on this tile")
+                .size(11.0)
+                .color(t.faint),
+        );
         ui.add_space(4.0);
-        ui.label(RichText::new(hint).size(10.5).color(hint_color));
+        ui.label(
+            RichText::new("Click a preset above or '+ Box' to add boundaries.")
+                .size(10.5)
+                .color(t.muted),
+        );
     });
 }

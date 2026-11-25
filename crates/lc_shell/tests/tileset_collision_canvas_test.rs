@@ -125,6 +125,45 @@ fn test_collision_overlay_context_capture() {
     assert_eq!(cx.snap, CollisionSnapMode::TileSize);
     assert_eq!(cx.tool, CollisionTool::Polygon);
     assert_eq!(cx.poly_draft.len(), 2);
+    assert_eq!(cx.drag_handle, None);
+}
+
+#[test]
+fn test_hit_test_handles() {
+    use lc_shell::features::tileset::collision_interaction::hit_test_handles;
+    use lc_shell::features::tileset::state::CollisionHandleTarget;
+
+    let tile_size = UVec2::new(16, 16);
+    let tile_rect = Rect::from_min_size(Pos2::new(0.0, 0.0), vec2(64.0, 64.0));
+
+    let box_shape = CollisionShape::new_rect(1, 0.0, 0.0, 16.0, 16.0);
+    assert_eq!(
+        hit_test_handles(Pos2::new(2.0, 2.0), &box_shape, tile_rect, tile_size),
+        Some(CollisionHandleTarget::RectCorner {
+            shape_id: 1,
+            corner_idx: 0
+        })
+    );
+    assert_eq!(
+        hit_test_handles(Pos2::new(63.0, 62.0), &box_shape, tile_rect, tile_size),
+        Some(CollisionHandleTarget::RectCorner {
+            shape_id: 1,
+            corner_idx: 2
+        })
+    );
+    assert_eq!(
+        hit_test_handles(Pos2::new(32.0, 32.0), &box_shape, tile_rect, tile_size),
+        None
+    );
+
+    let poly_shape = CollisionShape::slope_up(2, UVec2::new(16, 16));
+    assert_eq!(
+        hit_test_handles(Pos2::new(64.0, 1.0), &poly_shape, tile_rect, tile_size),
+        Some(CollisionHandleTarget::PolygonVertex {
+            shape_id: 2,
+            vertex_idx: 1
+        })
+    );
 }
 
 #[test]
