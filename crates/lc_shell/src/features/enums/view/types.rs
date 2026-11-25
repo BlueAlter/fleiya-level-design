@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::time::Instant;
 
-use egui::{vec2, Color32, CornerRadius, Pos2, Rect, RichText, Stroke, Ui};
+use egui::{vec2, Color32, Frame, Pos2, Rect, RichText, Ui};
 
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
@@ -297,53 +297,11 @@ pub fn render_enum_document(ui: &mut Ui, t: &Tokens, cache: &DocumentCache, scro
 
 pub fn enum_sub_tabs(ui: &mut Ui, t: &Tokens, active: &mut usize, labels: &[&str]) -> bool {
     let mut changed = false;
-    let tab_height = 28.0;
-    let mut rects = Vec::with_capacity(labels.len());
-
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        for (idx, &label) in labels.iter().enumerate() {
-            let is_active = *active == idx;
-            let text = RichText::new(label)
-                .size(12.0)
-                .strong()
-                .color(if is_active { t.ink_strong } else { t.muted });
-            let resp = ui.add_sized(
-                [100.0, tab_height],
-                egui::Button::new(text)
-                    .fill(if is_active {
-                        t.sunken
-                    } else {
-                        Color32::TRANSPARENT
-                    })
-                    .stroke(if is_active {
-                        t.hairline()
-                    } else {
-                        Stroke::NONE
-                    })
-                    .corner_radius(CornerRadius::same(3)),
-            );
-            rects.push((idx, resp.rect));
-            if resp.clicked() && !is_active {
-                *active = idx;
-                changed = true;
-            }
-        }
+    Frame::new().fill(Color32::TRANSPARENT).show(ui, |ui| {
+        ui.set_min_height(CONTROL_HEIGHT_COMPACT);
+        ui.set_max_height(CONTROL_HEIGHT_COMPACT);
+        changed = crate::shared::ui::sub_tabs::sub_tabs(ui, t, active, labels);
     });
-
-    for (idx, r) in rects {
-        if *active == idx {
-            let line_y = r.max.y - 1.0;
-            ui.painter().line_segment(
-                [
-                    Pos2::new(r.min.x + 2.0, line_y),
-                    Pos2::new(r.max.x - 2.0, line_y),
-                ],
-                Stroke::new(2.0, t.accent),
-            );
-        }
-    }
-
     changed
 }
 
