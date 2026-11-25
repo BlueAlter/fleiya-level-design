@@ -38,6 +38,7 @@ struct RenderedText {
 struct Collected {
     texts: Vec<RenderedText>,
     bullets: Vec<egui::epaint::CircleShape>,
+    lines: Vec<(Pos2, Pos2)>,
 }
 
 fn collect(shape: &egui::Shape, out: &mut Collected) {
@@ -59,6 +60,9 @@ fn collect(shape: &egui::Shape, out: &mut Collected) {
             });
         }
         egui::Shape::Circle(circle) => out.bullets.push(*circle),
+        egui::Shape::LineSegment { points, .. } => {
+            out.lines.push((points[0], points[1]));
+        }
         egui::Shape::Vec(shapes) => {
             for shape in shapes {
                 collect(shape, out);
@@ -181,5 +185,71 @@ fn wrapped_items_keep_the_marker_on_the_first_text_line() {
         "wrapped item marker is {offset:.2} px off its first text line (marker {}, text {})",
         collected.bullets[1].center.y,
         wrapped.first_row_center.y
+    );
+}
+
+#[test]
+fn table_has_vertical_borders_and_readable_column_spacing() {
+    let table_md = "\
+| Shortcut | Action | Description |
+|---|---|---|
+| `V` | Select | Select shapes |
+| `B` | Box | Draw box |
+";
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let tokens = Tokens::get(&ctx);
+
+    let mut collected = Collected::default();
+    let mut output = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 400.0))),
+            ..Default::default()
+        },
+        |ui| {
+            ui.set_max_width(560.0);
+            let mut cache = egui_commonmark::CommonMarkCache::default();
+            render_markdown_document(ui, &tokens, &mut cache, table_md);
+        },
+    );
+    output.textures_delta.clear();
+    for clipped in &output.shapes {
+        collect(&clipped.shape, &mut collected);
+    }
+
+    let vertical_lines: Vec<_> = collected
+        .lines
+        .iter()
+        .filter(|(a, b)| (a.x - b.x).abs() < 0.5 && (b.y - a.y).abs() > 20.0)
+        .collect();
+    assert_eq!(
+        vertical_lines.len(),
+        2,
+        "3-column table must paint 2 vertical column divider lines, found {:?}",
+        vertical_lines
+    );
+
+    let horizontal_lines: Vec<_> = collected
+        .lines
+        .iter()
+        .filter(|(a, b)| (a.y - b.y).abs() < 0.5 && (b.x - a.x).abs() > 50.0)
+        .collect();
+    assert!(
+        horizontal_lines.len() >= 2,
+        "table must paint header and row horizontal dividers, found {:?}",
+        horizontal_lines
+    );
+
+    let c1 = text(&collected, "Shortcut");
+    let c2 = text(&collected, "Action");
+    let c3 = text(&collected, "Description");
+    assert!(
+        c2.center.x - c1.center.x >= 40.0 && c3.center.x - c2.center.x >= 40.0,
+        "columns must have comfortable spacing, got centers: {}, {}, {}",
+        c1.center.x,
+        c2.center.x,
+        c3.center.x
     );
 }

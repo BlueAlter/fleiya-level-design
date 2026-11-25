@@ -4,6 +4,7 @@ pub mod def_workspace;
 pub mod drag_list;
 pub mod icon_button;
 pub mod markdown_document;
+pub(crate) mod markdown_table;
 pub mod modal;
 pub mod reorder;
 pub mod reorder_list;

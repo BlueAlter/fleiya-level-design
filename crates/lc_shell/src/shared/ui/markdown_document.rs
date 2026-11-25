@@ -18,6 +18,8 @@ use egui::{FontId, ScrollArea, TextStyle, Ui};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use lc_canvas::theme::Tokens;
 
+use super::markdown_table::{render_markdown_table, split_markdown_tables, DocBlock};
+
 /// Markdown cache of a DOCUMENT sub-tab (view state, never in `Project`).
 pub type DocumentCache = Arc<Mutex<CommonMarkCache>>;
 
@@ -44,9 +46,32 @@ pub fn render_markdown_document(
     cache: &mut CommonMarkCache,
     markdown: &str,
 ) {
-    ui.scope(|ui| {
-        apply_document_list_layout(ui, t);
-        CommonMarkViewer::new().show(ui, cache, markdown);
+    let blocks = split_markdown_tables(markdown);
+    let has_table = blocks.iter().any(|b| matches!(b, DocBlock::Table(_)));
+    if !has_table {
+        ui.scope(|ui| {
+            apply_document_list_layout(ui, t);
+            CommonMarkViewer::new().show(ui, cache, markdown);
+        });
+        return;
+    }
+
+    ui.vertical(|ui| {
+        for block in blocks {
+            match block {
+                DocBlock::Markdown(slice) => {
+                    ui.scope(|ui| {
+                        apply_document_list_layout(ui, t);
+                        CommonMarkViewer::new().show(ui, cache, slice);
+                    });
+                }
+                DocBlock::Table(table) => {
+                    ui.add_space(6.0);
+                    render_markdown_table(ui, t, &table);
+                    ui.add_space(8.0);
+                }
+            }
+        }
     });
 }
 

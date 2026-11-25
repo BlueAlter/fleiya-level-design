@@ -457,8 +457,9 @@ pub fn reorder_row<R>(
     // 6. Keyboard navigation: Alt+Up / Alt+Down (move), Up / Down (select), Enter (activate)
     let mut move_request = None;
     let mut select_request = None;
+    let wants_kbd = ui.ctx().egui_wants_keyboard_input();
     let has_key_interest =
-        row_resp.hovered() || ui.memory(|m| m.has_focus(spec.id)) || spec.selected;
+        !wants_kbd && (row_resp.hovered() || ui.memory(|m| m.has_focus(spec.id)) || spec.selected);
     if has_key_interest {
         if ui.input(|i| i.modifiers.alt && i.key_pressed(Key::ArrowUp)) {
             move_request = Some(MoveDirection::Up);
