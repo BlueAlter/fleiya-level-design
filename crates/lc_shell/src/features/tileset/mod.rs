@@ -11,6 +11,7 @@ pub mod collision_overlay;
 pub mod collision_panel;
 pub mod collision_toolbar;
 pub mod creation;
+pub mod custom_properties;
 pub mod dialog;
 pub mod file_dialog;
 pub mod file_picker;

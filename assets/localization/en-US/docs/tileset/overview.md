@@ -84,10 +84,9 @@ Collision mode allows defining exact physics boundaries (hitboxes) per tile usin
 - **Polygon (P)**: Click to place successive vertices. Double-click, press `Enter`, or click within 16px of the starting vertex to close the loop.
 
 ### Collision Toolbar & Properties Panel
-The right panel provides tools, presets, and individual shape parameters:
-- **Presets**: Quick-assign standard shapes: `Full Box`, `Slope /` (45° incline), `Slope \` (45° decline), and `Clear`.
-- **Shape List**: Lists every shape on the tile with its geometry summary, `Tag` text input, `1-Way` collision checkbox, and `[{ }]` custom data code editor.
-- **Copy & Paste**: Duplicate shapes across tiles individually or in bulk using the toolbar buttons or standard `Ctrl+C` / `Ctrl+V` shortcuts.
+- **Toolbar Controls**: Provides drawing tools (`Select`, `Box`, `Polygon`), quick preset icon buttons (`Full Box`, `Slope /`, `Slope \`, `Clear`), grid snapping (`Pixel` / `Tile` / `Off`), `Copy` / `Paste`, overlay visibility toggle, and the `Isolate` mode toggle.
+- **Copy & Paste**: Duplicate shapes across tiles individually or across multi-tile drag selections using the toolbar buttons or `Ctrl+C` / `Ctrl+V`, both inside and outside Isolate mode.
+- **Shape List & Fast Custom Properties**: Lists every shape on the active tile with its geometry summary, `Tag` input, `1-Way` collision checkbox, and an inline custom properties editor with a `+ Add` dropdown (`String`, `Int`, `Float`, `Boolean`).
 
 ## Safety
 

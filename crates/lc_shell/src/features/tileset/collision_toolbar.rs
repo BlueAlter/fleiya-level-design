@@ -1,8 +1,9 @@
-//! Toolbar controls for collision editing tools, grid snapping, and clipboard.
+//! Toolbar controls for collision editing tools, presets, grid snapping, and clipboard.
 
-use egui::{Key, Modifiers, RichText, Ui};
+use egui::{Key, RichText, Ui};
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
+use lc_core::collision::{CollisionShape, TileCollisionDef};
 use lc_core::defs::TilesetDef;
 use lc_feature_tileset::{
     compute_tileset_grid, BatchSetTileCollisionCommand, RemoveTileCollisionCommand,
@@ -17,6 +18,11 @@ use crate::ShellApp;
 /// Renders the collision toolbar row adjacent to the TILE ATLAS mode selector.
 pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &TilesetDef) {
     handle_collision_shortcuts(app, ui, tileset);
+
+    let active_tile_id = app
+        .tileset_view_state
+        .collision_focus_tile
+        .or(app.tileset_view_state.selected_tile);
 
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
@@ -62,7 +68,67 @@ pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
 
         ui.add_space(4.0);
 
-        // 2. Snapping toggle (Pixel 1px / Tile / Off)
+        // 2. Presets (moved from right panel, icon-only)
+        if icon_button(ui, Icon::Square, 22.0, IconButtonStyle::bordered().square())
+            .on_hover_text("Preset: Full Box (Fill entire tile)")
+            .clicked()
+        {
+            if let Some(tid) = active_tile_id {
+                let col = TileCollisionDef::full_tile(tileset.tile_size);
+                app.execute_command(Box::new(SetTileCollisionCommand::new(tileset.id, tid, col)));
+            }
+        }
+
+        if icon_button(
+            ui,
+            Icon::TrendUp,
+            22.0,
+            IconButtonStyle::bordered().square(),
+        )
+        .on_hover_text("Preset: Slope Up (45-degree / triangle)")
+        .clicked()
+        {
+            if let Some(tid) = active_tile_id {
+                let mut col = TileCollisionDef::new();
+                col.shapes.push(CollisionShape::slope_up(
+                    col.next_shape_id(),
+                    tileset.tile_size,
+                ));
+                app.execute_command(Box::new(SetTileCollisionCommand::new(tileset.id, tid, col)));
+            }
+        }
+
+        if icon_button(
+            ui,
+            Icon::TrendDown,
+            22.0,
+            IconButtonStyle::bordered().square(),
+        )
+        .on_hover_text("Preset: Slope Down (45-degree \\ triangle)")
+        .clicked()
+        {
+            if let Some(tid) = active_tile_id {
+                let mut col = TileCollisionDef::new();
+                col.shapes.push(CollisionShape::slope_down(
+                    col.next_shape_id(),
+                    tileset.tile_size,
+                ));
+                app.execute_command(Box::new(SetTileCollisionCommand::new(tileset.id, tid, col)));
+            }
+        }
+
+        if icon_button(ui, Icon::Clear, 22.0, IconButtonStyle::bordered().square())
+            .on_hover_text("Preset: Clear All Collision on Active Tile")
+            .clicked()
+        {
+            if let Some(tid) = active_tile_id {
+                app.execute_command(Box::new(RemoveTileCollisionCommand::new(tileset.id, tid)));
+            }
+        }
+
+        ui.add_space(4.0);
+
+        // 3. Snapping toggle (Pixel 1px / Tile / Off)
         let snap_mode = app.tileset_view_state.collision_snap;
         let snap_label = format!("Snap: {}", snap_mode.label());
         let snap_btn = egui::Button::new(RichText::new(snap_label).size(11.0).color(
@@ -84,11 +150,7 @@ pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
 
         ui.add_space(4.0);
 
-        // 3. Clipboard actions: Copy & Paste
-        let active_tile_id = app
-            .tileset_view_state
-            .collision_focus_tile
-            .or(app.tileset_view_state.selected_tile);
+        // 4. Clipboard actions: Copy & Paste (works inside and outside isolate)
         let has_col = active_tile_id.is_some_and(|id| tileset.has_collision(id));
         let has_clip = app.tileset_view_state.collision_clipboard.is_some();
 
@@ -120,21 +182,9 @@ pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
             }
         }
 
-        // Clear button
-        if has_col {
-            let clear_btn =
-                icon_button(ui, Icon::Delete, 22.0, IconButtonStyle::bordered().square())
-                    .on_hover_text("Clear Collision on Active Tile");
-            if clear_btn.clicked() {
-                if let Some(tid) = active_tile_id {
-                    app.execute_command(Box::new(RemoveTileCollisionCommand::new(tileset.id, tid)));
-                }
-            }
-        }
-
         ui.add_space(4.0);
 
-        // 4. Collision Overlay Toggle
+        // 5. Collision Overlay Toggle
         let overlay_icon = if app.tileset_view_state.show_collision_overlay {
             Icon::Eye
         } else {
@@ -157,25 +207,32 @@ pub fn render_collision_toolbar(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, til
                 !app.tileset_view_state.show_collision_overlay;
         }
 
-        // 5. Isolate Mode Indicator & Exit Button
-        if let Some(focused_id) = app.tileset_view_state.collision_focus_tile {
-            ui.add_space(4.0);
-            let exit_btn = egui::Button::new(
-                RichText::new(format!("ISOLATE #{focused_id} [ESC]"))
-                    .size(10.5)
-                    .strong()
-                    .color(t.accent_ink),
-            )
-            .fill(t.accent.gamma_multiply(0.2))
-            .stroke(egui::Stroke::new(1.0, t.accent))
-            .corner_radius(egui::CornerRadius::ZERO);
+        ui.add_space(4.0);
 
-            if ui
-                .add(exit_btn)
-                .on_hover_text("Exit Isolate Mode (or press ESC)")
-                .clicked()
-            {
+        // 6. Isolate Mode Toggle Button
+        let is_isolated = app.tileset_view_state.collision_focus_tile.is_some();
+        let isolate_style = if is_isolated {
+            IconButtonStyle::bordered().selected(true).square()
+        } else {
+            IconButtonStyle::bordered().square()
+        };
+
+        let isolate_tip = if let Some(fid) = app.tileset_view_state.collision_focus_tile {
+            format!("Exit Isolate Mode for Tile #{fid} (Esc)")
+        } else if let Some(tid) = active_tile_id {
+            format!("Isolate Tile #{tid} on Canvas (Alt+Click / Esc)")
+        } else {
+            "Select a tile to Isolate on Canvas".to_string()
+        };
+
+        if icon_button(ui, Icon::Fit, 22.0, isolate_style)
+            .on_hover_text(isolate_tip)
+            .clicked()
+        {
+            if is_isolated {
                 app.tileset_view_state.exit_collision_focus();
+            } else if let Some(tid) = active_tile_id {
+                app.tileset_view_state.collision_focus_tile = Some(tid);
             }
         }
     });
@@ -258,8 +315,8 @@ fn handle_collision_shortcuts(app: &mut ShellApp, ui: &Ui, tileset: &TilesetDef)
         app.tileset_view_state.exit_collision_focus();
     }
 
-    // Ctrl+C: Copy collision
-    if ctx.input(|i| i.modifiers.matches_exact(Modifiers::COMMAND) && i.key_pressed(Key::C)) {
+    // Ctrl+C: Copy collision (works inside and outside isolate)
+    if ctx.input(|i| (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::C)) {
         let active_tile_id = app
             .tileset_view_state
             .collision_focus_tile
@@ -271,8 +328,8 @@ fn handle_collision_shortcuts(app: &mut ShellApp, ui: &Ui, tileset: &TilesetDef)
         }
     }
 
-    // Ctrl+V: Paste collision
-    if ctx.input(|i| i.modifiers.matches_exact(Modifiers::COMMAND) && i.key_pressed(Key::V)) {
+    // Ctrl+V: Paste collision (works inside and outside isolate)
+    if ctx.input(|i| (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::V)) {
         let active_tile_id = app
             .tileset_view_state
             .collision_focus_tile

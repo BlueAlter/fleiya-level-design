@@ -423,6 +423,9 @@ pub fn render_atlas_view(
                         }
                     } else {
                         app.tileset_view_state.selected_tile = Some(rect.top_left_id(&grid));
+                        app.tileset_view_state
+                            .canvas_state_mut(tileset.id)
+                            .selected_tile_rect = Some(rect);
                     }
                 }
                 _ => {}

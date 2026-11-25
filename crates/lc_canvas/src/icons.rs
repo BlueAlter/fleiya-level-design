@@ -134,6 +134,9 @@ define_icons! {
     PlusCircle => PLUS_CIRCLE, "Add with circle.";
     MinusCircle => MINUS_CIRCLE, "Remove with circle.";
     CheckCircle => CHECK_CIRCLE, "Confirmed with circle.";
+    Square => SQUARE, "A square box.";
+    TrendUp => TREND_UP, "Upward trend or slope.";
+    TrendDown => TREND_DOWN, "Downward trend or slope.";
 }
 
 impl Icon {
