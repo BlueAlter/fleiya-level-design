@@ -8,7 +8,7 @@
 use egui::Context;
 use glam::UVec2;
 use lc_core::command::DocKind;
-use lc_core::defs::{IntGridValueDef, LayerDef, TilesetDef};
+use lc_core::defs::{IntGridValueDef, LayerDef, TileMarking, TilesetDef};
 use lc_core::id::{EntityDefId, EnumDefId, LayerDefId, LevelId, TilesetDefId, WorldId};
 use lc_core::layer::LayerKind;
 use lc_core::level::Level;
@@ -57,6 +57,11 @@ fn test_definition_tabs_and_windows_behavior() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     });
     shell.project.defs.enums.push(lc_core::defs::EnumDef {
         id: EnumDefId(1),
@@ -78,9 +83,12 @@ fn test_definition_tabs_and_windows_behavior() {
     assert_eq!(shell.selected_entity_def, Some(EntityDefId(2)));
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
-    // Opening TilesetDef opens Tileset window, not tab bar
+    // Opening TilesetDef switches mode to Tilesets and selects the tileset, not opening in tab bar
     shell.open_document(DocKind::TilesetDef(TilesetDefId(1)));
-    assert!(shell.show_tileset_window);
+    assert_eq!(
+        shell.active_mode,
+        lc_shell::features::editor::app_mode::AppMode::Tilesets
+    );
     assert_eq!(shell.selected_tileset_def, Some(TilesetDefId(1)));
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
@@ -104,6 +112,11 @@ fn test_add_tileset_command_and_persistence() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     };
 
     shell
@@ -150,6 +163,11 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     });
 
     // Add a Tiles layer def

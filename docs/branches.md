@@ -31,6 +31,13 @@ without touching the same files. `main` is the integration branch; every
    i18n loader (`lc_ui_api::i18n`, `lc_shell::shared::i18n`), `common.ron` and
    `assets/localization/README.md` belong to `shared/ui-kit`.
 
+## Cross-branch exceptions
+
+- `feature/tileset` task (Tileset workspace mode switch and floating window cutover):
+  - `crates/lc_shell/src/features/editor/app_mode.rs`: lines 1, 17, 21-60, 71, 74, 90-104: added `AppMode::Tilesets`, `ModeButton`, `MODE_BUTTONS`, `control_width`, `shows_unsaved`, and data-driven segmented control.
+  - `crates/lc_shell/src/features/editor/menu.rs`: lines 105-114, 180, 189-198: replaced `show_tileset_window` checkbox with "Tilesets Workspace  Ctrl+3" button; added `Ctrl+3` shortcut to switch to `AppMode::Tilesets` and select tileset def.
+  - `crates/lc_shell/src/features/editor/shell_app.rs`: lines 130-131, 262, 806-810, 1038-1040: replaced `show_tileset_window` field with `tileset_view_state`, redirected `DocKind::TilesetDef` to switch to `AppMode::Tilesets` and select def, removed `render_tileset_window`, and dispatched `AppMode::Tilesets` to `render_tileset_view`.
+
 ## Daily commands
 
 ```sh

@@ -1,6 +1,6 @@
 use std::fs;
 
-use lc_core::defs::{EnumDef, EnumValueDef, TilesetDef};
+use lc_core::defs::{EnumDef, EnumValueDef, TileMarking, TilesetDef};
 use lc_core::id::{EnumDefId, TilesetDefId};
 use lc_core::layer::TileRef;
 use lc_io::enum_file::{
@@ -19,6 +19,11 @@ fn create_sample_enums() -> (Vec<EnumDef>, Vec<TilesetDef>) {
             tile_size: glam::UVec2::new(16, 16),
             padding: 0,
             spacing: 0,
+            tags: Vec::new(),
+            marking: TileMarking::EMPTY,
+            custom_data: Default::default(),
+            animations: Default::default(),
+            collisions: Default::default(),
         },
         TilesetDef {
             id: TilesetDefId(2),
@@ -27,6 +32,11 @@ fn create_sample_enums() -> (Vec<EnumDef>, Vec<TilesetDef>) {
             tile_size: glam::UVec2::new(16, 16),
             padding: 0,
             spacing: 0,
+            tags: Vec::new(),
+            marking: TileMarking::EMPTY,
+            custom_data: Default::default(),
+            animations: Default::default(),
+            collisions: Default::default(),
         },
     ];
 
@@ -136,6 +146,11 @@ fn test_tile_id_to_rect_and_back() {
         tile_size: glam::UVec2::new(16, 16),
         padding: 0,
         spacing: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     };
     let img_size = (256, 256);
 
@@ -169,6 +184,11 @@ fn test_bound_tile_cleared_conditions() {
         tile_size: glam::UVec2::new(16, 16),
         padding: 0,
         spacing: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     }];
     let resolver = |_| Some((64, 64)); // 4x4 tiles, max x=48, max y=48
 

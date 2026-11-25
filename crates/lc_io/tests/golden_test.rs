@@ -23,6 +23,11 @@ fn create_sample_project() -> Project {
         tile_size: UVec2::new(16, 16),
         spacing: 0,
         padding: 0,
+        tags: Vec::new(),
+        marking: TileMarking::EMPTY,
+        custom_data: Default::default(),
+        animations: Default::default(),
+        collisions: Default::default(),
     };
 
     let enum_id = gen.next_enum_def_id();

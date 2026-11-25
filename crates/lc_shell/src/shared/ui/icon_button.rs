@@ -28,7 +28,16 @@ pub struct IconButtonStyle {
     pub selected: bool,
     /// Whether the button has a visible border and background fill when idle.
     pub bordered: bool,
+    /// Corner radius for the button background and border.
+    pub corner_radius: CornerRadius,
 }
+
+const DEFAULT_CORNER_RADIUS: CornerRadius = CornerRadius {
+    nw: 3,
+    ne: 3,
+    sw: 3,
+    se: 3,
+};
 
 impl Default for IconButtonStyle {
     fn default() -> Self {
@@ -36,6 +45,7 @@ impl Default for IconButtonStyle {
             danger: false,
             selected: false,
             bordered: true,
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
 }
@@ -47,6 +57,7 @@ impl IconButtonStyle {
             danger: false,
             selected: false,
             bordered: true,
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
 
@@ -56,6 +67,7 @@ impl IconButtonStyle {
             danger: false,
             selected: false,
             bordered: false,
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
 
@@ -65,6 +77,7 @@ impl IconButtonStyle {
             danger: true,
             selected: false,
             bordered: true,
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
     }
 
@@ -74,7 +87,26 @@ impl IconButtonStyle {
             danger: true,
             selected: false,
             bordered: false,
+            corner_radius: DEFAULT_CORNER_RADIUS,
         }
+    }
+
+    /// Sets whether the button is selected.
+    pub const fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Overrides corner radius to zero (sharp rectangle).
+    pub const fn square(mut self) -> Self {
+        self.corner_radius = CornerRadius::ZERO;
+        self
+    }
+
+    /// Sets a custom corner radius.
+    pub const fn with_corner_radius(mut self, radius: CornerRadius) -> Self {
+        self.corner_radius = radius;
+        self
     }
 }
 
@@ -110,21 +142,23 @@ pub fn icon_button(ui: &mut Ui, glyph: Icon, size: f32, style: IconButtonStyle) 
 
         let painter = ui.painter();
         if bg != Color32::TRANSPARENT {
-            painter.rect_filled(rect, CornerRadius::same(3), bg);
+            painter.rect_filled(rect, style.corner_radius, bg);
         }
         if stroke_color != Color32::TRANSPARENT {
             painter.rect_stroke(
                 rect,
-                CornerRadius::same(3),
+                style.corner_radius,
                 Stroke::new(1.0, stroke_color),
                 StrokeKind::Inside,
             );
         }
 
-        let icon_glyph_size = if (size - 28.0).abs() < 0.5 || (size - 32.0).abs() < 0.5 {
+        let icon_glyph_size = if size >= 28.0 {
             14.0
+        } else if size >= 20.0 {
+            13.0
         } else {
-            (size * 0.45).clamp(11.0, 16.0)
+            11.0
         };
         paint_icon(painter, rect.center(), glyph, icon_glyph_size, icon_color);
     }

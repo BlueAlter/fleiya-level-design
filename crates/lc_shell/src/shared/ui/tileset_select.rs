@@ -42,6 +42,12 @@ impl<Id: Clone + PartialEq> TilesetSelectItem<Id> {
     }
 }
 
+/// Checks whether the tileset selector dropdown popup is currently open.
+pub fn is_tileset_select_open(ui: &Ui) -> bool {
+    let popup_id = ui.id().with("tileset_select_popup");
+    egui::Popup::is_id_open(ui.ctx(), popup_id)
+}
+
 /// Renders a searchable selection dropdown backed by [`search_picker`].
 ///
 /// Returns `true` if the selection changed this frame.

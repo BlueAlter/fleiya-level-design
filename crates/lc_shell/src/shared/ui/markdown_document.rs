@@ -112,6 +112,7 @@ pub fn render_document_page(
             .id_salt(id_salt)
             .auto_shrink([false, false])
             .vertical_scroll_offset(*scroll)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 let mut cache = match cache.lock() {
                     Ok(guard) => guard,

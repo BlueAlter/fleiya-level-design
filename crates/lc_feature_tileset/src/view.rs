@@ -92,6 +92,11 @@ impl TilesetDocumentView {
             tile_size: UVec2::new(self.tile_w.max(1), self.tile_h.max(1)),
             spacing: self.spacing,
             padding: self.padding,
+            tags: def.tags.clone(),
+            marking: def.marking.clone(),
+            custom_data: def.custom_data.clone(),
+            animations: def.animations.clone(),
+            collisions: def.collisions.clone(),
         };
 
         if *def != updated {
@@ -430,26 +435,18 @@ impl DocumentView for TilesetDocumentView {
 
                         ui.add_space(10.0);
 
-                        // Enum Value Binding
+                        // Enum Value Binding & Collision Bounds
                         ui.label(RichText::new("Enum Value Binding:").color(t.ink_strong).size(12.0));
-                        ui.add_space(3.0);
                         ui.add(TextEdit::singleline(&mut self.enum_binding).desired_width(f32::INFINITY));
-
-                        ui.add_space(10.0);
-
-                        // Collision Bounds (Box)
+                        ui.add_space(8.0);
                         ui.label(RichText::new("Collision Bounds (Box):").color(t.ink_strong).size(12.0));
-                        ui.add_space(3.0);
                         ui.add(
                             TextEdit::singleline(&mut "[ x: 0, y: 0, w: 16, h: 16 ] (Full solid)".to_string())
                                 .desired_width(f32::INFINITY),
                         );
-
-                        ui.add_space(10.0);
-
+                        ui.add_space(8.0);
                         // Custom Tile Data (JSON)
                         ui.label(RichText::new("Custom Tile Data (JSON):").color(t.ink_strong).size(12.0));
-                        ui.add_space(3.0);
                         ui.add(
                             TextEdit::multiline(&mut self.custom_json)
                                 .desired_rows(4)

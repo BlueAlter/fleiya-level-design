@@ -499,6 +499,7 @@ impl TilePicker {
             live_drag_rect: self.live_drag_rect,
             drag_start_cell: self.drag_start_cell,
             is_right_dragging: self.is_right_dragging,
+            last_drag_button: None,
             show_grid: self.show_grid,
             needs_initial_fit: self.needs_initial_fit,
         };

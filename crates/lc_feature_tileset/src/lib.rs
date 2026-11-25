@@ -2,20 +2,47 @@
 
 #![forbid(unsafe_code)]
 
+pub mod animation_commands;
 mod brush;
 pub mod clipboard;
+pub mod collision_commands;
 pub mod commands;
+pub mod custom_data_commands;
 mod fill_tools;
 pub mod handler;
+pub mod helpers;
+pub mod marking_command;
+pub mod marking_commands;
 pub mod paint_commands;
 pub mod palette;
+pub mod reorder_command;
 mod select;
+pub mod tag_commands;
 pub mod tools;
 pub mod view;
 
+pub use animation_commands::{
+    AddAnimationFrameCommand, RemoveAnimationFrameCommand, RemoveTileAnimationCommand,
+    SetTileAnimationCommand,
+};
 pub use clipboard::TileClipboard;
-pub use commands::{AddTilesetDefCommand, RemoveTilesetDefCommand, UpdateTilesetDefCommand};
+pub use collision_commands::{
+    BatchSetTileCollisionCommand, RemoveTileCollisionCommand, SetTileCollisionCommand,
+};
+pub use commands::{
+    AddTilesetDefCommand, RemoveTilesetDefCommand, ReorderTilesetDefCommand,
+    SetTileCustomDataCommand, UpdateTilesetDefCommand,
+};
 pub use handler::{IntGridLayerHandler, TilesLayerHandler};
+pub use helpers::{
+    compute_tileset_grid, generate_unique_tileset_name, mode_availability, tileset_usage_counts,
+    GridMetrics, ModeEntry,
+};
+pub use marking_commands::{
+    compute_tile_count, AddTilesetTagCommand, PaintTileTagsCommand, PruneTilesetMarkingsCommand,
+    RemoveTilesetTagCommand, RenameTilesetTagCommand, SetMarkingSourceCommand,
+    SetTileMarkingCommand, SetTilesetSourceEnumCommand,
+};
 pub use paint_commands::{
     FillCommand, FillValue, PaintIntGridCommand, PaintTilesCommand, RectCommand,
 };

@@ -1,8 +1,10 @@
 pub mod atlas_canvas;
 pub mod context_menu;
+pub mod custom_data_dialog;
 pub mod def_workspace;
 pub mod drag_list;
 pub mod icon_button;
+pub mod info_banner;
 pub mod markdown_document;
 pub(crate) mod markdown_table;
 pub mod modal;
@@ -30,6 +32,7 @@ pub use context_menu::{
     is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
     ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
 };
+pub use custom_data_dialog::{render_custom_data_dialog, CustomDataDialogState, CustomDataOutcome};
 pub use def_workspace::{
     def_field_row, def_footer, def_left_panel, def_panel_width, def_right_header, def_row_layout,
     def_section, format_footer_left, DefItem, DefLeftPanelAction, DefLeftPanelConfig, DefRowLayout,
@@ -37,6 +40,7 @@ pub use def_workspace::{
 };
 pub use drag_list::{paint_placeholder, DragListState, DragOutcome, DragTheme, PlaceholderStyle};
 pub use icon_button::{icon_button, IconButtonStyle};
+pub use info_banner::info_banner;
 pub use markdown_document::{
     new_document_cache, render_document_page, render_markdown_document, DocumentCache,
 };

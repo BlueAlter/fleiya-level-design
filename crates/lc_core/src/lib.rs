@@ -8,6 +8,7 @@
 //! `lc_core`: Core data model, identifiers, and grid storage for Level Craft.
 //! No egui dependency. No filesystem access.
 
+pub mod collision;
 pub mod command;
 pub mod commands;
 pub mod defs;
@@ -17,16 +18,19 @@ pub mod grid;
 pub mod id;
 pub mod layer;
 pub mod level;
+pub mod marking;
 pub mod project;
 pub mod world;
 
+pub use collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 pub use command::{Command, DocKind, UndoStack};
 pub use commands::{
     AddLevelCommand, AddWorldCommand, MoveLevelCommand, RemoveLevelCommand, RemoveWorldCommand,
     RenameLevelCommand, RenameWorldCommand,
 };
 pub use defs::{
-    Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TilesetDef,
+    AnimationPlayMode, Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef,
+    TileAnimationDef, TilesetDef,
 };
 pub use error::CoreError;
 pub use fields::{FieldDef, FieldType, FieldValue, FieldValues};
@@ -37,6 +41,7 @@ pub use id::{
 };
 pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;
+pub use marking::{known_tags, normalize_tag, tags_eq, TileMarking};
 pub use project::{Project, ProjectSettings};
 pub use world::{World, WorldLayout};
 

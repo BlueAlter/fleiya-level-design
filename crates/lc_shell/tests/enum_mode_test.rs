@@ -636,8 +636,8 @@ fn test_tag_search_and_enum_view_state() {
 
     // Verify EnumViewState defaults
     let state = EnumViewState::default();
-    assert_eq!(state.tag_recall_search, "");
-    assert_eq!(state.tag_recall_selected_idx, 0);
-    assert!(!state.tag_recall_was_open);
+    assert_eq!(state.tag_recall_picker.search(), "");
+    assert_eq!(state.tag_recall_picker.selected_idx(), 0);
+    assert!(!state.tag_recall_picker.was_open());
     assert_eq!(state.previous_selected_enum, None);
 }
