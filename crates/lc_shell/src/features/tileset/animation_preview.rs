@@ -1,6 +1,6 @@
 //! Floating bottom-left animation preview card inside the TILE ATLAS viewport.
 
-use egui::{vec2, Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, StrokeKind, Ui};
+use egui::{vec2, Align2, CornerRadius, FontId, Pos2, Rect, StrokeKind, Ui};
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::layer::TileRef;
@@ -67,12 +67,12 @@ pub fn render_animation_preview_card(
     p.rect_filled(
         card_rect,
         CornerRadius::ZERO,
-        Color32::from_black_alpha(220),
+        lc_canvas::theme::tint(t.bg, 0.90),
     );
     p.rect_stroke(
         card_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, t.line_strong),
+        t.outline(),
         StrokeKind::Inside,
     );
 
@@ -82,7 +82,7 @@ pub fn render_animation_preview_card(
         Pos2::new(card_rect.center().x, card_rect.min.y + 10.0),
         Align2::CENTER_CENTER,
         title_text,
-        FontId::monospace(9.5),
+        FontId::new(9.5, lc_canvas::theme::mono_for(ui.ctx())),
         t.accent_ink,
     );
 
@@ -95,15 +95,11 @@ pub fn render_animation_preview_card(
         ),
         vec2(thumb_size, thumb_size),
     );
-    p.rect_filled(
-        thumb_rect,
-        CornerRadius::ZERO,
-        Color32::from_rgb(12, 14, 18),
-    );
+    p.rect_filled(thumb_rect, CornerRadius::ZERO, t.sunken);
     p.rect_stroke(
         thumb_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(50, 58, 68)),
+        t.hairline(),
         StrokeKind::Inside,
     );
 

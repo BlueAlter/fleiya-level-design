@@ -6,11 +6,26 @@ use std::collections::HashMap;
 
 use crate::shared::ui::atlas_canvas::AtlasCanvasState;
 use crate::shared::ui::custom_data_dialog::CustomDataDialogState;
+use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::{new_document_cache, DocumentCache};
 use crate::shared::ui::search_picker::SearchPickerState;
 
 /// Special value ID used when the "Custom data" item is selected in marking mode.
 pub const CUSTOM_DATA_VALUE_ID: &str = "__custom_data__";
+
+/// Identifies which card container currently holds focus in the Tileset workspace.
+///
+/// Card-specific keyboard shortcuts only run when their target card is selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TilesetCard {
+    /// The top attributes card (`TILESET IDENTIFIER & ATTRIBUTES`).
+    Attributes,
+    /// The main tile atlas canvas card (`TILE ATLAS`).
+    #[default]
+    Atlas,
+    /// The right tool attributes card (`TOOL ATTRIBUTES`).
+    ToolAttributes,
+}
 
 /// Active tool for editing tile collisions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -78,8 +93,10 @@ pub enum CollisionHandleTarget {
 /// View state for the Tilesets workspace page.
 #[derive(Clone)]
 pub struct TilesetViewState {
-    /// Active sub-tab (0 = TILESET DEF, 1 = DOCUMENT).
+    /// Active sub-tab (0 = TILESET DEF, 1 = MARKING, 2 = COLLISION, 3 = ANIMATION, 4 = DOCUMENT).
     pub active_sub_tab: usize,
+    /// Card container currently focused for scoped keyboard shortcuts.
+    pub focused_card: Option<TilesetCard>,
     /// Currently selected tileset definition.
     pub selected_tileset_id: Option<TilesetDefId>,
     /// Currently selected tile index in the atlas (None if no tile is selected).
@@ -160,6 +177,8 @@ pub struct TilesetViewState {
     pub collision_drag_handle: Option<CollisionHandleTarget>,
     /// Draft vertices for in-progress polygon creation in focus mode.
     pub collision_poly_draft: Vec<glam::Vec2>,
+    /// Drag-to-reorder state for frames in the Animation right panel.
+    pub animation_frame_drag: DragListState,
 }
 
 impl std::fmt::Debug for TilesetViewState {
@@ -179,6 +198,7 @@ impl Default for TilesetViewState {
     fn default() -> Self {
         Self {
             active_sub_tab: 0,
+            focused_card: Some(TilesetCard::Atlas),
             selected_tileset_id: None,
             selected_tile: None,
             selected_marking_value: None,
@@ -219,6 +239,7 @@ impl Default for TilesetViewState {
             collision_drag_current: None,
             collision_drag_handle: None,
             collision_poly_draft: Vec::new(),
+            animation_frame_drag: DragListState::default(),
         }
     }
 }
@@ -239,15 +260,28 @@ impl TilesetViewState {
         self.active_mode == "Collision" && self.collision_focus_tile == Some(tile_id)
     }
 
-    /// Selects a new tileset, resetting tile selection and mode to "None",
-    /// while preserving pan and zoom per tileset ID.
+    /// Maps a sub-tab index (0..=3) to the corresponding atlas/right-panel mode name.
+    pub fn mode_for_sub_tab(tab: usize) -> Option<&'static str> {
+        match tab {
+            0 => Some("None"),
+            1 => Some("Marking"),
+            2 => Some("Collision"),
+            3 => Some("Animation"),
+            _ => None,
+        }
+    }
+
+    /// Selects a new tileset, resetting tile selection while preserving pan, zoom, and active tab mode.
     pub fn select_tileset(&mut self, id: TilesetDefId) {
         if self.selected_tileset_id != Some(id) {
             self.selected_tileset_id = Some(id);
             self.selected_tile = None;
             self.collision_focus_tile = None;
             self.selected_collision_shape_id = None;
-            self.active_mode = "None".to_string();
+            self.animation_frame_drag = DragListState::default();
+            if let Some(mode) = Self::mode_for_sub_tab(self.active_sub_tab) {
+                self.active_mode = mode.to_string();
+            }
             self.canvas_state_mut(id).needs_initial_fit = true;
         }
     }
@@ -257,11 +291,15 @@ impl TilesetViewState {
         self.canvas_state_mut(id).needs_initial_fit = true;
     }
 
-    /// Sets the active sub-tab, resetting document scroll offset on tab change.
+    /// Sets the active sub-tab, syncing mode and resetting document scroll offset on tab change.
     pub fn set_sub_tab(&mut self, tab: usize) {
         if self.active_sub_tab != tab {
             self.active_sub_tab = tab;
             self.doc_scroll = 0.0;
+            self.animation_frame_drag = DragListState::default();
+        }
+        if let Some(mode) = Self::mode_for_sub_tab(tab) {
+            self.active_mode = mode.to_string();
         }
     }
 

@@ -4,7 +4,7 @@ use egui::{
     vec2, Align2, Color32, CornerRadius, FontId, Frame, Margin, Pos2, Rect, Response, RichText,
     Stroke, StrokeKind,
 };
-use lc_canvas::theme::Tokens;
+use lc_canvas::theme::{self, Tokens};
 use lc_core::defs::{EnumDef, TilesetDef};
 use lc_core::layer::TileRef;
 use lc_core::project::Project;
@@ -60,6 +60,8 @@ pub fn render_tile_overlay(
     tile_id: u32,
     cx: &TileOverlayContext<'_>,
 ) {
+    let t = Tokens::get(ctx);
+
     // 1. Anchor tile animation playback: dynamically swaps anchor tile UV to active frame
     if let Some(anim) = cx.tileset.animations.get(&tile_id) {
         let active_frame = if cx.is_animation_playing {
@@ -89,10 +91,10 @@ pub fn render_tile_overlay(
             painter.rect_stroke(
                 tile_rect,
                 CornerRadius::ZERO,
-                Stroke::new(2.0, Color32::from_rgb(61, 214, 184)),
+                Stroke::new(2.0, t.good),
                 StrokeKind::Inside,
             );
-            draw_anchor_badge(painter, tile_rect);
+            draw_anchor_badge(painter, ctx, &t, tile_rect);
         }
 
         if let Some(sel_anchor) = cx.selected_animation_anchor {
@@ -101,10 +103,10 @@ pub fn render_tile_overlay(
                     painter.rect_stroke(
                         tile_rect,
                         CornerRadius::ZERO,
-                        Stroke::new(1.5, Color32::from_rgb(255, 190, 80)),
+                        Stroke::new(1.5, t.warn),
                         StrokeKind::Inside,
                     );
-                    draw_frame_badge(painter, tile_rect, pos + 1);
+                    draw_frame_badge(painter, ctx, &t, tile_rect, pos + 1);
                 }
             }
         }
@@ -117,10 +119,10 @@ pub fn render_tile_overlay(
 
     if !cx.is_marking_mode {
         if !tags.is_empty() {
-            draw_all_markers(painter, ctx, tile_rect, &tags, cx.enum_def, cx);
+            draw_all_markers(painter, ctx, &t, tile_rect, &tags, cx.enum_def, cx);
         }
         if has_custom_data {
-            draw_custom_data_badge(painter, tile_rect);
+            draw_custom_data_badge(painter, &t, tile_rect);
         }
         return;
     }
@@ -130,10 +132,10 @@ pub fn render_tile_overlay(
     if let Some(enum_def) = cx.enum_def {
         if is_custom_data_selected {
             // When "Custom data" is selected: show ALL markers (concentric nested outlines for multi-marked tiles)
-            draw_all_markers(painter, ctx, tile_rect, &tags, Some(enum_def), cx);
+            draw_all_markers(painter, ctx, &t, tile_rect, &tags, Some(enum_def), cx);
 
             if has_custom_data {
-                draw_custom_data_badge(painter, tile_rect);
+                draw_custom_data_badge(painter, &t, tile_rect);
             }
         } else if let Some(sel_id) = cx.selected_val_id {
             // When an enum value is selected: ONLY show marker if this tile has that enum value!
@@ -160,7 +162,15 @@ pub fn render_tile_overlay(
                     );
 
                     // Proportional marker box (50% of tile size) in top-left
-                    draw_marker_icon(painter, ctx, tile_rect, Some(val), cx.project, cx.assets);
+                    draw_marker_icon(
+                        painter,
+                        ctx,
+                        &t,
+                        tile_rect,
+                        Some(val),
+                        cx.project,
+                        cx.assets,
+                    );
                 }
             }
         }
@@ -171,6 +181,7 @@ pub fn render_tile_overlay(
 fn draw_all_markers(
     painter: &egui::Painter,
     ctx: &egui::Context,
+    t: &Tokens,
     tile_rect: Rect,
     tags: &[&str],
     enum_def: Option<&EnumDef>,
@@ -214,8 +225,9 @@ fn draw_all_markers(
     draw_marker_icon(
         painter,
         ctx,
+        t,
         tile_rect,
-        tags.first().and_then(|t| enum_def.value(t)),
+        tags.first().and_then(|tag| enum_def.value(tag)),
         cx.project,
         cx.assets,
     );
@@ -225,6 +237,7 @@ fn draw_all_markers(
 fn draw_marker_icon(
     painter: &egui::Painter,
     ctx: &egui::Context,
+    t: &Tokens,
     tile_rect: Rect,
     val_opt: Option<&lc_core::defs::EnumValueDef>,
     project: &Project,
@@ -241,11 +254,11 @@ fn draw_marker_icon(
         tile_rect.min + vec2(offset, offset),
         vec2(marker_box_size, marker_box_size),
     );
-    painter.rect_filled(icon_rect, CornerRadius::ZERO, Color32::from_rgb(20, 24, 28));
+    painter.rect_filled(icon_rect, CornerRadius::ZERO, t.sunken);
     painter.rect_stroke(
         icon_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(45, 52, 60)),
+        t.hairline(),
         StrokeKind::Inside,
     );
 
@@ -269,7 +282,7 @@ fn draw_marker_icon(
 }
 
 /// Draws a subtle custom data indicator badge in the bottom-right corner of the tile.
-fn draw_custom_data_badge(painter: &egui::Painter, tile_rect: Rect) {
+fn draw_custom_data_badge(painter: &egui::Painter, t: &Tokens, tile_rect: Rect) {
     let badge_size = (tile_rect.width() * 0.35).round().max(4.0);
     if tile_rect.width() < badge_size || tile_rect.height() < badge_size {
         return;
@@ -282,21 +295,17 @@ fn draw_custom_data_badge(painter: &egui::Painter, tile_rect: Rect) {
         ),
         vec2(badge_size, badge_size),
     );
-    painter.rect_filled(
-        badge_rect,
-        CornerRadius::ZERO,
-        Color32::from_rgb(26, 32, 40),
-    );
+    painter.rect_filled(badge_rect, CornerRadius::ZERO, t.sunken);
     painter.rect_stroke(
         badge_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(100, 140, 180)),
+        Stroke::new(1.0, t.accent_ink),
         StrokeKind::Inside,
     );
 }
 
 /// Draws an anchor badge in the top-left corner of the tile.
-fn draw_anchor_badge(painter: &egui::Painter, tile_rect: Rect) {
+fn draw_anchor_badge(painter: &egui::Painter, ctx: &egui::Context, t: &Tokens, tile_rect: Rect) {
     let badge_size = (tile_rect.width() * 0.4).round().clamp(10.0, 20.0);
     if tile_rect.width() < badge_size || tile_rect.height() < badge_size {
         return;
@@ -306,28 +315,30 @@ fn draw_anchor_badge(painter: &egui::Painter, tile_rect: Rect) {
         tile_rect.min + vec2(offset, offset),
         vec2(badge_size, badge_size),
     );
-    painter.rect_filled(
-        badge_rect,
-        CornerRadius::ZERO,
-        Color32::from_rgb(20, 24, 28),
-    );
+    painter.rect_filled(badge_rect, CornerRadius::ZERO, t.sunken);
     painter.rect_stroke(
         badge_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(61, 214, 184)),
+        Stroke::new(1.0, t.good),
         StrokeKind::Inside,
     );
     painter.text(
         badge_rect.center(),
         Align2::CENTER_CENTER,
         "A",
-        FontId::monospace(badge_size * 0.6),
-        Color32::from_rgb(61, 214, 184),
+        FontId::new(badge_size * 0.6, theme::mono_for(ctx)),
+        t.good,
     );
 }
 
 /// Draws a numbered frame badge in the bottom-left corner of the tile.
-fn draw_frame_badge(painter: &egui::Painter, tile_rect: Rect, frame_num: usize) {
+fn draw_frame_badge(
+    painter: &egui::Painter,
+    ctx: &egui::Context,
+    t: &Tokens,
+    tile_rect: Rect,
+    frame_num: usize,
+) {
     let badge_h = (tile_rect.height() * 0.35).round().clamp(10.0, 18.0);
     let badge_w = (badge_h * 1.5).round();
     if tile_rect.width() < badge_w || tile_rect.height() < badge_h {
@@ -338,23 +349,19 @@ fn draw_frame_badge(painter: &egui::Painter, tile_rect: Rect, frame_num: usize) 
         Pos2::new(tile_rect.min.x + offset, tile_rect.max.y - badge_h - offset),
         vec2(badge_w, badge_h),
     );
-    painter.rect_filled(
-        badge_rect,
-        CornerRadius::ZERO,
-        Color32::from_rgb(20, 24, 28),
-    );
+    painter.rect_filled(badge_rect, CornerRadius::ZERO, t.sunken);
     painter.rect_stroke(
         badge_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(255, 190, 80)),
+        Stroke::new(1.0, t.warn),
         StrokeKind::Inside,
     );
     painter.text(
         badge_rect.center(),
         Align2::CENTER_CENTER,
         format!("F{frame_num}"),
-        FontId::monospace(badge_h * 0.6),
-        Color32::from_rgb(255, 190, 80),
+        FontId::new(badge_h * 0.6, theme::mono_for(ctx)),
+        t.warn,
     );
 }
 

@@ -3,10 +3,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use egui::{
-    vec2, Align, Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText, Sense, Ui,
-};
-use lc_canvas::theme::Tokens;
+use egui::{vec2, Button, Color32, CornerRadius, Frame, Id, Margin, Pos2, Rect, RichText, Ui};
+use lc_canvas::theme::{self, Tokens};
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
 use lc_feature_tileset::{AddTilesetDefCommand, UpdateTilesetDefCommand};
@@ -20,19 +18,27 @@ use super::creation::{create_tileset_from_png, render_outside_copy_modal, Create
 use super::file_dialog::{TilesetDialogManager, TilesetDialogMessage};
 use super::i18n::{self, keys};
 use super::left_panel::render_left_panel;
-use super::right_panel::{render_mode_selector_combo, render_right_panel};
+use super::right_panel::render_right_panel;
+use super::state::{TilesetCard, TilesetViewState};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
 use crate::shared::ui::def_workspace::def_panel_width;
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::render_document_page;
+use crate::shared::ui::section_container::SectionContainer;
 use crate::shared::ui::sub_tabs::sub_tabs;
 use crate::shared::ui::workspace_metrics::{CONTROL_HEIGHT_COMPACT, WORKSPACE_PADDING};
 
-/// Sub-tab index for the tileset definition editor.
+/// Sub-tab index for the tileset definition editor (Attributes + Custom Data atlas).
 pub const TILESET_DEF_SUB_TAB: usize = 0;
+/// Sub-tab index for dedicated tile marking (Enum marking source & value brush).
+pub const MARKING_SUB_TAB: usize = 1;
+/// Sub-tab index for tile collision editing.
+pub const COLLISION_SUB_TAB: usize = 2;
+/// Sub-tab index for tile animation editing.
+pub const ANIMATION_SUB_TAB: usize = 3;
 /// Sub-tab index for the documentation page.
-pub const DOCUMENT_SUB_TAB: usize = 1;
+pub const DOCUMENT_SUB_TAB: usize = 4;
 
 /// Chrome sections shown in the detail panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,12 +238,12 @@ fn render_detail_area(
     // Visible error banner (never fail silently)
     if let Some(err) = app.tileset_view_state.error_message.clone() {
         let mut dismiss = false;
-        let danger_color = Color32::from_rgb(220, 38, 38);
-        let danger_fill = danger_color.linear_multiply(0.15);
+        let danger_color = t.bad;
+        let danger_fill = theme::tint(danger_color, 0.15);
         Frame::new()
             .fill(danger_fill)
             .stroke(egui::Stroke::new(1.0, danger_color))
-            .corner_radius(CornerRadius::same(4))
+            .corner_radius(CornerRadius::ZERO)
             .inner_margin(egui::Margin::symmetric(12, 8))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -279,7 +285,7 @@ fn render_detail_area(
                         .color(t.invert_fg),
                 )
                 .fill(t.accent)
-                .corner_radius(CornerRadius::same(4));
+                .corner_radius(CornerRadius::ZERO);
                 if ui.add(btn).clicked() {
                     dialogs.request_new_tileset();
                 }
@@ -291,21 +297,34 @@ fn render_detail_area(
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
 
-        // Sub-tabs at top: [TILESET DEF | DOCUMENT]
+        // Sub-tabs at top: [TILESET DEF | MARKING | COLLISION | ANIMATION | DOCUMENT]
         Frame::new().fill(Color32::TRANSPARENT).show(ui, |ui| {
             ui.set_min_height(CONTROL_HEIGHT_COMPACT);
             ui.set_max_height(CONTROL_HEIGHT_COMPACT);
-            let labels = [tr(keys::TAB_DEFINITION), tr(keys::TAB_DOCUMENT)];
+            let labels = [
+                tr(keys::TAB_DEFINITION),
+                tr(keys::TAB_MARKING),
+                tr(keys::TAB_COLLISION),
+                tr(keys::TAB_ANIMATION),
+                tr(keys::TAB_DOCUMENT),
+            ];
             let mut active = app.tileset_view_state.active_sub_tab;
             if sub_tabs(ui, t, &mut active, &labels) {
                 app.tileset_view_state.set_sub_tab(active);
             }
         });
 
-        let sections = sections_for(app.tileset_view_state.active_sub_tab);
+        let active_tab = app.tileset_view_state.active_sub_tab;
+        if let Some(tab_mode) = TilesetViewState::mode_for_sub_tab(active_tab) {
+            if app.tileset_view_state.active_mode != tab_mode {
+                app.tileset_view_state.active_mode = tab_mode.to_string();
+            }
+        }
+
+        let sections = sections_for(active_tab);
 
         // Content dispatch based on sub-tab with separate id_salt
-        if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {
+        if active_tab == DOCUMENT_SUB_TAB {
             ui.scope_builder(
                 egui::UiBuilder::new().id_salt("tileset_tab_document"),
                 |ui| {
@@ -323,171 +342,180 @@ fn render_detail_area(
                 },
             );
         } else {
-            ui.scope_builder(
-                egui::UiBuilder::new().id_salt("tileset_tab_definition"),
-                |ui| {
-                    // Header title row & description (only for TILESET DEF tab, below sub-tabs)
-                    if sections.title {
-                        ui.add_space(12.0);
-                        ui.add(
-                            egui::Label::new(
-                                RichText::new(format!("{} (Tileset)", tileset.name))
-                                    .size(20.0)
-                                    .strong()
-                                    .color(t.ink_strong),
-                            )
-                            .truncate(),
-                        );
-                        ui.add_space(4.0);
-                        ui.label(
-                            RichText::new(tr(keys::DESCRIPTION))
-                                .size(11.5)
-                                .color(t.muted),
-                        );
-                        ui.add_space(10.0);
-                    }
-
-                    // TILESET DEF Tab
-                    let mut tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
-
-                    // Attribute Card + Image info
-                    render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_mut());
-
-                    ui.add_space(10.0);
-
-                    // Center area: Atlas card on left (flex width), Tools card on right (240px)
-                    let mode_card_w = 240.0;
-                    let gap = WORKSPACE_PADDING; // 12.0
-                    let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
-
-                    let (img_w, img_h) = if let Some(ref t) = tex {
-                        let sz = t.size();
-                        (sz[0] as u32, sz[1] as u32)
-                    } else {
-                        (0, 0)
-                    };
-
-                    let atlas_tooltip = if img_w > 0 && img_h > 0 {
-                        let metrics = lc_feature_tileset::compute_tileset_grid(
-                            [img_w, img_h],
-                            tileset.tile_size,
-                            tileset.spacing,
-                            tileset.padding,
-                        );
-                        format!(
-                            "Atlas {}x{} px, {} x {} tiles ({})",
-                            img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
+            let tab_salt = match active_tab {
+                MARKING_SUB_TAB => "tileset_tab_marking",
+                COLLISION_SUB_TAB => "tileset_tab_collision",
+                ANIMATION_SUB_TAB => "tileset_tab_animation",
+                _ => "tileset_tab_definition",
+            };
+            ui.scope_builder(egui::UiBuilder::new().id_salt(tab_salt), |ui| {
+                // Header title row & description (shared across all non-document tabs)
+                if sections.title {
+                    ui.add_space(12.0);
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(format!("{} (Tileset)", tileset.name))
+                                .size(20.0)
+                                .strong()
+                                .color(t.ink_strong),
                         )
-                    } else if !tileset.path.is_empty() {
-                        "Source image file could not be loaded.".to_string()
-                    } else {
-                        "No image assigned.".to_string()
-                    };
-
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        let (atlas_label_rect, _) =
-                            ui.allocate_exact_size(vec2(atlas_card_w, 24.0), Sense::hover());
-                        let mut child =
-                            ui.new_child(egui::UiBuilder::new().max_rect(atlas_label_rect));
-                        child.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new("TILE ATLAS")
-                                        .size(11.0)
-                                        .strong()
-                                        .color(t.accent_ink),
-                                )
-                                .sense(Sense::hover()),
-                            )
-                            .on_hover_text(atlas_tooltip);
-
-                            ui.add_space(14.0);
-
-                            render_mode_selector_combo(ui, tileset, &mut app.tileset_view_state);
-
-                            ui.add_space(8.0);
-
-                            ui.label(
-                                RichText::new("TOOLS")
-                                    .size(11.0)
-                                    .strong()
-                                    .color(t.accent_ink),
-                            );
-
-                            if app.tileset_view_state.active_mode == "Animation" {
-                                ui.add_space(10.0);
-                                render_animation_toolbar(app, ui, t, tileset);
-                            } else if app.tileset_view_state.active_mode == "Collision" {
-                                ui.add_space(10.0);
-                                render_collision_toolbar(app, ui, t, tileset);
-                            }
-                        });
-
-                        ui.add_space(gap);
-
-                        let (tools_label_rect, _) =
-                            ui.allocate_exact_size(vec2(mode_card_w, 24.0), Sense::hover());
-                        let mut child =
-                            ui.new_child(egui::UiBuilder::new().max_rect(tools_label_rect));
-                        child.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
-                            ui.label(
-                                RichText::new("TOOL ATTRIBUTES")
-                                    .size(11.0)
-                                    .strong()
-                                    .color(t.accent_ink),
-                            );
-                        });
-                    });
-
+                        .truncate(),
+                    );
                     ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(tr(keys::DESCRIPTION))
+                            .size(11.5)
+                            .color(t.muted),
+                    );
+                    ui.add_space(10.0);
+                }
 
-                    let card_top = ui.cursor().min.y;
-                    let card_bottom = content_rect.max.y;
-                    let card_h = (card_bottom - card_top).max(60.0);
+                let mut tex = app.assets.load_texture(ui.ctx(), &tileset.path).ok();
 
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
+                // Attributes card is only shown in TILESET DEF; MARKING / COLLISION / ANIMATION
+                // get the full vertical canvas space.
+                if active_tab == TILESET_DEF_SUB_TAB {
+                    render_attributes_card(app, ui, t, tileset, dialogs.as_ref(), tex.as_mut());
+                    ui.add_space(10.0);
+                }
 
-                        // Bordered Atlas Card (rectangular corners)
-                        ui.allocate_ui(vec2(atlas_card_w, card_h), |ui| {
-                            Frame::new()
+                // Center area: Atlas card on left (flex width), Tools card on right (240px)
+                let mode_card_w = 240.0;
+                let gap = WORKSPACE_PADDING; // 12.0
+                let atlas_card_w = (content_rect.width() - mode_card_w - gap).max(100.0);
+
+                let (img_w, img_h) = if let Some(ref tex_handle) = tex {
+                    let sz = tex_handle.size();
+                    (sz[0] as u32, sz[1] as u32)
+                } else {
+                    (0, 0)
+                };
+
+                let atlas_tooltip = if img_w > 0 && img_h > 0 {
+                    let metrics = lc_feature_tileset::compute_tileset_grid(
+                        [img_w, img_h],
+                        tileset.tile_size,
+                        tileset.spacing,
+                        tileset.padding,
+                    );
+                    format!(
+                        "Atlas {}x{} px, {} x {} tiles ({})",
+                        img_w, img_h, metrics.cols, metrics.rows, metrics.total_tiles
+                    )
+                } else if !tileset.path.is_empty() {
+                    "Source image file could not be loaded.".to_string()
+                } else {
+                    "No image assigned.".to_string()
+                };
+
+                let header_h = 24.0;
+                let header_gap = 4.0;
+                let card_top = ui.cursor().min.y + header_h + header_gap;
+                let card_bottom = content_rect.max.y;
+                let card_h = (card_bottom - card_top).max(60.0);
+
+                let mut dummy_collapsed = false;
+                let atlas_selected =
+                    app.tileset_view_state.focused_card == Some(TilesetCard::Atlas);
+                let tools_selected =
+                    app.tileset_view_state.focused_card == Some(TilesetCard::ToolAttributes);
+
+                let mut atlas_clicked = false;
+                let mut tools_clicked = false;
+
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+
+                    ui.allocate_ui(vec2(atlas_card_w, header_h + header_gap + card_h), |ui| {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
+                            let atlas_section = SectionContainer::new("TILE ATLAS")
+                                .title_tooltip(Some(&atlas_tooltip))
+                                .use_outline(true)
+                                .use_toggle_collapse(false)
+                                .selected(atlas_selected)
                                 .fill(t.canvas)
-                                .stroke(t.hairline())
-                                .corner_radius(CornerRadius::ZERO)
-                                .show(ui, |ui| {
-                                    render_atlas_view(app, ui, t, tileset, tex.as_ref());
-                                });
-                        });
-
-                        ui.add_space(gap);
-
-                        // Bordered Tools / Mode Card (rectangular corners)
-                        ui.allocate_ui(vec2(mode_card_w, card_h), |ui| {
-                            Frame::new()
-                                .fill(t.panel)
-                                .stroke(t.hairline())
-                                .corner_radius(CornerRadius::ZERO)
-                                .show(ui, |ui| {
-                                    ui.set_min_size(vec2(ui.available_width(), card_h - 2.0));
-                                    let mut commands = Vec::new();
-                                    render_right_panel(
-                                        ui,
-                                        t,
-                                        tileset,
-                                        &app.project,
-                                        app.assets.as_ref(),
-                                        &mut app.tileset_view_state,
-                                        &mut commands,
-                                    );
-                                    for cmd in commands {
-                                        app.execute_command(cmd);
+                                .margin(Margin::ZERO)
+                                .header_height(header_h)
+                                .header_gap(header_gap)
+                                .size(vec2(atlas_card_w, card_h));
+                            let atlas_header =
+                                atlas_section.show_header(ui, t, &mut dummy_collapsed, |ui| {
+                                    if active_tab == COLLISION_SUB_TAB {
+                                        ui.add_space(12.0);
+                                        ui.label(
+                                            RichText::new("TOOLS")
+                                                .size(11.0)
+                                                .strong()
+                                                .color(t.accent_ink),
+                                        );
+                                        ui.add_space(10.0);
+                                        render_collision_toolbar(app, ui, t, tileset);
+                                    } else if active_tab == ANIMATION_SUB_TAB {
+                                        ui.add_space(12.0);
+                                        ui.label(
+                                            RichText::new("TOOLS")
+                                                .size(11.0)
+                                                .strong()
+                                                .color(t.accent_ink),
+                                        );
+                                        ui.add_space(10.0);
+                                        render_animation_toolbar(app, ui, t, tileset);
                                     }
                                 });
+                            let atlas_resp = atlas_section.show_body(ui, t, &atlas_header, |ui| {
+                                render_atlas_view(app, ui, t, tileset, tex.as_ref());
+                            });
+                            atlas_clicked = atlas_resp.clicked_inside;
                         });
                     });
-                },
-            );
+
+                    ui.add_space(gap);
+
+                    ui.allocate_ui(vec2(mode_card_w, header_h + header_gap + card_h), |ui| {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
+                            let tools_resp = SectionContainer::new("TOOL ATTRIBUTES")
+                                .use_outline(true)
+                                .use_toggle_collapse(false)
+                                .selected(tools_selected)
+                                .fill(t.panel)
+                                .margin(Margin::ZERO)
+                                .header_height(header_h)
+                                .header_gap(header_gap)
+                                .size(vec2(mode_card_w, card_h))
+                                .show(
+                                    ui,
+                                    t,
+                                    &mut dummy_collapsed,
+                                    |_| {},
+                                    |ui| {
+                                        let mut commands = Vec::new();
+                                        render_right_panel(
+                                            ui,
+                                            t,
+                                            tileset,
+                                            &app.project,
+                                            app.assets.as_ref(),
+                                            &mut app.tileset_view_state,
+                                            &mut commands,
+                                        );
+                                        for cmd in commands {
+                                            app.execute_command(cmd);
+                                        }
+                                    },
+                                );
+                            tools_clicked = tools_resp.clicked_inside;
+                        });
+                    });
+                });
+
+                if atlas_clicked {
+                    app.tileset_view_state.focused_card = Some(TilesetCard::Atlas);
+                } else if tools_clicked {
+                    app.tileset_view_state.focused_card = Some(TilesetCard::ToolAttributes);
+                }
+            });
         }
     });
 }

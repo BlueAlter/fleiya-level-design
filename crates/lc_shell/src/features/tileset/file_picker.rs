@@ -23,13 +23,13 @@ pub fn file_picker_button(
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let hovered = resp.hovered();
-        painter.rect_filled(rect, CornerRadius::same(3), t.sunken);
+        painter.rect_filled(rect, CornerRadius::ZERO, t.sunken);
         let stroke = if hovered {
             Stroke::new(1.0, t.accent)
         } else {
             t.hairline()
         };
-        painter.rect_stroke(rect, CornerRadius::same(3), stroke, StrokeKind::Inside);
+        painter.rect_stroke(rect, CornerRadius::ZERO, stroke, StrokeKind::Inside);
 
         let text_color = if is_empty {
             t.muted

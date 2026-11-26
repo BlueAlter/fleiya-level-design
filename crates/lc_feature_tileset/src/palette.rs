@@ -161,7 +161,7 @@ impl PanelView for TilePalettePanel {
                         let resp = Frame::new()
                             .fill(bg_color)
                             .stroke(Stroke::NONE)
-                            .corner_radius(CornerRadius::same(3))
+                            .corner_radius(CornerRadius::ZERO)
                             .inner_margin(Margin::symmetric(8, 4))
                             .show(ui, |ui| {
                                 ui.label(RichText::new(icon.glyph()).size(14.0).color(icon_color));
