@@ -2,7 +2,8 @@
 
 pub use crate::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 pub use crate::entity::{
-    EntityDef, EntityLimitBehavior, EntityLimitScope, EntityRenderMode, TileRenderMode, TilesetRect,
+    EntityDef, EntityLimitBehavior, EntityLimitScope, EntityRenderMode, SmartTileSource,
+    TileRenderMode, TilesetRect,
 };
 use crate::id::{EntityDefId, EnumDefId, LayerDefId, TilesetDefId};
 use crate::layer::{LayerKind, TileRef};

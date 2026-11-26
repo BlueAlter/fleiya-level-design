@@ -1,6 +1,8 @@
 //! LDtk-parity toggleable `ENTITY VALUES` 2-column fixed-height layout.
 
-use egui::{vec2, Color32, CornerRadius, Frame, Id, Margin, RichText, ScrollArea, Sense, Ui};
+use egui::{
+    vec2, Color32, CornerRadius, Frame, Id, Margin, Pos2, Rect, RichText, ScrollArea, Sense, Ui,
+};
 use lc_canvas::theme::{self, Tokens};
 use lc_core::defs::EntityDef;
 use lc_core::fields::{FieldDef, FieldType};
@@ -20,8 +22,8 @@ use crate::shared::ui::reorder_row::{
 use crate::shared::ui::section_container::SectionContainer;
 use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_COMPACT;
 
-const LIST_BODY_H: f32 = 340.0;
-const RIGHT_CARD_H: f32 = CONTROL_HEIGHT_COMPACT + 8.0 + LIST_BODY_H;
+const MIN_CARD_H: f32 = 320.0;
+const MAX_CARD_H: f32 = 560.0;
 
 fn compact_type_badge(field: &FieldDef) -> String {
     let base = match field.base_type() {
@@ -45,13 +47,17 @@ fn compact_type_badge(field: &FieldDef) -> String {
     }
 }
 
-/// Renders the collapsible `ENTITY VALUES` section with LDtk's 2-column fixed-height split.
+/// Renders the collapsible `ENTITY VALUES` section with LDtk's 2-column fixed-width split.
+///
+/// Column widths are determined strictly from the parent workspace width (never from child content),
+/// and column heights track `app_height` so child widgets scroll cleanly inside without shifting panels.
 pub fn render_entity_fields_section(
     app: &mut ShellApp,
     ui: &mut Ui,
     t: &Tokens,
     state: &mut EntityViewState,
     def: &EntityDef,
+    app_height: f32,
 ) {
     if def.fields.is_empty() {
         state.selected_field_idx = None;
@@ -79,107 +85,117 @@ pub fn render_entity_fields_section(
         let col_gap = 12.0;
         let left_w = (total_w * 0.36).clamp(220.0, 270.0);
         let right_w = (total_w - left_w - col_gap).max(200.0);
+        let card_h = (app_height - 368.0).clamp(MIN_CARD_H, MAX_CARD_H);
+        let list_body_h = (card_h - CONTROL_HEIGHT_COMPACT - 8.0).max(160.0);
 
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
+        let (row_rect, _) = ui.allocate_exact_size(vec2(total_w, card_h), Sense::hover());
+        let left_rect = Rect::from_min_size(row_rect.min, vec2(left_w, card_h));
+        let right_rect = Rect::from_min_size(
+            Pos2::new(left_rect.max.x + col_gap, row_rect.min.y),
+            vec2(right_w, card_h),
+        );
 
-            // LEFT COLUMN: Equal-width + SINGLE VALUE / + ARRAY buttons + outline-only fixed-height card list
-            ui.allocate_ui_with_layout(
-                vec2(left_w, RIGHT_CARD_H),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    ui.set_width(left_w);
-                    if let Some(ft) = render_add_field_buttons(ui, app, t, left_w, def.id) {
-                        add_type = Some(ft);
-                    }
-                    ui.add_space(8.0);
+        // LEFT COLUMN: Equal-width + SINGLE VALUE / + ARRAY buttons + outline-only fixed card list
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(left_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+            |ui| {
+                ui.set_clip_rect(left_rect.intersect(ui.clip_rect()));
+                ui.set_width(left_w);
+                ui.set_max_width(left_w);
+                if let Some(ft) = render_add_field_buttons(ui, app, t, left_w, def.id) {
+                    add_type = Some(ft);
+                }
+                ui.add_space(8.0);
 
-                    // Outline-only container (`use_custom_color = false` -> transparent fill + 1px hairline border)
-                    Frame::new()
-                        .fill(Color32::TRANSPARENT)
-                        .stroke(t.hairline())
-                        .corner_radius(CornerRadius::ZERO)
-                        .inner_margin(Margin::same(6))
-                        .show(ui, |ui| {
-                            let inner_w = (left_w - 14.0).max(160.0);
-                            ui.set_width(inner_w);
-                            ui.set_min_height(LIST_BODY_H - 14.0);
-                            ui.set_max_height(LIST_BODY_H - 14.0);
+                // Outline-only container (`use_custom_color = false` -> transparent fill + 1px hairline border)
+                Frame::new()
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(t.hairline())
+                    .corner_radius(CornerRadius::ZERO)
+                    .inner_margin(Margin::same(6))
+                    .show(ui, |ui| {
+                        let inner_w = (left_w - 14.0).max(160.0);
+                        ui.set_width(inner_w);
+                        ui.set_max_width(inner_w);
+                        ui.set_min_height(list_body_h - 14.0);
+                        ui.set_max_height(list_body_h - 14.0);
 
-                            ScrollArea::vertical()
-                                .id_salt(("entity_field_list_scroll", def.id))
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
-                                    ui.set_width(ui.available_width());
-                                    if def.fields.is_empty() {
-                                        ui.add_space(12.0);
-                                        ui.label(
-                                            RichText::new(
-                                                "No fields yet.\nUse + SINGLE VALUE or + ARRAY.",
-                                            )
-                                            .size(11.5)
-                                            .color(t.muted),
-                                        );
-                                    } else {
-                                        render_field_list(
-                                            ui,
-                                            t,
-                                            state,
-                                            def,
-                                            &mut delete_name,
-                                            &mut reorder_pair,
-                                        );
-                                    }
-                                });
-                        });
-                },
-            );
+                        ScrollArea::vertical()
+                            .id_salt(("entity_field_list_scroll", def.id))
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.set_width(inner_w);
+                                ui.set_max_width(inner_w);
+                                if def.fields.is_empty() {
+                                    ui.add_space(12.0);
+                                    ui.label(
+                                        RichText::new(
+                                            "No fields yet.\nUse + SINGLE VALUE or + ARRAY.",
+                                        )
+                                        .size(11.5)
+                                        .color(t.muted),
+                                    );
+                                } else {
+                                    render_field_list(
+                                        ui,
+                                        t,
+                                        state,
+                                        def,
+                                        &mut delete_name,
+                                        &mut reorder_pair,
+                                    );
+                                }
+                            });
+                    });
+            },
+        );
 
-            ui.add_space(col_gap);
+        // RIGHT COLUMN: Strict fixed-width card (`right_w`, never driven by child content) + internal ScrollArea
+        let inner_rect = right_rect.shrink(12.0);
+        let inner_w = inner_rect.width().max(160.0);
+        ui.painter().rect(
+            right_rect,
+            CornerRadius::ZERO,
+            t.panel,
+            t.hairline(),
+            egui::StrokeKind::Inside,
+        );
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(inner_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+            |ui| {
+                ui.set_clip_rect(inner_rect.intersect(ui.clip_rect()));
+                ui.set_width(inner_w);
+                ui.set_max_width(inner_w);
 
-            // RIGHT COLUMN: Fixed-height card with default theme fill (`t.panel`) + internal ScrollArea
-            ui.allocate_ui_with_layout(
-                vec2(right_w, RIGHT_CARD_H),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    ui.set_width(right_w);
-                    Frame::new()
-                        .fill(t.panel)
-                        .stroke(t.hairline())
-                        .corner_radius(CornerRadius::ZERO)
-                        .inner_margin(Margin::same(12))
-                        .show(ui, |ui| {
-                            let inner_w = (right_w - 26.0).max(180.0);
-                            ui.set_width(inner_w);
-                            ui.set_min_height(RIGHT_CARD_H - 26.0);
-                            ui.set_max_height(RIGHT_CARD_H - 26.0);
-
-                            ScrollArea::vertical()
-                                .id_salt(("entity_field_config_scroll", def.id))
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
-                                    ui.set_width(ui.available_width());
-                                    if let Some(sel_idx) = state.selected_field_idx {
-                                        if let Some(field) = def.fields.get(sel_idx) {
-                                            render_selected_field_config(
-                                                app, ui, t, state, def, sel_idx, field,
-                                            );
-                                        }
-                                    } else {
-                                        ui.add_space(12.0);
-                                        ui.label(
-                                            RichText::new(
-                                                "Select or add a field on the left to configure it.",
-                                            )
-                                            .size(12.0)
-                                            .color(t.muted),
-                                        );
-                                    }
-                                });
-                        });
-                },
-            );
-        });
+                ScrollArea::vertical()
+                    .id_salt(("entity_field_config_scroll", def.id))
+                    .max_width(inner_w)
+                    .max_height(inner_rect.height().max(80.0))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_width(inner_w);
+                        ui.set_max_width(inner_w);
+                        if let Some(sel_idx) = state.selected_field_idx {
+                            if let Some(field) = def.fields.get(sel_idx) {
+                                render_selected_field_config(
+                                    app, ui, t, state, def, sel_idx, field,
+                                );
+                            }
+                        } else {
+                            ui.add_space(12.0);
+                            ui.label(
+                                RichText::new("Select or add a field on the left to configure it.")
+                                    .size(12.0)
+                                    .color(t.muted),
+                            );
+                        }
+                    });
+            },
+        );
     });
 
     if let Some(ty) = add_type {

@@ -31,8 +31,8 @@ pub use commands::{
 };
 pub use defs::{
     AnimationPlayMode, Definitions, EntityDef, EntityLimitBehavior, EntityLimitScope,
-    EntityRenderMode, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TileAnimationDef,
-    TileRenderMode, TilesetDef, TilesetRect,
+    EntityRenderMode, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, SmartTileSource,
+    TileAnimationDef, TileRenderMode, TilesetDef, TilesetRect,
 };
 pub use error::CoreError;
 pub use fields::{

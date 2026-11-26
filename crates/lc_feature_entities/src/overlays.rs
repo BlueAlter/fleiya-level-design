@@ -4,11 +4,11 @@ use egui::{pos2, vec2, Align2, Color32, FontId, Painter, Pos2, Rect, Stroke};
 use glam::IVec2;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::EntityDef;
-use lc_core::fields::{EditorDisplayMode, EditorDisplayPos, EditorLinkStyle, FieldDef, FieldValue};
+use lc_core::fields::{EditorDisplayMode, EditorDisplayPos, EditorLinkStyle, FieldValue};
 use lc_core::layer::EntityInstance;
 use lc_ui_api::canvas::LayerRenderCtx;
 
-use crate::field_defs::format_field_value;
+use crate::visual_effects::format_overlay_text;
 
 pub(crate) fn render_field_overlays(
     ctx: &LayerRenderCtx,
@@ -59,7 +59,8 @@ pub(crate) fn render_field_overlays(
                     continue;
                 }
                 let text = format_overlay_text(field, value, mode);
-                if text.is_empty() {
+                let color_discs = collect_color_discs(field.base_type(), value, mode);
+                if text.is_empty() && color_discs.is_empty() {
                     continue;
                 }
                 let font =
@@ -77,13 +78,40 @@ pub(crate) fn render_field_overlays(
                         (p, Align2::CENTER_TOP)
                     }
                 };
-                ctx.painter.text(
-                    pos,
-                    align,
-                    text,
-                    font,
-                    t.ink_strong.gamma_multiply(ctx.opacity),
-                );
+                if !text.is_empty() {
+                    let text_pos = if color_discs.is_empty() {
+                        pos
+                    } else {
+                        pos2(pos.x - (color_discs.len() as f32 * 6.0), pos.y)
+                    };
+                    ctx.painter.text(
+                        text_pos,
+                        align,
+                        text,
+                        font.clone(),
+                        t.ink_strong.gamma_multiply(ctx.opacity),
+                    );
+                }
+                if !color_discs.is_empty() {
+                    let radius = (4.5 * scale * ctx.viewport.zoom).clamp(3.0, 8.0);
+                    let total_w = color_discs.len() as f32 * (radius * 2.2);
+                    let start_x = pos.x - total_w * 0.5 + radius;
+                    let cy = match align {
+                        Align2::CENTER_BOTTOM => pos.y - radius,
+                        Align2::CENTER_TOP => pos.y + radius,
+                        _ => pos.y,
+                    };
+                    for (i, c) in color_discs.iter().enumerate() {
+                        let center = pos2(start_x + i as f32 * (radius * 2.4), cy);
+                        ctx.painter
+                            .circle_filled(center, radius, c.gamma_multiply(ctx.opacity));
+                        ctx.painter.circle_stroke(
+                            center,
+                            radius,
+                            Stroke::new(1.0, Color32::BLACK.gamma_multiply(ctx.opacity)),
+                        );
+                    }
+                }
             }
             EditorDisplayMode::RadiusPx | EditorDisplayMode::RadiusGrid => {
                 let raw_val = match value {
@@ -132,9 +160,7 @@ pub(crate) fn render_field_overlays(
                 }
 
                 for pt in pts {
-                    ctx.painter.circle_filled(pt, 3.5, overlay_color);
-                    ctx.painter
-                        .circle_stroke(pt, 3.5, Stroke::new(1.0, Color32::BLACK));
+                    paint_diamond_marker(ctx.painter, pt, 4.0, overlay_color);
                 }
             }
             EditorDisplayMode::RefLinkBetweenPivots | EditorDisplayMode::RefLinkBetweenCenters => {
@@ -182,44 +208,46 @@ pub(crate) fn render_field_overlays(
     }
 }
 
-fn format_overlay_text(field: &FieldDef, value: &FieldValue, mode: EditorDisplayMode) -> String {
-    let mut txt = match mode {
-        EditorDisplayMode::ArrayCountWithLabel => {
-            let n = match value {
-                FieldValue::Array(v) => v.len(),
-                _ => 0,
-            };
-            format!("{}: [{n}]", field.name)
-        }
-        EditorDisplayMode::ArrayCountNoLabel => {
-            let n = match value {
-                FieldValue::Array(v) => v.len(),
-                _ => 0,
-            };
-            format!("[{n}]")
-        }
-        _ => {
-            let mut raw = format_field_value(value);
-            if field.editor_cut_long_values && raw.chars().count() > 24 {
-                raw = format!("{}…", raw.chars().take(23).collect::<String>());
-            }
-            if let Some(ref prefix) = field.editor_text_prefix {
-                raw = format!("{prefix}{raw}");
-            }
-            if let Some(ref suffix) = field.editor_text_suffix {
-                raw.push_str(suffix);
-            }
-            if mode == EditorDisplayMode::NameAndValue {
-                format!("{}: {raw}", field.name)
-            } else {
-                raw
-            }
-        }
-    };
-    if txt.trim().is_empty() {
-        txt.clear();
+/// Draws an LDtk-style diamond point marker centered at `pt`.
+pub fn paint_diamond_marker(painter: &Painter, pt: Pos2, size: f32, color: Color32) {
+    let pts = vec![
+        pos2(pt.x, pt.y - size),
+        pos2(pt.x + size, pt.y),
+        pos2(pt.x, pt.y + size),
+        pos2(pt.x - size, pt.y),
+    ];
+    painter.add(egui::Shape::convex_polygon(
+        pts,
+        color,
+        Stroke::new(1.0, Color32::BLACK),
+    ));
+}
+
+fn collect_color_discs(
+    base: &lc_core::fields::FieldType,
+    value: &FieldValue,
+    mode: EditorDisplayMode,
+) -> Vec<Color32> {
+    if !matches!(
+        mode,
+        EditorDisplayMode::ValueOnly | EditorDisplayMode::NameAndValue
+    ) || !matches!(base, lc_core::fields::FieldType::Color)
+    {
+        return Vec::new();
     }
-    txt
+    match value {
+        FieldValue::Color(c) => vec![Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3])],
+        FieldValue::Array(items) => items
+            .iter()
+            .filter_map(|v| match v {
+                FieldValue::Color(c) => {
+                    Some(Color32::from_rgba_unmultiplied(c[0], c[1], c[2], c[3]))
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn entity_pivot_screen(ctx: &LayerRenderCtx, def: &EntityDef, entity: &EntityInstance) -> Pos2 {
@@ -262,7 +290,8 @@ fn collect_entity_refs(value: &FieldValue) -> Vec<lc_core::id::EntityId> {
     }
 }
 
-fn paint_link_line(
+/// Paints a directional link line matching LDtk's `FieldLinkStyle` presets.
+pub fn paint_link_line(
     painter: &Painter,
     from: Pos2,
     to: Pos2,

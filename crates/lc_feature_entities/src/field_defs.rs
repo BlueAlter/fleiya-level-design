@@ -80,7 +80,11 @@ pub fn coerce_for_field_def(
     clamp_numeric_value(coerced, field.min, field.max)
 }
 
-fn clamp_numeric_value(value: FieldValue, min: Option<f64>, max: Option<f64>) -> FieldValue {
+pub(crate) fn clamp_numeric_value(
+    value: FieldValue,
+    min: Option<f64>,
+    max: Option<f64>,
+) -> FieldValue {
     match value {
         FieldValue::Int(mut v) => {
             if let Some(lo) = min {

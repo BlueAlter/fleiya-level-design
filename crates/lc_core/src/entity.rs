@@ -1,7 +1,7 @@
 //! Entity definition templates and LDtk-compatible rendering/limit configuration.
 
 use crate::defs::EnumDef;
-use crate::fields::{FieldDef, FieldValue, FieldValues};
+use crate::fields::{EditorDisplayMode, FieldDef, FieldType, FieldValue, FieldValues};
 use crate::id::{EntityDefId, FieldDefId, TilesetDefId};
 use crate::layer::TileRef;
 use glam::{UVec2, Vec2};
@@ -237,6 +237,67 @@ impl Default for EntityDef {
     }
 }
 
+/// Effective tile graphic resolved for an entity instance or definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SmartTileSource {
+    /// Explicit pixel rectangle in a tileset.
+    Rect(TilesetRect),
+    /// Legacy or enum-value single-tile grid reference.
+    Ref(TileRef),
+}
+
+/// Extracts LDtk's `__smartColor` from a field value and its base type.
+pub fn extract_smart_color_from_value(
+    value: &FieldValue,
+    base_type: &FieldType,
+    enums: &[EnumDef],
+) -> Option<[u8; 4]> {
+    match value {
+        FieldValue::Color(rgba) => Some(*rgba),
+        FieldValue::Enum(val_id) => {
+            if let FieldType::Enum(enum_id) = base_type {
+                enums
+                    .iter()
+                    .find(|e| e.id == *enum_id)
+                    .and_then(|e| e.value(val_id))
+                    .map(|val_def| val_def.color)
+            } else {
+                None
+            }
+        }
+        FieldValue::Array(items) => items
+            .iter()
+            .find_map(|item| extract_smart_color_from_value(item, base_type, enums)),
+        _ => None,
+    }
+}
+
+/// Extracts an overriding [`SmartTileSource`] from a `Tile` or `Enum` value.
+pub fn extract_smart_tile_from_value(
+    value: &FieldValue,
+    base_type: &FieldType,
+    enums: &[EnumDef],
+) -> Option<SmartTileSource> {
+    match value {
+        FieldValue::Tile(Some(rect)) => Some(SmartTileSource::Rect(*rect)),
+        FieldValue::Enum(val_id) => {
+            if let FieldType::Enum(enum_id) = base_type {
+                enums
+                    .iter()
+                    .find(|e| e.id == *enum_id)
+                    .and_then(|e| e.value(val_id))
+                    .and_then(|val_def| val_def.tile.map(SmartTileSource::Ref))
+            } else {
+                None
+            }
+        }
+        FieldValue::Array(items) => items
+            .iter()
+            .find_map(|item| extract_smart_tile_from_value(item, base_type, enums)),
+        _ => None,
+    }
+}
+
 impl EntityDef {
     /// Creates a new entity definition with LDtk-compatible defaults.
     pub fn new(id: EntityDefId, name: impl Into<String>) -> Self {
@@ -259,32 +320,39 @@ impl EntityDef {
 
     /// Computes LDtk's `__smartColor` from the first field marked `use_for_smart_color`.
     ///
-    /// Inspects `Color` fields directly and `Enum` fields via their enum value's color,
-    /// falling back to `self.color` when no smart-color field has a non-null value.
+    /// Inspects `Color` and `Enum` fields (including array elements and field defaults),
+    /// falling back to `self.color` when no smart-color field yields a color.
     pub fn smart_color(&self, fields: &FieldValues, enums: &[EnumDef]) -> [u8; 4] {
         for field in &self.fields {
             if !field.use_for_smart_color {
                 continue;
             }
-            let Some(value) = fields.get(&field.name) else {
+            let Some(value) = fields.get(&field.name).or(field.default_value.as_ref()) else {
                 continue;
             };
-            match value {
-                FieldValue::Color(rgba) => return *rgba,
-                FieldValue::Enum(val_id) => {
-                    if let crate::fields::FieldType::Enum(enum_id) = field.field_type {
-                        if let Some(val_def) = enums
-                            .iter()
-                            .find(|e| e.id == enum_id)
-                            .and_then(|e| e.value(val_id))
-                        {
-                            return val_def.color;
-                        }
-                    }
-                }
-                _ => {}
+            if let Some(rgba) = extract_smart_color_from_value(value, field.base_type(), enums) {
+                return rgba;
             }
         }
         self.color
+    }
+
+    /// Computes LDtk's `getSmartTile()` from fields configured with `EditorDisplayMode::EntityTile`,
+    /// falling back to the entity's own `tile_rect` or legacy `tile`.
+    pub fn smart_tile(&self, fields: &FieldValues, enums: &[EnumDef]) -> Option<SmartTileSource> {
+        for field in &self.fields {
+            if field.editor_display_mode != EditorDisplayMode::EntityTile {
+                continue;
+            }
+            let Some(value) = fields.get(&field.name).or(field.default_value.as_ref()) else {
+                continue;
+            };
+            if let Some(tile) = extract_smart_tile_from_value(value, field.base_type(), enums) {
+                return Some(tile);
+            }
+        }
+        self.tile_rect
+            .map(SmartTileSource::Rect)
+            .or_else(|| self.tile.map(SmartTileSource::Ref))
     }
 }

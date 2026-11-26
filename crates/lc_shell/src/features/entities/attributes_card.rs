@@ -17,20 +17,42 @@ use crate::shared::ui::tag_row::{tag_row, TagEvent};
 use crate::shared::ui::text_field::{text_field, validate_identifier, FieldOutline, FieldStyle};
 use crate::shared::ui::tile_bounds::TileRect;
 use crate::shared::ui::tile_picker::TilePicker;
-use crate::shared::ui::workspace_metrics::{card_label, CONTROL_HEIGHT_FORM};
+use crate::shared::ui::workspace_metrics::{card_label, CONTROL_HEIGHT_FORM, FORM_LABEL_COL_W};
 
 /// Shared aligned attribute row with `FORM_LABEL_COL_W` label column.
+///
+/// Constrains child controls to the remaining row width and wraps onto subsequent
+/// lines so child content never widens the parent card.
 pub(crate) fn attr_row<R>(
     ui: &mut Ui,
     t: &Tokens,
     label: &str,
     control: impl FnOnce(&mut Ui) -> R,
 ) -> R {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 6.0;
-        card_label(ui, label, t);
-        control(ui)
-    })
+    let total_w = ui.available_width().max(FORM_LABEL_COL_W + 80.0);
+    let ctrl_w = (total_w - FORM_LABEL_COL_W - 6.0).max(80.0);
+    ui.allocate_ui_with_layout(
+        vec2(total_w, CONTROL_HEIGHT_FORM),
+        Layout::left_to_right(Align::TOP),
+        |ui| {
+            ui.set_max_width(total_w);
+            ui.spacing_mut().item_spacing.x = 6.0;
+            card_label(ui, label, t);
+            let ctrl_origin = ui.cursor().min;
+            let mut right = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(egui::Rect::from_min_size(
+                        ctrl_origin,
+                        vec2(ctrl_w, CONTROL_HEIGHT_FORM),
+                    ))
+                    .layout(Layout::left_to_right(Align::Center).with_main_wrap(true)),
+            );
+            let ret = control(&mut right);
+            let used_h = (right.min_rect().max.y - ctrl_origin.y).max(CONTROL_HEIGHT_FORM);
+            ui.allocate_exact_size(vec2(ctrl_w, used_h), Sense::hover());
+            ret
+        },
+    )
     .inner
 }
 
