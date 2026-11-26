@@ -283,10 +283,14 @@ fn paste_collision(app: &mut ShellApp, ui: &Ui, tileset: &TilesetDef, active_til
     }
 }
 
-/// Handles keyboard shortcuts for collision mode.
+/// Handles keyboard shortcuts for collision mode (scoped to Atlas / ToolAttributes focus).
 fn handle_collision_shortcuts(app: &mut ShellApp, ui: &Ui, tileset: &TilesetDef) {
     let ctx = ui.ctx();
-    if ctx.egui_wants_keyboard_input() {
+    let card_focused = matches!(
+        app.tileset_view_state.focused_card,
+        Some(super::state::TilesetCard::Atlas | super::state::TilesetCard::ToolAttributes)
+    );
+    if !card_focused || ctx.egui_wants_keyboard_input() {
         return;
     }
 

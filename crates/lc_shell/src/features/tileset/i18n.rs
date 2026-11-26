@@ -12,6 +12,9 @@ pub const DOMAIN: &str = "tileset";
 /// Translation keys used by the Tileset feature UI.
 pub mod keys {
     pub const TAB_DEFINITION: &str = "tileset.tab.definition";
+    pub const TAB_MARKING: &str = "tileset.tab.marking";
+    pub const TAB_COLLISION: &str = "tileset.tab.collision";
+    pub const TAB_ANIMATION: &str = "tileset.tab.animation";
     pub const TAB_DOCUMENT: &str = "tileset.tab.document";
     pub const DESCRIPTION: &str = "tileset.description";
     pub const NEW_BUTTON: &str = "tileset.new_button";
@@ -47,6 +50,9 @@ pub mod keys {
 
     pub const ALL: &[&str] = &[
         TAB_DEFINITION,
+        TAB_MARKING,
+        TAB_COLLISION,
+        TAB_ANIMATION,
         TAB_DOCUMENT,
         DESCRIPTION,
         NEW_BUTTON,

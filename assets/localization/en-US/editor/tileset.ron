@@ -1,5 +1,8 @@
 {
     "tileset.tab.definition": "TILESET DEF",
+    "tileset.tab.marking": "MARKING",
+    "tileset.tab.collision": "COLLISION",
+    "tileset.tab.animation": "ANIMATION",
     "tileset.tab.document": "DOCUMENT",
     "tileset.description": "Configure tileset definitions, slices, and attributes.",
     "tileset.new_button": "+ New Tileset",

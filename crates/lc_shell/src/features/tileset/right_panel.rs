@@ -1,17 +1,25 @@
 //! Right panel shell for the Tileset workspace.
 
 use egui::{
-    vec2, Color32, CornerRadius, Pos2, Rect, RichText, ScrollArea, Sense, Stroke, StrokeKind, Ui,
+    vec2, Color32, CornerRadius, FontFamily, FontId, Frame, Margin, Pos2, Rect, RichText,
+    ScrollArea, Sense, Stroke, StrokeKind, Ui,
 };
-use lc_canvas::icons::Icon;
-use lc_canvas::theme::Tokens;
+use lc_canvas::theme::{self, Tokens};
+use lc_canvas::widgets::{button, ButtonKind};
 use lc_core::defs::TilesetDef;
+use lc_core::id::EnumDefId;
 use lc_core::layer::TileRef;
 use lc_core::project::Project;
-use lc_feature_tileset::mode_availability;
+use lc_feature_tileset::{compute_tileset_grid, SetMarkingSourceCommand, SetTileCustomDataCommand};
 use lc_ui_api::AssetService;
 
+use super::i18n::keys;
 use crate::features::tileset::state::{TilesetViewState, CUSTOM_DATA_VALUE_ID};
+use crate::shared::i18n::tr;
+use crate::shared::ui::tileset_select::{
+    is_tileset_select_open, tileset_select_full_width, TilesetSelectItem,
+};
+use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
 
 use lc_core::Command;
 
@@ -69,57 +77,10 @@ pub fn paint_tile_thumbnail(
     false
 }
 
-/// Renders the mode dropdown selector (None, Marking, Animation) beside the Tile Atlas title.
-pub fn render_mode_selector_combo(ui: &mut Ui, tileset: &TilesetDef, state: &mut TilesetViewState) {
-    let modes = mode_availability(tileset);
-    let current_label = modes
-        .iter()
-        .find(|m| m.id == state.active_mode)
-        .map(|m| m.label)
-        .unwrap_or("None");
-
-    ui.spacing_mut().interact_size.y = 20.0;
-    let combo_w = 110.0;
-
-    egui::ComboBox::from_id_salt("tileset_mode_selector")
-        .selected_text(current_label)
-        .width(combo_w)
-        .icon(|ui, rect, visuals, is_open| {
-            let icon = if is_open {
-                Icon::ChevronUp
-            } else {
-                Icon::ChevronDown
-            };
-            lc_canvas::icons::paint_icon(
-                ui.painter(),
-                rect.center(),
-                icon,
-                12.0,
-                visuals.text_color(),
-            );
-        })
-        .show_ui(ui, |ui| {
-            for mode in modes {
-                if mode.available {
-                    if ui
-                        .selectable_label(state.active_mode == mode.id, mode.label)
-                        .clicked()
-                    {
-                        state.active_mode = mode.id.to_string();
-                    }
-                } else {
-                    let btn = ui.add_enabled(false, egui::Button::new(mode.label));
-                    if !mode.hint.is_empty() {
-                        btn.on_disabled_hover_text(mode.hint);
-                    }
-                }
-            }
-        });
-}
-
 /// Paints the rectangular "Custom data" header row with #tile_id badge.
 fn paint_custom_data_header_row(
     ui: &mut Ui,
+    t: &Tokens,
     badge_text: &str,
     is_selected: bool,
 ) -> egui::Response {
@@ -128,20 +89,20 @@ fn paint_custom_data_header_row(
         ui.allocate_exact_size(vec2(ui.available_width(), custom_data_h), Sense::click());
 
     let cd_fill = if is_selected {
-        Color32::from_rgb(34, 40, 48)
+        theme::tint(t.accent, 0.18)
     } else if cd_resp.hovered() {
-        Color32::from_rgb(38, 44, 52)
+        t.sunken
     } else {
-        Color32::from_rgb(26, 30, 36)
+        t.bg
     };
 
     ui.painter()
         .rect_filled(cd_rect, CornerRadius::ZERO, cd_fill);
 
     let stroke = if is_selected {
-        Stroke::new(2.0, Color32::WHITE)
+        Stroke::new(1.5, t.accent)
     } else {
-        Stroke::new(1.0, Color32::from_rgb(50, 58, 68))
+        t.hairline()
     };
     ui.painter()
         .rect_stroke(cd_rect, CornerRadius::ZERO, stroke, StrokeKind::Inside);
@@ -151,8 +112,8 @@ fn paint_custom_data_header_row(
         cd_text_pos,
         egui::Align2::LEFT_CENTER,
         "Custom data",
-        egui::FontId::proportional(12.0),
-        Color32::from_rgb(150, 170, 190),
+        FontId::new(12.0, FontFamily::Proportional),
+        if is_selected { t.ink_strong } else { t.ink },
     );
 
     let badge_w = 32.0;
@@ -164,23 +125,20 @@ fn paint_custom_data_header_row(
         ),
         vec2(badge_w, badge_h),
     );
-    ui.painter().rect_filled(
-        badge_rect,
-        CornerRadius::ZERO,
-        Color32::from_rgb(20, 24, 28),
-    );
+    ui.painter()
+        .rect_filled(badge_rect, CornerRadius::ZERO, t.sunken);
     ui.painter().rect_stroke(
         badge_rect,
         CornerRadius::ZERO,
-        Stroke::new(1.0, Color32::from_rgb(70, 78, 88)),
+        t.outline(),
         StrokeKind::Inside,
     );
     ui.painter().text(
         badge_rect.center(),
         egui::Align2::CENTER_CENTER,
         badge_text,
-        egui::FontId::monospace(10.0),
-        Color32::WHITE,
+        FontId::new(10.0, theme::mono_for(ui.ctx())),
+        t.ink_strong,
     );
 
     cd_resp
@@ -203,42 +161,44 @@ pub fn render_right_panel(
         // Content for selected mode
         match state.active_mode.as_str() {
             "None" => {
-                ui.add_space(4.0);
-                let active_tile_id = state
-                    .canvas_states
-                    .get(&tileset.id)
-                    .and_then(|cs| cs.hovered_tile)
-                    .or(state.selected_tile);
-                let badge_text = active_tile_id
-                    .map(|id| format!("#{id}"))
-                    .unwrap_or_else(|| "#--".to_string());
-
-                let cd_resp = paint_custom_data_header_row(ui, &badge_text, false);
-
-                if let Some(tid) = active_tile_id {
-                    if cd_resp.clicked() {
-                        let existing = tileset.custom_data.get(&tid).map(|s| s.as_str());
-                        state.custom_data_dialog.open(tileset.id, tid, existing);
-                    }
-                }
-
-                ui.add_space(14.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        RichText::new("Click any tile to edit custom data")
-                            .size(11.0)
-                            .color(t.faint),
-                    );
-                    ui.add_space(2.0);
-                    ui.label(
-                        RichText::new("Right-click to clear custom data")
-                            .size(10.5)
-                            .color(t.muted),
-                    );
-                });
-                ui.allocate_rect(ui.available_rect_before_wrap(), Sense::hover());
+                render_tileset_def_inspector(ui, t, tileset, project, assets, state, commands);
             }
             "Marking" => {
+                // Source enum selector moved here from Attributes card (full width).
+                Frame::new()
+                    .inner_margin(Margin::symmetric(8, 2))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(
+                            RichText::new(tr(keys::FIELD_MARKING_ENUM))
+                                .font(FontId::new(10.5, theme::mono_bold_for(ui.ctx())))
+                                .color(t.muted),
+                        );
+                        ui.add_space(4.0);
+                        ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
+
+                        let enum_items: Vec<TilesetSelectItem<EnumDefId>> = project
+                            .defs
+                            .enums
+                            .iter()
+                            .map(|e| TilesetSelectItem::new(e.id, e.name.clone()))
+                            .collect();
+
+                        let prev_enum = tileset.marking.source_enum;
+                        let mut chosen_enum = prev_enum;
+
+                        if tileset_select_full_width(ui, &enum_items, &mut chosen_enum, true)
+                            && chosen_enum != prev_enum
+                        {
+                            commands.push(Box::new(SetMarkingSourceCommand::new(
+                                tileset.id,
+                                chosen_enum,
+                            )));
+                        }
+                        state.is_enum_dropdown_open = is_tileset_select_open(ui);
+                    });
+                ui.add_space(6.0);
+
                 if let Some(source_id) = tileset.marking.source_enum {
                     if let Some(enum_def) = project.defs.enum_def(source_id) {
                         // Ensure an active value is selected if possible
@@ -265,7 +225,8 @@ pub fn render_right_panel(
                         // Top item: "Custom data" with tile ID badge
                         let is_cd_selected =
                             state.selected_marking_value.as_deref() == Some(CUSTOM_DATA_VALUE_ID);
-                        let cd_resp = paint_custom_data_header_row(ui, &badge_text, is_cd_selected);
+                        let cd_resp =
+                            paint_custom_data_header_row(ui, t, &badge_text, is_cd_selected);
 
                         if cd_resp.clicked() {
                             state.selected_marking_value = Some(CUSTOM_DATA_VALUE_ID.to_string());
@@ -321,24 +282,24 @@ pub fn render_right_panel(
                                         accent_color,
                                     );
 
-                                    // Selection outline (2px white border)
+                                    // Selection outline
                                     if is_selected {
                                         ui.painter().rect_stroke(
                                             row_rect,
                                             CornerRadius::ZERO,
-                                            Stroke::new(2.0, Color32::WHITE),
+                                            Stroke::new(2.0, t.ink_strong),
                                             StrokeKind::Inside,
                                         );
                                     } else if row_resp.hovered() {
                                         ui.painter().rect_stroke(
                                             row_rect,
                                             CornerRadius::ZERO,
-                                            Stroke::new(1.0, Color32::from_white_alpha(70)),
+                                            t.outline(),
                                             StrokeKind::Inside,
                                         );
                                     }
 
-                                    // Dark square icon container
+                                    // Square icon container
                                     let icon_box_size = 22.0;
                                     let icon_box_rect = Rect::from_min_size(
                                         Pos2::new(
@@ -350,12 +311,12 @@ pub fn render_right_panel(
                                     ui.painter().rect_filled(
                                         icon_box_rect,
                                         CornerRadius::ZERO,
-                                        Color32::from_rgb(22, 26, 32),
+                                        t.sunken,
                                     );
                                     ui.painter().rect_stroke(
                                         icon_box_rect,
                                         CornerRadius::ZERO,
-                                        Stroke::new(1.0, Color32::from_rgb(45, 52, 60)),
+                                        t.hairline(),
                                         StrokeKind::Inside,
                                     );
 
@@ -387,15 +348,23 @@ pub fn render_right_panel(
                                         );
                                     }
 
-                                    // Label text in bold white
+                                    // Label text contrasted against fill_color luminance
+                                    let luma = 0.299 * f32::from(fill_color.r())
+                                        + 0.587 * f32::from(fill_color.g())
+                                        + 0.114 * f32::from(fill_color.b());
+                                    let label_color = if luma > 160.0 {
+                                        Color32::BLACK
+                                    } else {
+                                        Color32::WHITE
+                                    };
                                     let text_pos =
                                         Pos2::new(icon_box_rect.max.x + 8.0, row_rect.center().y);
                                     ui.painter().text(
                                         text_pos,
                                         egui::Align2::LEFT_CENTER,
                                         &val.name,
-                                        egui::FontId::proportional(12.0),
-                                        Color32::WHITE,
+                                        FontId::new(12.0, FontFamily::Proportional),
+                                        label_color,
                                     );
 
                                     ui.add_space(2.0);
@@ -406,7 +375,7 @@ pub fn render_right_panel(
                             ui.add_space(20.0);
                             ui.label(
                                 RichText::new("(Missing source enum)")
-                                    .font(egui::FontId::proportional(12.0))
+                                    .font(FontId::new(12.0, FontFamily::Proportional))
                                     .color(t.muted),
                             );
                         });
@@ -415,8 +384,8 @@ pub fn render_right_panel(
                     ui.vertical_centered(|ui| {
                         ui.add_space(20.0);
                         ui.label(
-                            RichText::new("No source enum selected")
-                                .font(egui::FontId::proportional(12.0))
+                            RichText::new("Select a source enum above to mark tiles")
+                                .font(FontId::new(11.5, FontFamily::Proportional))
                                 .color(t.muted),
                         );
                     });
@@ -437,11 +406,331 @@ pub fn render_right_panel(
                     ui.add_space(20.0);
                     ui.label(
                         RichText::new("Coming in a later update")
-                            .font(egui::FontId::proportional(12.0))
+                            .font(FontId::new(12.0, FontFamily::Proportional))
                             .color(t.muted),
                     );
                 });
             }
         }
+    });
+}
+
+fn render_tileset_def_inspector(
+    ui: &mut Ui,
+    t: &Tokens,
+    tileset: &TilesetDef,
+    project: &Project,
+    assets: &dyn AssetService,
+    state: &mut TilesetViewState,
+    commands: &mut Vec<Box<dyn Command>>,
+) {
+    let active_tile_id = state
+        .canvas_states
+        .get(&tileset.id)
+        .and_then(|cs| cs.hovered_tile)
+        .or(state.selected_tile);
+    let badge_text = active_tile_id
+        .map(|id| format!("#{id}"))
+        .unwrap_or_else(|| "#--".to_string());
+
+    let cd_resp = paint_custom_data_header_row(ui, t, &badge_text, false);
+    if let Some(tid) = active_tile_id {
+        if cd_resp.clicked() {
+            let existing = tileset.custom_data.get(&tid).map(|s| s.as_str());
+            state.custom_data_dialog.open(tileset.id, tid, existing);
+        }
+    }
+
+    let grid_cols = assets
+        .load_texture(ui.ctx(), &tileset.path)
+        .ok()
+        .map(|tex| {
+            let sz = tex.size();
+            compute_tileset_grid(
+                [sz[0] as u32, sz[1] as u32],
+                tileset.tile_size,
+                tileset.spacing,
+                tileset.padding,
+            )
+        });
+
+    ScrollArea::vertical()
+        .id_salt("tileset_def_inspector_scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            Frame::new()
+                .inner_margin(Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.spacing_mut().item_spacing.y = 8.0;
+
+                    if let Some(tid) = active_tile_id {
+                        render_active_tile_card(
+                            ui,
+                            t,
+                            tileset,
+                            project,
+                            assets,
+                            tid,
+                            grid_cols.as_ref().map(|m| m.cols),
+                        );
+                        render_custom_data_section(ui, t, tileset, state, commands, tid);
+                        render_tile_metadata_summary(ui, t, tileset, project, tid);
+                    } else {
+                        render_tileset_summary_card(
+                            ui,
+                            t,
+                            tileset,
+                            grid_cols.as_ref().map(|m| m.total_tiles),
+                        );
+                    }
+                });
+        });
+}
+
+fn render_active_tile_card(
+    ui: &mut Ui,
+    t: &Tokens,
+    tileset: &TilesetDef,
+    project: &Project,
+    assets: &dyn AssetService,
+    tile_id: u32,
+    cols: Option<u32>,
+) {
+    Frame::new()
+        .fill(t.sunken)
+        .stroke(t.hairline())
+        .corner_radius(CornerRadius::ZERO)
+        .inner_margin(Margin::same(8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+
+                let thumb_size = 32.0;
+                let (thumb_rect, _) =
+                    ui.allocate_exact_size(vec2(thumb_size, thumb_size), Sense::hover());
+                ui.painter()
+                    .rect_filled(thumb_rect, CornerRadius::ZERO, t.bg);
+                ui.painter().rect_stroke(
+                    thumb_rect,
+                    CornerRadius::ZERO,
+                    t.hairline(),
+                    StrokeKind::Inside,
+                );
+                paint_tile_thumbnail(
+                    ui.painter(),
+                    ui.ctx(),
+                    thumb_rect,
+                    project,
+                    assets,
+                    &TileRef::new(tileset.id, tile_id),
+                );
+
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    ui.label(
+                        RichText::new(format!("Tile #{tile_id}"))
+                            .font(FontId::new(12.0, theme::mono_bold_for(ui.ctx())))
+                            .color(t.ink_strong),
+                    );
+                    let coord_text = match cols {
+                        Some(c) if c > 0 => format!(
+                            "Grid ({}, {}) • {}x{} px",
+                            tile_id % c,
+                            tile_id / c,
+                            tileset.tile_size.x,
+                            tileset.tile_size.y
+                        ),
+                        _ => format!("{}x{} px", tileset.tile_size.x, tileset.tile_size.y),
+                    };
+                    ui.label(RichText::new(coord_text).size(10.5).color(t.muted));
+                });
+            });
+        });
+}
+
+fn render_custom_data_section(
+    ui: &mut Ui,
+    t: &Tokens,
+    tileset: &TilesetDef,
+    state: &mut TilesetViewState,
+    commands: &mut Vec<Box<dyn Command>>,
+    tile_id: u32,
+) {
+    let existing = tileset
+        .custom_data
+        .get(&tile_id)
+        .map(|s| s.as_str())
+        .filter(|s| !s.trim().is_empty());
+
+    ui.label(
+        RichText::new("CUSTOM DATA")
+            .font(FontId::new(10.0, theme::mono_bold_for(ui.ctx())))
+            .color(t.accent_ink),
+    );
+
+    Frame::new()
+        .fill(t.sunken)
+        .stroke(t.hairline())
+        .corner_radius(CornerRadius::ZERO)
+        .inner_margin(Margin::same(8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            if let Some(data) = existing {
+                ui.label(
+                    RichText::new(data)
+                        .font(FontId::new(11.0, theme::mono_for(ui.ctx())))
+                        .color(t.ink),
+                );
+            } else {
+                ui.label(
+                    RichText::new("No custom data assigned.")
+                        .size(11.0)
+                        .color(t.faint),
+                );
+            }
+        });
+
+    ui.horizontal(|ui| {
+        if button(ui, "Edit...", ButtonKind::Primary, true).clicked() {
+            state.custom_data_dialog.open(tileset.id, tile_id, existing);
+        }
+        if button(ui, "Clear", ButtonKind::Secondary, existing.is_some()).clicked() {
+            commands.push(Box::new(SetTileCustomDataCommand::new(
+                tileset.id,
+                tile_id,
+                None::<String>,
+            )));
+        }
+    });
+}
+
+fn render_tile_metadata_summary(
+    ui: &mut Ui,
+    t: &Tokens,
+    tileset: &TilesetDef,
+    project: &Project,
+    tile_id: u32,
+) {
+    ui.painter().hline(
+        ui.available_rect_before_wrap().x_range(),
+        ui.cursor().min.y,
+        t.hairline(),
+    );
+    ui.add_space(2.0);
+    ui.label(
+        RichText::new("TILE SUMMARY")
+            .font(FontId::new(10.0, theme::mono_bold_for(ui.ctx())))
+            .color(t.accent_ink),
+    );
+
+    let tags = tileset.marking.tags_at(tile_id);
+    let marking_text = if tags.is_empty() {
+        "None".to_string()
+    } else if let Some(ed) = tileset
+        .marking
+        .source_enum
+        .and_then(|id| project.defs.enum_def(id))
+    {
+        tags.iter()
+            .map(|id| ed.value(id).map_or(*id, |v| v.name.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else {
+        tags.join(", ")
+    };
+
+    let collision_text = match tileset.collision(tile_id) {
+        Some(col) if !col.shapes.is_empty() => format!("{} shape(s)", col.shapes.len()),
+        _ => "None".to_string(),
+    };
+
+    let anim_text = if let Some(anim) = tileset.animations.get(&tile_id) {
+        format!("Anchor ({} frames)", anim.frames.len())
+    } else if let Some((&anchor, _)) = tileset
+        .animations
+        .iter()
+        .find(|(_, a)| a.frames.contains(&tile_id))
+    {
+        format!("Frame of #{anchor}")
+    } else {
+        "None".to_string()
+    };
+
+    for (label, value) in [
+        ("Marking", marking_text),
+        ("Collision", collision_text),
+        ("Animation", anim_text),
+    ] {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("{label}:")).size(11.0).color(t.muted));
+            ui.label(RichText::new(value).size(11.0).color(t.ink_strong));
+        });
+    }
+}
+
+fn render_tileset_summary_card(
+    ui: &mut Ui,
+    t: &Tokens,
+    tileset: &TilesetDef,
+    total_tiles: Option<u32>,
+) {
+    ui.label(
+        RichText::new("TILESET OVERVIEW")
+            .font(FontId::new(10.0, theme::mono_bold_for(ui.ctx())))
+            .color(t.accent_ink),
+    );
+
+    Frame::new()
+        .fill(t.sunken)
+        .stroke(t.hairline())
+        .corner_radius(CornerRadius::ZERO)
+        .inner_margin(Margin::same(8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.spacing_mut().item_spacing.y = 4.0;
+
+            let marked_count = tileset
+                .marking
+                .tags
+                .values()
+                .flatten()
+                .copied()
+                .collect::<std::collections::BTreeSet<u32>>()
+                .len();
+            let custom_count = tileset.custom_data.len();
+            let collision_count = tileset.collisions.len();
+            let anim_count = tileset.animations.len();
+
+            if let Some(total) = total_tiles {
+                summary_stat_row(ui, t, "Total tiles", &total.to_string());
+            }
+            summary_stat_row(ui, t, "Custom data", &custom_count.to_string());
+            summary_stat_row(ui, t, "Marked tiles", &marked_count.to_string());
+            summary_stat_row(ui, t, "Collisions", &collision_count.to_string());
+            summary_stat_row(ui, t, "Animations", &anim_count.to_string());
+        });
+
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(
+            "Click any tile in the atlas to inspect or edit custom data. Right-click to clear.",
+        )
+        .size(11.0)
+        .color(t.muted),
+    );
+}
+
+fn summary_stat_row(ui: &mut Ui, t: &Tokens, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).size(11.0).color(t.muted));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(
+                RichText::new(value)
+                    .font(FontId::new(11.0, theme::mono_bold_for(ui.ctx())))
+                    .color(t.ink_strong),
+            );
+        });
     });
 }

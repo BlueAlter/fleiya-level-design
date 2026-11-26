@@ -57,7 +57,7 @@ fn render_enum_headless(app: &mut ShellApp) -> (Vec<Rect>, Vec<Shape>, Vec<(Stri
     if app.tileset_view_state.active_sub_tab == DOCUMENT_SUB_TAB {
         ctx.data_mut(|d| {
             let state = lc_shell::features::enums::view::EnumViewState {
-                active_sub_tab: DOCUMENT_SUB_TAB,
+                active_sub_tab: 1,
                 ..Default::default()
             };
             d.insert_temp(egui::Id::new("enum_mode_view_transient_state"), state);
@@ -229,7 +229,7 @@ fn test_tileset_enum_workspace_parity() {
         "title y offset ({ts_title_offset}) must match enum's ({enum_title_offset})"
     );
 
-    // 3. attribute card left == 272 and right == 1354; card border and radius equal the enum card's
+    // 3. attribute card left == 272 and right == 1354; square corners (CornerRadius::ZERO)
     let ts_attr_card = ts_shapes
         .iter()
         .find_map(|s| match s {
@@ -241,7 +241,7 @@ fn test_tileset_enum_workspace_parity() {
             _ => None,
         })
         .expect("Attribute card must span left=272 to right=1354");
-    assert_eq!(ts_attr_card.corner_radius, CornerRadius::same(4));
+    assert_eq!(ts_attr_card.corner_radius, CornerRadius::ZERO);
 
     // 4. the first control of EVERY attribute row has the same x (label column), and equals the enum Identifier field x
     let enum_id_field = enum_rects
@@ -256,7 +256,7 @@ fn test_tileset_enum_workspace_parity() {
         .copied()
         .collect();
     assert!(
-        ts_field_rects.len() >= 4,
+        ts_field_rects.len() >= 3,
         "every attribute row first control must start at x={expected_ctrl_x}, found {}",
         ts_field_rects.len()
     );

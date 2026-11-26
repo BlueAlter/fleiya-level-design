@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::path::Path;
 
-use egui::{vec2, Align, CornerRadius, Id, Layout, RichText, Sense, Ui};
+use egui::{vec2, Align, Id, Layout, Margin, RichText, Sense, Ui};
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
@@ -12,10 +12,12 @@ use lc_feature_tileset::{compute_tileset_grid, GridMetrics, UpdateTilesetDefComm
 use super::file_dialog::TilesetDialogManager;
 pub use super::file_picker::file_picker_button;
 use super::i18n::keys;
-use super::tags_row::{render_marking_enum_row, render_tags_row};
+use super::state::TilesetCard;
+use super::tags_row::render_tags_row;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::tr;
 use crate::shared::ui::icon_button::{icon_button, IconButtonStyle};
+use crate::shared::ui::section_container::SectionContainer;
 use crate::shared::ui::text_field::{text_field, validate_identifier, FieldOutline, FieldStyle};
 use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
 
@@ -174,241 +176,225 @@ pub fn render_attributes_card(
     dialogs: &TilesetDialogManager,
     mut texture: Option<&mut egui::TextureHandle>,
 ) {
-    // Section Header row: "TILESET IDENTIFIER & ATTRIBUTES" + right-aligned 28x28 chevron toggle
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(tr(keys::CARD_IDENTIFIER_ATTRIBUTES))
-                .size(11.0)
-                .strong()
-                .color(t.accent_ink),
-        );
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let eye_icon = if app.tileset_view_state.is_attributes_collapsed {
-                Icon::EyeOff
-            } else {
-                Icon::Eye
-            };
-            let tooltip = if app.tileset_view_state.is_attributes_collapsed {
-                "Show attributes"
-            } else {
-                "Hide attributes"
-            };
-            let btn =
-                icon_button(ui, eye_icon, 28.0, IconButtonStyle::bordered()).on_hover_text(tooltip);
-            if btn.clicked() {
-                app.tileset_view_state.is_attributes_collapsed =
-                    !app.tileset_view_state.is_attributes_collapsed;
-            }
-        });
-    });
+    let is_selected = app.tileset_view_state.focused_card == Some(TilesetCard::Attributes);
+    let mut collapsed = app.tileset_view_state.is_attributes_collapsed;
 
-    if app.tileset_view_state.is_attributes_collapsed {
-        return;
-    }
-
-    ui.add_space(4.0);
-
-    egui::Frame::new()
+    let resp = SectionContainer::new(tr(keys::CARD_IDENTIFIER_ATTRIBUTES))
+        .use_outline(true)
+        .use_toggle_collapse(true)
+        .selected(is_selected)
         .fill(t.panel)
-        .stroke(t.hairline())
-        .inner_margin(egui::Margin::same(12))
-        .corner_radius(CornerRadius::same(4))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 0.0;
+        .margin(Margin::same(12))
+        .header_height(28.0)
+        .show(
+            ui,
+            t,
+            &mut collapsed,
+            |_| {},
+            |ui| {
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
 
-                // Row 1: Source image (button + 32x32 Reload + 32x32 Clear)
-                def_attribute_row(ui, t, tr(keys::FIELD_SOURCE_IMAGE), |ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
+                    // Row 1: Source image (button + 32x32 Reload + 32x32 Clear)
+                    def_attribute_row(ui, t, tr(keys::FIELD_SOURCE_IMAGE), |ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
 
-                    let full_path = app.assets.resolve_path(&tileset.path);
-                    let is_empty = tileset.path.trim().is_empty();
-                    let is_missing = !is_empty && !full_path.exists();
+                        let full_path = app.assets.resolve_path(&tileset.path);
+                        let is_empty = tileset.path.trim().is_empty();
+                        let is_missing = !is_empty && !full_path.exists();
 
-                    let display_name = if is_empty {
-                        tr(keys::CHOOSE_IMAGE)
-                    } else {
-                        Path::new(&tileset.path)
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or(&tileset.path)
-                    };
-
-                    let tooltip = if is_empty {
-                        String::new()
-                    } else if is_missing {
-                        format!("File not found: {}", tileset.path)
-                    } else {
-                        tileset.path.clone()
-                    };
-
-                    let trailing_w = 32.0 + 6.0 + 32.0;
-                    let gap = 6.0;
-                    let btn_w = (ui.available_width() - trailing_w - gap).max(60.0);
-
-                    let picker_resp = file_picker_button(
-                        ui,
-                        t,
-                        display_name,
-                        is_empty,
-                        is_missing,
-                        &tooltip,
-                        btn_w,
-                    );
-                    if picker_resp.clicked() {
-                        let start_dir = if !is_empty {
-                            full_path.parent().map(|p| p.to_path_buf())
+                        let display_name = if is_empty {
+                            tr(keys::CHOOSE_IMAGE)
                         } else {
-                            app.project_path
-                                .as_deref()
-                                .and_then(|p| p.parent())
-                                .map(|p| p.to_path_buf())
+                            Path::new(&tileset.path)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(&tileset.path)
                         };
-                        dialogs.request_browse_image(tileset.id, start_dir);
-                    }
 
-                    ui.add_space(gap);
+                        let tooltip = if is_empty {
+                            String::new()
+                        } else if is_missing {
+                            format!("File not found: {}", tileset.path)
+                        } else {
+                            tileset.path.clone()
+                        };
 
-                    // Reload icon button (32x32)
-                    ui.add_enabled_ui(!is_empty, |ui| {
-                        let reload_resp =
-                            icon_button(ui, Icon::Refresh, 32.0, IconButtonStyle::bordered())
-                                .on_hover_text("Reload image from disk");
-                        if reload_resp.clicked() {
-                            if let Ok(bytes) = lc_io::read_bytes(&full_path) {
-                                if let Ok(img) = image::load_from_memory(&bytes) {
-                                    let rgba = img.to_rgba8();
-                                    let (w, h) = rgba.dimensions();
-                                    let color_img = egui::ColorImage::from_rgba_unmultiplied(
-                                        [w as usize, h as usize],
-                                        &rgba.into_raw(),
-                                    );
-                                    if let Some(ref mut tex) = texture {
-                                        tex.set(color_img, egui::TextureOptions::NEAREST);
+                        let trailing_w = 32.0 + 6.0 + 32.0;
+                        let gap = 6.0;
+                        let btn_w = (ui.available_width() - trailing_w - gap).max(60.0);
+
+                        let picker_resp = file_picker_button(
+                            ui,
+                            t,
+                            display_name,
+                            is_empty,
+                            is_missing,
+                            &tooltip,
+                            btn_w,
+                        );
+                        if picker_resp.clicked() {
+                            let start_dir = if !is_empty {
+                                full_path.parent().map(|p| p.to_path_buf())
+                            } else {
+                                app.project_path
+                                    .as_deref()
+                                    .and_then(|p| p.parent())
+                                    .map(|p| p.to_path_buf())
+                            };
+                            dialogs.request_browse_image(tileset.id, start_dir);
+                        }
+
+                        ui.add_space(gap);
+
+                        // Reload icon button (32x32)
+                        ui.add_enabled_ui(!is_empty, |ui| {
+                            let reload_resp =
+                                icon_button(ui, Icon::Refresh, 32.0, IconButtonStyle::bordered())
+                                    .on_hover_text("Reload image from disk");
+                            if reload_resp.clicked() {
+                                if let Ok(bytes) = lc_io::read_bytes(&full_path) {
+                                    if let Ok(img) = image::load_from_memory(&bytes) {
+                                        let rgba = img.to_rgba8();
+                                        let (w, h) = rgba.dimensions();
+                                        let color_img = egui::ColorImage::from_rgba_unmultiplied(
+                                            [w as usize, h as usize],
+                                            &rgba.into_raw(),
+                                        );
+                                        if let Some(ref mut tex) = texture {
+                                            tex.set(color_img, egui::TextureOptions::NEAREST);
+                                        }
                                     }
                                 }
+                                ui.ctx().request_repaint();
                             }
-                            ui.ctx().request_repaint();
-                        }
-                    });
-
-                    ui.add_space(gap);
-
-                    // Clear icon button (32x32)
-                    ui.add_enabled_ui(!is_empty, |ui| {
-                        let clear_resp =
-                            icon_button(ui, Icon::Close, 32.0, IconButtonStyle::bordered())
-                                .on_hover_text(tr(keys::BUTTON_CLEAR));
-                        if clear_resp.clicked() {
-                            let mut updated = tileset.clone();
-                            updated.path = String::new();
-                            app.execute_command(Box::new(UpdateTilesetDefCommand::new(updated)));
-                        }
-                    });
-                });
-
-                ui.add_space(8.0);
-
-                // Row 2: Identifier (text_field + validate_identifier, fills row)
-                def_attribute_row(ui, t, tr(keys::FIELD_IDENTIFIER), |ui| {
-                    let mut name_buf = ui
-                        .ctx()
-                        .data(|d| d.get_temp::<String>(Id::new(("ts_name_buf", tileset.id))))
-                        .unwrap_or_else(|| tileset.name.clone());
-
-                    let existing_names: Vec<String> = app
-                        .project
-                        .defs
-                        .tilesets
-                        .iter()
-                        .filter(|other| other.id != tileset.id)
-                        .map(|other| other.name.clone())
-                        .collect();
-
-                    let validation =
-                        validate_identifier(&name_buf, &existing_names, Some(&tileset.name));
-                    let error_msg = validation.err().map(|e| e.to_string());
-
-                    let mut style =
-                        FieldStyle::default().with_outline_preset(FieldOutline::Hairline);
-                    if let Some(ref err) = error_msg {
-                        style = style.with_error(err.as_str());
-                    }
-
-                    let res = text_field(ui, &mut name_buf, style);
-                    if res.changed {
-                        ui.ctx().data_mut(|d| {
-                            d.insert_temp(Id::new(("ts_name_buf", tileset.id)), name_buf.clone())
                         });
-                    }
 
-                    if res.cancelled {
-                        ui.ctx().data_mut(|d| {
-                            d.insert_temp(
-                                Id::new(("ts_name_buf", tileset.id)),
-                                tileset.name.clone(),
-                            )
-                        });
-                    } else if res.committed {
-                        if validation.is_ok() {
-                            let trimmed = name_buf.trim();
-                            if trimmed != tileset.name {
+                        ui.add_space(gap);
+
+                        // Clear icon button (32x32)
+                        ui.add_enabled_ui(!is_empty, |ui| {
+                            let clear_resp =
+                                icon_button(ui, Icon::Close, 32.0, IconButtonStyle::bordered())
+                                    .on_hover_text(tr(keys::BUTTON_CLEAR));
+                            if clear_resp.clicked() {
                                 let mut updated = tileset.clone();
-                                updated.name = trimmed.to_string();
+                                updated.path = String::new();
                                 app.execute_command(Box::new(UpdateTilesetDefCommand::new(
                                     updated,
                                 )));
                             }
-                        } else {
+                        });
+                    });
+
+                    ui.add_space(8.0);
+
+                    // Row 2: Identifier (text_field + validate_identifier, fills row)
+                    def_attribute_row(ui, t, tr(keys::FIELD_IDENTIFIER), |ui| {
+                        let mut name_buf = ui
+                            .ctx()
+                            .data(|d| d.get_temp::<String>(Id::new(("ts_name_buf", tileset.id))))
+                            .unwrap_or_else(|| tileset.name.clone());
+
+                        let existing_names: Vec<String> = app
+                            .project
+                            .defs
+                            .tilesets
+                            .iter()
+                            .filter(|other| other.id != tileset.id)
+                            .map(|other| other.name.clone())
+                            .collect();
+
+                        let validation =
+                            validate_identifier(&name_buf, &existing_names, Some(&tileset.name));
+                        let error_msg = validation.err().map(|e| e.to_string());
+
+                        let mut style =
+                            FieldStyle::default().with_outline_preset(FieldOutline::Hairline);
+                        if let Some(ref err) = error_msg {
+                            style = style.with_error(err.as_str());
+                        }
+
+                        let res = text_field(ui, &mut name_buf, style);
+                        if res.changed {
+                            ui.ctx().data_mut(|d| {
+                                d.insert_temp(
+                                    Id::new(("ts_name_buf", tileset.id)),
+                                    name_buf.clone(),
+                                )
+                            });
+                        }
+
+                        if res.cancelled {
                             ui.ctx().data_mut(|d| {
                                 d.insert_temp(
                                     Id::new(("ts_name_buf", tileset.id)),
                                     tileset.name.clone(),
                                 )
                             });
+                        } else if res.committed {
+                            if validation.is_ok() {
+                                let trimmed = name_buf.trim();
+                                if trimmed != tileset.name {
+                                    let mut updated = tileset.clone();
+                                    updated.name = trimmed.to_string();
+                                    app.execute_command(Box::new(UpdateTilesetDefCommand::new(
+                                        updated,
+                                    )));
+                                }
+                            } else {
+                                ui.ctx().data_mut(|d| {
+                                    d.insert_temp(
+                                        Id::new(("ts_name_buf", tileset.id)),
+                                        tileset.name.clone(),
+                                    )
+                                });
+                            }
                         }
-                    }
-                });
-
-                ui.add_space(8.0);
-
-                // Row 3: Tiles layout (W, H, Spacing, Padding)
-                let wrap = ui.available_width() < 760.0;
-                if !wrap {
-                    def_attribute_row(ui, t, tr(keys::FIELD_TILES_LAYOUT), |ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        render_w_h(app, ui, t, tileset);
-                        ui.add_space(10.0);
-                        render_sp_pd(app, ui, t, tileset);
                     });
-                } else {
-                    def_attribute_row(ui, t, tr(keys::FIELD_TILES_LAYOUT), |ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        render_w_h(app, ui, t, tileset);
-                    });
+
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 0.0;
-                        let _ = ui.allocate_exact_size(
-                            vec2(LABEL_COL_W, CONTROL_HEIGHT_FORM),
-                            Sense::hover(),
-                        );
-                        render_sp_pd(app, ui, t, tileset);
-                    });
-                }
 
-                ui.add_space(8.0);
+                    // Row 3: Tiles layout (W, H, Spacing, Padding)
+                    let wrap = ui.available_width() < 760.0;
+                    if !wrap {
+                        def_attribute_row(ui, t, tr(keys::FIELD_TILES_LAYOUT), |ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            render_w_h(app, ui, t, tileset);
+                            ui.add_space(10.0);
+                            render_sp_pd(app, ui, t, tileset);
+                        });
+                    } else {
+                        def_attribute_row(ui, t, tr(keys::FIELD_TILES_LAYOUT), |ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            render_w_h(app, ui, t, tileset);
+                        });
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            let _ = ui.allocate_exact_size(
+                                vec2(LABEL_COL_W, CONTROL_HEIGHT_FORM),
+                                Sense::hover(),
+                            );
+                            render_sp_pd(app, ui, t, tileset);
+                        });
+                    }
 
-                // Row 4: Tags
-                render_tags_row(app, ui, t, tileset);
+                    ui.add_space(8.0);
 
-                ui.add_space(8.0);
+                    // Row 4: Tags
+                    render_tags_row(app, ui, t, tileset);
+                });
+            },
+        );
 
-                // Row 5: Enum for tile marking
-                render_marking_enum_row(app, ui, t, tileset);
-            });
-        });
+    app.tileset_view_state.is_attributes_collapsed = collapsed;
+    if resp.clicked_inside {
+        app.tileset_view_state.focused_card = Some(TilesetCard::Attributes);
+    }
+    if collapsed {
+        return;
+    }
 
     // Inline warning under the card ONLY when leftover pixels do not fit the grid or source image is missing
     let (img_w, img_h) = if let Some(tex) = texture {
@@ -448,7 +434,7 @@ pub fn render_attributes_card(
                 ui.label(
                     RichText::new(msg)
                         .font(egui::FontId::proportional(11.5))
-                        .color(egui::Color32::from_rgb(234, 179, 8)),
+                        .color(t.warn),
                 );
             });
         }
@@ -459,7 +445,7 @@ pub fn render_attributes_card(
             ui.label(
                 RichText::new("Warning: Source image file could not be loaded.")
                     .font(egui::FontId::proportional(11.5))
-                    .color(egui::Color32::from_rgb(234, 179, 8)),
+                    .color(t.warn),
             );
         });
     }
