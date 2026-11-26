@@ -396,11 +396,7 @@ fn render_new_field(
         if ui.button("Add Field").clicked() && !name.is_empty() && !duplicate {
             actions.exec(AddEntityFieldCommand::new(
                 def.id,
-                FieldDef {
-                    name: name.to_string(),
-                    field_type: new_field_type.clone(),
-                    default_value: None,
-                },
+                FieldDef::new(name.to_string(), new_field_type.clone()),
             ));
             new_field_name.clear();
         }

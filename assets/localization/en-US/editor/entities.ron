@@ -1,0 +1,11 @@
+{
+    "entities.header": "ENTITY DEFINITIONS",
+    "entities.new_button": "+ New Entity",
+    "entities.tab.definition": "ENTITY DEF",
+    "entities.tab.document": "DOCUMENT",
+    "entities.description": "Configure entity templates, 3x3 pivot, tile/9-slice rendering, instance limits, and custom typed fields.",
+    "entities.empty.message": "No entity definitions yet.",
+    "entities.empty.create": "+ Create First Entity",
+    "entities.menu.duplicate": "Duplicate",
+    "entities.menu.delete": "Delete",
+}

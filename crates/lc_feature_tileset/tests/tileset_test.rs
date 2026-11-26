@@ -533,6 +533,7 @@ fn test_tiles_layer_handler_render_and_viewport_culling() {
             layer: current_layer,
             level: current_level,
             project: &project,
+            selection: &lc_ui_api::selection::Selection::None,
             is_active: true,
             opacity: 1.0,
         };
@@ -593,6 +594,7 @@ fn test_intgrid_layer_handler_render() {
             layer: current_layer,
             level: current_level,
             project: &project,
+            selection: &lc_ui_api::selection::Selection::None,
             is_active: true,
             opacity: 1.0,
         };

@@ -59,6 +59,18 @@ pub struct EntityInstance {
     pub fields: FieldValues,
 }
 
+impl Default for EntityInstance {
+    fn default() -> Self {
+        Self {
+            id: EntityId(0),
+            def_id: EntityDefId(0),
+            pos_px: IVec2::ZERO,
+            size_px: UVec2::new(16, 16),
+            fields: FieldValues::new(),
+        }
+    }
+}
+
 /// Content payload carried by a layer instance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LayerData {

@@ -390,3 +390,68 @@ impl Command for RemoveEntityFieldCommand {
         self
     }
 }
+
+/// Reorders a field definition within [`EntityDef::fields`].
+#[derive(Debug, Clone)]
+pub struct ReorderEntityFieldCommand {
+    def_id: EntityDefId,
+    from_index: usize,
+    to_index: usize,
+}
+
+impl ReorderEntityFieldCommand {
+    /// Creates a command moving the field at `from_index` to `to_index`.
+    pub fn new(def_id: EntityDefId, from_index: usize, to_index: usize) -> Self {
+        Self {
+            def_id,
+            from_index,
+            to_index,
+        }
+    }
+}
+
+impl Command for ReorderEntityFieldCommand {
+    fn apply(&mut self, p: &mut Project) -> Result<(), CoreError> {
+        let def = p
+            .defs
+            .entity_mut(self.def_id)
+            .ok_or(CoreError::EntityDefNotFound(self.def_id))?;
+        if self.from_index >= def.fields.len() {
+            return Err(CoreError::DefNotFound(format!(
+                "Field index {} out of bounds",
+                self.from_index
+            )));
+        }
+        let field = def.fields.remove(self.from_index);
+        let dest = self.to_index.min(def.fields.len());
+        def.fields.insert(dest, field);
+        Ok(())
+    }
+
+    fn revert(&mut self, p: &mut Project) {
+        if let Some(def) = p.defs.entity_mut(self.def_id) {
+            let cur = self.to_index.min(def.fields.len().saturating_sub(1));
+            if cur < def.fields.len() {
+                let field = def.fields.remove(cur);
+                let orig = self.from_index.min(def.fields.len());
+                def.fields.insert(orig, field);
+            }
+        }
+    }
+
+    fn merge(&mut self, _next: &dyn Command) -> bool {
+        false
+    }
+
+    fn label(&self) -> String {
+        "Reorder Entity Fields".to_string()
+    }
+
+    fn focus(&self) -> Option<DocKind> {
+        Some(DocKind::EntityDef(self.def_id))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}

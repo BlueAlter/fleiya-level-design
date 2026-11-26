@@ -12,6 +12,7 @@ pub mod collision;
 pub mod command;
 pub mod commands;
 pub mod defs;
+pub mod entity;
 pub mod error;
 pub mod fields;
 pub mod grid;
@@ -29,15 +30,19 @@ pub use commands::{
     RenameLevelCommand, RenameWorldCommand,
 };
 pub use defs::{
-    AnimationPlayMode, Definitions, EntityDef, EnumDef, EnumValueDef, IntGridValueDef, LayerDef,
-    TileAnimationDef, TilesetDef,
+    AnimationPlayMode, Definitions, EntityDef, EntityLimitBehavior, EntityLimitScope,
+    EntityRenderMode, EnumDef, EnumValueDef, IntGridValueDef, LayerDef, TileAnimationDef,
+    TileRenderMode, TilesetDef, TilesetRect,
 };
 pub use error::CoreError;
-pub use fields::{FieldDef, FieldType, FieldValue, FieldValues};
+pub use fields::{
+    AllowedRefs, EditorDisplayMode, EditorDisplayPos, EditorLinkStyle, FieldDef, FieldType,
+    FieldValue, FieldValues, TextLanguageMode,
+};
 pub use grid::Grid;
 pub use id::{
-    EntityDefId, EntityId, EnumDefId, IdGenerator, LayerDefId, LevelId, ProjectId, TilesetDefId,
-    WorldId,
+    EntityDefId, EntityId, EnumDefId, FieldDefId, IdGenerator, LayerDefId, LevelId, ProjectId,
+    TilesetDefId, WorldId,
 };
 pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;
@@ -137,6 +142,7 @@ mod tests {
             pivot: Vec2::new(0.5, 0.5),
             tile: None,
             fields: Vec::new(),
+            ..Default::default()
         };
         project.defs.entities.push(entity_def);
         assert!(project.entity_def(entity_def_id).is_some());

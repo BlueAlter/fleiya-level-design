@@ -131,6 +131,7 @@ pub fn load_project(project_file: &Path) -> Result<Project, IoError> {
         defs: project_file_data.defs,
         worlds,
         settings: project_file_data.settings,
+        next_entity_id: project_file_data.next_entity_id,
     })
 }
 
@@ -222,6 +223,7 @@ pub fn save_project(project: &Project, project_file: &Path) -> Result<(), IoErro
         settings: project.settings.clone(),
         defs: project.defs.clone(),
         worlds: world_manifest_entries,
+        next_entity_id: project.next_entity_id,
     };
 
     let project_json = format_json(&project_file_data, project_file)?;

@@ -127,6 +127,8 @@ pub struct ShellApp {
     pub show_layer_window: bool,
     /// Whether the floating entity definitions window is open.
     pub show_entities_window: bool,
+    /// View state for the Entities workspace.
+    pub entity_view_state: crate::features::entities::state::EntityViewState,
     /// View state for the Tilesets workspace.
     pub tileset_view_state: crate::features::tileset::state::TilesetViewState,
     /// Whether the floating enum definitions window is open.
@@ -259,6 +261,7 @@ impl ShellApp {
             show_unsaved_close_dialog: false,
             show_layer_window: false,
             show_entities_window: false,
+            entity_view_state: Default::default(),
             tileset_view_state: Default::default(),
             show_enum_window: false,
             selected_layer_def: None,
@@ -798,9 +801,10 @@ impl ShellApp {
                 self.status_message = "Opened Layer Window".to_string();
             }
             DocKind::EntityDef(entity_id) => {
-                self.show_entities_window = true;
+                self.active_mode = crate::features::editor::app_mode::AppMode::Entities;
                 self.selected_entity_def = Some(entity_id);
-                self.status_message = "Opened Entities Window".to_string();
+                self.entity_view_state.select_entity(entity_id);
+                self.status_message = format!("Opened Entity {:?}", entity_id);
             }
             DocKind::TilesetDef(tileset_id) => {
                 self.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
@@ -1053,6 +1057,9 @@ impl ShellApp {
                 crate::features::layers::window::render_layer_window(self, ui.ctx());
                 crate::features::entities::window::render_entities_window(self, ui.ctx());
             }
+            crate::features::editor::app_mode::AppMode::Entities => {
+                crate::features::entities::view::render_entity_view(self, ui);
+            }
             crate::features::editor::app_mode::AppMode::Enums => {
                 crate::features::enums::view::render_enum_view(self, ui);
             }
@@ -1189,6 +1196,9 @@ impl ShellApp {
                 }
                 EditorEvent::SetTileSelection(ts) => {
                     self.session.tile_selection = ts;
+                }
+                EditorEvent::SetCanvasPickMode(mode) => {
+                    self.session.pick_mode = mode;
                 }
                 EditorEvent::SaveProject => {
                     if let Some(ref path) = self.project_path {

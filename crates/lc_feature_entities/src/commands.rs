@@ -299,3 +299,82 @@ pub fn entity_def_usage(
     let locations = find_entity_def_instances(p, id);
     (locations.len(), locations)
 }
+
+/// Generates a unique entity definition name derived from `base_name`.
+pub fn generate_unique_entity_name(existing: &[String], base_name: &str) -> String {
+    let clean = base_name.trim();
+    let base = if clean.is_empty() { "Entity" } else { clean };
+    let candidate = format!("{base}_Copy");
+    if !existing.iter().any(|n| n == &candidate) {
+        return candidate;
+    }
+    let mut counter = 2usize;
+    loop {
+        let numbered = format!("{base}_Copy_{counter}");
+        if !existing.iter().any(|n| n == &numbered) {
+            return numbered;
+        }
+        counter += 1;
+    }
+}
+
+/// Reorders an [`EntityDef`] within `Project.defs.entities`.
+#[derive(Debug, Clone)]
+pub struct ReorderEntityDefCommand {
+    id: EntityDefId,
+    target_index: usize,
+    old_index: Option<usize>,
+}
+
+impl ReorderEntityDefCommand {
+    /// Creates a command moving `id` to `target_index`.
+    pub fn new(id: EntityDefId, target_index: usize) -> Self {
+        Self {
+            id,
+            target_index,
+            old_index: None,
+        }
+    }
+}
+
+impl Command for ReorderEntityDefCommand {
+    fn apply(&mut self, p: &mut Project) -> Result<(), CoreError> {
+        let old_idx = p
+            .defs
+            .entities
+            .iter()
+            .position(|e| e.id == self.id)
+            .ok_or(CoreError::EntityDefNotFound(self.id))?;
+        self.old_index = Some(old_idx);
+        let item = p.defs.entities.remove(old_idx);
+        let insert_idx = self.target_index.min(p.defs.entities.len());
+        p.defs.entities.insert(insert_idx, item);
+        Ok(())
+    }
+
+    fn revert(&mut self, p: &mut Project) {
+        if let Some(old_idx) = self.old_index.take() {
+            if let Some(cur_idx) = p.defs.entities.iter().position(|e| e.id == self.id) {
+                let item = p.defs.entities.remove(cur_idx);
+                let restore_idx = old_idx.min(p.defs.entities.len());
+                p.defs.entities.insert(restore_idx, item);
+            }
+        }
+    }
+
+    fn merge(&mut self, _next: &dyn Command) -> bool {
+        false
+    }
+
+    fn label(&self) -> String {
+        format!("Reorder Entity #{}", self.id.0)
+    }
+
+    fn focus(&self) -> Option<DocKind> {
+        Some(DocKind::EntityDef(self.id))
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}

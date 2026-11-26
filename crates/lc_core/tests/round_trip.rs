@@ -55,21 +55,25 @@ fn test_core_model_serde_round_trip() {
                 name: "locked".to_string(),
                 field_type: FieldType::Bool,
                 default_value: Some(FieldValue::Bool(true)),
+                ..Default::default()
             },
             FieldDef {
                 name: "key_type".to_string(),
                 field_type: FieldType::Enum(enum_id),
                 default_value: Some(FieldValue::Enum("Key".to_string())),
+                ..Default::default()
             },
             FieldDef {
                 name: "target_pos".to_string(),
                 field_type: FieldType::Point,
                 default_value: Some(FieldValue::Point(IVec2::new(100, 200))),
+                ..Default::default()
             },
             FieldDef {
                 name: "connected_door".to_string(),
                 field_type: FieldType::EntityRef,
                 default_value: None,
+                ..Default::default()
             },
             FieldDef {
                 name: "tags".to_string(),
@@ -77,8 +81,42 @@ fn test_core_model_serde_round_trip() {
                 default_value: Some(FieldValue::Array(vec![FieldValue::String(
                     "dungeon".to_string(),
                 )])),
+                ..Default::default()
+            },
+            FieldDef {
+                name: "notes".to_string(),
+                field_type: FieldType::Multilines,
+                default_value: Some(FieldValue::Multilines("Line 1\nLine 2".to_string())),
+                text_language_mode: Some(TextLanguageMode::Markdown),
+                ..Default::default()
+            },
+            FieldDef {
+                name: "script_path".to_string(),
+                field_type: FieldType::FilePath,
+                default_value: Some(FieldValue::FilePath("scripts/door.lua".to_string())),
+                accept_file_types: vec!["lua".to_string()],
+                ..Default::default()
+            },
+            FieldDef {
+                name: "icon_tile".to_string(),
+                field_type: FieldType::Tile,
+                default_value: Some(FieldValue::Tile(Some(TilesetRect::new(
+                    tileset_id, 0, 0, 16, 16,
+                )))),
+                ..Default::default()
             },
         ],
+        tags: vec!["interactive".to_string()],
+        doc: Some("Interactive dungeon door".to_string()),
+        export_to_toc: true,
+        resizable_y: true,
+        render_mode: EntityRenderMode::Tile,
+        tile_render_mode: TileRenderMode::NineSlice,
+        nine_slice_borders: [4, 4, 4, 4],
+        tile_rect: Some(TilesetRect::new(tileset_id, 0, 0, 16, 32)),
+        hollow: false,
+        show_name: true,
+        ..Default::default()
     };
 
     let layer_intgrid_id = gen.next_layer_def_id();

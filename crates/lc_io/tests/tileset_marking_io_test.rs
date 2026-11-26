@@ -119,6 +119,7 @@ fn test_tileset_tags_and_marking_json_round_trip() {
         },
         defs,
         worlds: Vec::new(),
+        next_entity_id: None,
     };
 
     // Serialize to JSON
