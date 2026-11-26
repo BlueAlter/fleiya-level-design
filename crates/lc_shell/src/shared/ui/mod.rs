@@ -1,4 +1,5 @@
 pub mod atlas_canvas;
+pub mod checkbox;
 pub mod context_menu;
 pub mod custom_data_dialog;
 pub mod def_workspace;
@@ -13,6 +14,7 @@ pub mod reorder_list;
 pub mod reorder_row;
 pub mod row_menu;
 pub mod search_picker;
+pub mod section_container;
 pub mod sub_tabs;
 pub mod swatch;
 pub mod tag_input;
@@ -28,6 +30,7 @@ pub use atlas_canvas::{
     zoom_towards_cursor, AtlasCanvasState, AtlasEvent, PickerView, TileDimPredicate,
     TileOverlayCallback, PAGE_BG_CELL,
 };
+pub use checkbox::{styled_checkbox, styled_checkbox_square, CHECKBOX_BOX_SIZE};
 pub use context_menu::{
     is_menu_open, show_context_menu, show_context_menu_contents, show_context_menu_with_theme,
     ContextMenuTheme, MenuAnchor, MenuItem, MENU_MAX_WIDTH, MENU_MIN_WIDTH,
@@ -60,6 +63,10 @@ pub use search_picker::{
     PickerChoice, PickerItem, PickerRow, SearchPickerConfig, SearchPickerState,
     PICKER_HEADER_HEIGHT, PICKER_MAX_ROWS, PICKER_ROW_HEIGHT, PICKER_WIDTH,
 };
+pub use section_container::{
+    SectionContainer, SectionHeaderResponse, SectionResponse, SECTION_HEADER_HEIGHT,
+    SECTION_HEADER_HEIGHT_COLLAPSIBLE,
+};
 pub use sub_tabs::{sub_tab_id, sub_tabs};
 pub use swatch::{color_swatch, tile_icon_button, TileIconData};
 pub use tag_input::{input_blocker, tag_text_input, TagInputEvent};
@@ -69,5 +76,5 @@ pub use text_field::{
 };
 pub use tile_bounds::{TileGrid, TileRect};
 pub use tile_picker::{PickerTarget, TilePicker, TilePickerEvent, TilesetData};
-pub use tileset_select::{tileset_select, TilesetSelectItem};
+pub use tileset_select::{tileset_select, tileset_select_full_width, TilesetSelectItem};
 pub use workspace_metrics::*;

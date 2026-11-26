@@ -2,6 +2,7 @@ use egui::Context;
 use lc_core::command::{Command, DocKind};
 use lc_core::error::CoreError;
 use lc_core::project::Project;
+use lc_shell::features::editor::app_mode::AppMode;
 use lc_shell::features::editor::dock_layout::{BottomDockState, DockSlotLocation, ShellDockLayout};
 use lc_shell::ShellApp;
 use lc_ui_api::context::EditorCtx;
@@ -145,6 +146,7 @@ fn test_document_tab_deduplication_and_opening() {
 #[test]
 fn test_dirty_indicator_and_automatic_tab_close_on_invalid() {
     let mut app = ShellApp::new(Project::new("TestProject"));
+    app.active_mode = AppMode::Editor;
     let valid_flag = Arc::new(AtomicBool::new(true));
     let valid_clone = valid_flag.clone();
 
@@ -204,6 +206,7 @@ fn test_dirty_indicator_and_automatic_tab_close_on_invalid() {
 #[test]
 fn test_panel_registration_and_dock_rendering() {
     let mut app = ShellApp::new(Project::new("TestProject"));
+    app.active_mode = AppMode::Editor;
 
     app.registry_mut().register_panel(Box::new(TestPanelView {
         id: PanelId::new("project"),
@@ -227,6 +230,7 @@ fn test_bottom_dock_layout_and_persistence() {
     let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_size);
 
     let mut app = ShellApp::new(Project::new("LayoutTestProject"));
+    app.active_mode = AppMode::Editor;
     app.registry_mut().register_panel(Box::new(TestPanelView {
         id: PanelId::new("project"),
     }));
@@ -410,6 +414,7 @@ fn test_bottom_dock_expand_restores_height_and_clamps_stale_state() {
     let screen_rect = egui::Rect::from_min_size(egui::Pos2::ZERO, screen_size);
 
     let mut app = ShellApp::new(Project::new("BottomDockHeightTest"));
+    app.active_mode = AppMode::Editor;
     let ctx = Context::default();
     let raw_input = egui::RawInput {
         screen_rect: Some(screen_rect),

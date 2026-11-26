@@ -104,6 +104,8 @@ pub struct ReorderRowSpec {
     pub height: f32,
     /// Optional border outline color (e.g. value badge color).
     pub outline: Option<Color32>,
+    /// Whether `RowFrame::Card` draws a filled card background (`true`) or outline-only (`false`).
+    pub use_custom_color: bool,
     /// Whether dragging via the handle is enabled.
     pub drag: DragCapability,
     /// Whether deletion is currently allowed.
@@ -131,6 +133,7 @@ impl ReorderRowSpec {
             id: Id::new(id),
             height: ROW_LAYOUT_VALUES.height,
             outline: None,
+            use_custom_color: true,
             drag: DragCapability::Enabled,
             deletable: true,
             delete_tooltip: Some("Delete".to_string()),
@@ -286,7 +289,13 @@ pub fn reorder_row<R>(
     // 1. Paint row background and 1px outline (Card preset only)
     if spec.layout.frame == RowFrame::Card {
         let is_hovered = row_resp.hovered();
-        let bg = if spec.selected || is_hovered {
+        let bg = if !spec.use_custom_color {
+            if spec.selected || is_hovered {
+                t.sunken
+            } else {
+                Color32::TRANSPARENT
+            }
+        } else if spec.selected || is_hovered {
             t.sunken
         } else {
             t.panel

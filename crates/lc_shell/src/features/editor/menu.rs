@@ -102,7 +102,7 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 });
 
                 menu_button(ui, "WINDOWS", |ui| {
-                    if ui.button("Tilesets Workspace  Ctrl+3").clicked() {
+                    if ui.button("Tilesets Workspace  Ctrl+4").clicked() {
                         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
                         if app.selected_tileset_def.is_none() {
                             app.selected_tileset_def =
@@ -113,37 +113,41 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                         }
                         ui.close();
                     }
-                    if ui
-                        .checkbox(&mut app.show_entities_window, "Entities Window")
-                        .clicked()
-                    {
+                    if ui.button("Enums Workspace  Ctrl+5").clicked() {
+                        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
                         ui.close();
                     }
-                    if ui
-                        .checkbox(&mut app.show_layer_window, "Layers Window")
-                        .clicked()
-                    {
-                        ui.close();
-                    }
+                    let in_editor =
+                        app.active_mode == crate::features::editor::app_mode::AppMode::Editor;
+                    ui.add_enabled_ui(in_editor, |ui| {
+                        if ui
+                            .checkbox(&mut app.show_entities_window, "Entities Window")
+                            .clicked()
+                        {
+                            ui.close();
+                        }
+                        if ui
+                            .checkbox(&mut app.show_layer_window, "Layers Window")
+                            .clicked()
+                        {
+                            ui.close();
+                        }
+                    });
                 });
 
-                // Centered segmented mode switcher (Editor / Enums)
-                let control_w = 26.0 * 2.0 + 4.0;
+                // Centered workspace title in the top bar
+                let title_text = app.active_mode.workspace_title();
                 let bar_rect = ui.max_rect();
-                let center_x = bar_rect.center().x;
-                let center_y = bar_rect.center().y;
-                let control_rect = egui::Rect::from_center_size(
-                    egui::pos2(center_x, center_y),
-                    egui::vec2(control_w, 26.0),
+                let galley = ui.painter().layout_no_wrap(
+                    title_text.to_owned(),
+                    egui::FontId::new(11.0, theme::mono_bold_for(ui.ctx())),
+                    t.ink_strong,
                 );
-                ui.scope_builder(egui::UiBuilder::new().max_rect(control_rect), |ui| {
-                    crate::features::editor::app_mode::render_mode_segmented_control(
-                        ui,
-                        &mut app.active_mode,
-                        app.enum_unsaved,
-                        &t,
-                    );
-                });
+                let title_pos = egui::pos2(
+                    bar_rect.center().x - galley.size().x * 0.5,
+                    bar_rect.center().y - galley.size().y * 0.5,
+                );
+                ui.painter().galley(title_pos, galley, t.ink_strong);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     hud_elided(ui, &app.project.name, t.muted, 220.0);
@@ -177,17 +181,11 @@ fn menu_button(ui: &mut Ui, text: &str, add: impl FnOnce(&mut Ui)) {
 
 /// Handles application-wide keyboard shortcuts.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
-    // Mode shortcuts (Ctrl+1 = Editor, Ctrl+2 = Enums, Ctrl+3 = Tilesets) via consume_shortcut
-    let ctrl_1 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num1);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_1)) {
-        app.active_mode = crate::features::editor::app_mode::AppMode::Editor;
-    }
-    let ctrl_2 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num2);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_2)) {
-        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
-    }
-    let ctrl_3 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num3);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_3)) {
+    // Workspace rail shortcuts match vertical order:
+    // Ctrl+1 = Editor (disabled), Ctrl+2 = Layers (coming soon), Ctrl+3 = Entities (coming soon),
+    // Ctrl+4 = Tilesets, Ctrl+5 = Enums.
+    let ctrl_4 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num4);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_4)) {
         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
         if app.selected_tileset_def.is_none() {
             app.selected_tileset_def = app.project.defs.tilesets.first().map(|t| t.id);
@@ -195,6 +193,10 @@ pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
         if let Some(id) = app.selected_tileset_def {
             app.tileset_view_state.select_tileset(id);
         }
+    }
+    let ctrl_5 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num5);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_5)) {
+        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
     }
 
     ctx.input(|i| {
