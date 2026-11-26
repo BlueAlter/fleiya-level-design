@@ -19,6 +19,9 @@ pub struct ProjectFile {
     pub defs: Definitions,
     /// Manifest of worlds contained in this project.
     pub worlds: Vec<WorldManifestEntry>,
+    /// Monotonic high-water mark for allocating non-reusable `EntityId` values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_entity_id: Option<u64>,
 }
 
 /// World reference entry stored inside `project.lcproj`.

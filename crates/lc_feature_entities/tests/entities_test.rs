@@ -76,7 +76,9 @@ fn fixture() -> Fixture {
             name: "health".to_string(),
             field_type: FieldType::Int,
             default_value: Some(FieldValue::Int(10)),
+            ..Default::default()
         }],
+        ..Default::default()
     });
 
     let enemy_def_id = gen.next_entity_def_id();
@@ -91,7 +93,9 @@ fn fixture() -> Fixture {
             name: "faction".to_string(),
             field_type: FieldType::Enum(enum_id),
             default_value: Some(FieldValue::Enum("Hostile".to_string())),
+            ..Default::default()
         }],
+        ..Default::default()
     });
 
     let layer_def_id = gen.next_layer_def_id();
@@ -178,6 +182,7 @@ fn add_entity_def_applies_and_reverts() {
         pivot: Vec2::splat(0.5),
         tile: None,
         fields: Vec::new(),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -371,6 +376,7 @@ fn add_field_seeds_defaults_on_every_instance_and_reverts() {
         name: "speed".to_string(),
         field_type: FieldType::Float,
         default_value: Some(FieldValue::Float(1.5)),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -403,6 +409,7 @@ fn change_field_type_migrates_values_and_reverts() {
         name: "health".to_string(),
         field_type: FieldType::String,
         default_value: Some(FieldValue::String("10".to_string())),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -441,6 +448,7 @@ fn rename_field_moves_values_and_reverts() {
         name: "hp".to_string(),
         field_type: FieldType::Int,
         default_value: Some(FieldValue::Int(10)),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -505,11 +513,13 @@ fn field_default_edits_merge_per_stroke() {
         name: "health".to_string(),
         field_type: FieldType::Int,
         default_value: Some(FieldValue::Int(11)),
+        ..Default::default()
     };
     let second = FieldDef {
         name: "health".to_string(),
         field_type: FieldType::Int,
         default_value: Some(FieldValue::Int(12)),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -683,6 +693,7 @@ fn changing_field_type_migrates_the_stored_default_value() {
         field_type: FieldType::String,
         // A stale default variant must be coerced with the new type.
         default_value: Some(FieldValue::Int(10)),
+        ..Default::default()
     };
 
     let mut stack = UndoStack::new();
@@ -727,6 +738,7 @@ fn cascade_clears_refs_in_level_fields_and_field_defaults() {
             name: "rival".to_string(),
             field_type: FieldType::EntityRef,
             default_value: Some(FieldValue::EntityRef(Some(EntityId::new(3)))),
+            ..Default::default()
         });
     let snapshot = project.clone();
 

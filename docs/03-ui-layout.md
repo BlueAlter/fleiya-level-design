@@ -32,7 +32,8 @@
 - Panels show context of the ACTIVE document tab (e.g. Layers panel follows the active level tab). No active level: panel shows an empty state.
 
 ## Documents (tabs)
-- Double-click in Project panel opens or focuses the tab. Same `DocKind` never opens twice.
+- Left vertical workspace rail (`WORKSPACE_RAIL_WIDTH = 44.0`) switches top-level modes: Level Editor (`Ctrl+1`), World (`Ctrl+2`), Entity Workspace (`Ctrl+3`), Tileset Workspace (`Ctrl+4`), Enum Workspace (`Ctrl+5`), and Settings (`Ctrl+6`).
+- Double-click in Project panel opens or focuses the tab (or switches to `AppMode::Entities` for `DocKind::EntityDef`). Same `DocKind` never opens twice.
 - Entity defs, enums, tilesets, layer defs, worlds, levels are all tabs and can be split side by side (docking inside the editor area).
 - Tab title shows `*` when dirty. Tab closes automatically when its target is deleted (`DocumentView::is_valid`).
 - Per-tab `ViewState`: zoom, pan, active tool, selection, floating window position. Never stored in `Project`.

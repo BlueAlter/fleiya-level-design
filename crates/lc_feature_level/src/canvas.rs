@@ -187,6 +187,7 @@ pub fn render_level_canvas(
                     layer,
                     level,
                     project: cx.project(),
+                    selection: cx.selection(),
                     is_active,
                     opacity: 1.0,
                 };

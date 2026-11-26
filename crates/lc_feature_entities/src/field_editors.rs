@@ -133,6 +133,59 @@ pub fn field_value_editor(
             }
             out.observe(&response);
         }
+        FieldType::Multilines => {
+            let mut current = match value {
+                FieldValue::Multilines(v) => v.clone(),
+                FieldValue::String(v) => v.clone(),
+                _ => String::new(),
+            };
+            let response = ui.add(
+                TextEdit::multiline(&mut current)
+                    .desired_rows(3)
+                    .desired_width(ctx.width),
+            );
+            if response.changed() {
+                *value = FieldValue::Multilines(current);
+            }
+            out.observe(&response);
+        }
+        FieldType::FilePath => {
+            let mut current = match value {
+                FieldValue::FilePath(v) => v.clone(),
+                FieldValue::String(v) => v.clone(),
+                _ => String::new(),
+            };
+            let response = ui.add(
+                TextEdit::singleline(&mut current)
+                    .hint_text("relative/path/to/file")
+                    .desired_width(ctx.width),
+            );
+            if response.changed() {
+                *value = FieldValue::FilePath(current);
+            }
+            out.observe(&response);
+        }
+        FieldType::Tile => {
+            let current = match value {
+                FieldValue::Tile(rect) => *rect,
+                _ => None,
+            };
+            let label = current
+                .map(|r| {
+                    format!(
+                        "Tileset #{} ({},{} {}x{})",
+                        r.tileset_id.0, r.x, r.y, r.w, r.h
+                    )
+                })
+                .unwrap_or_else(|| "None (Tile)".to_string());
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(label).small());
+                if current.is_some() && ui.small_button("Clear").clicked() {
+                    *value = FieldValue::Tile(None);
+                    out.changed = true;
+                }
+            });
+        }
         FieldType::Color => {
             let mut current = match value {
                 FieldValue::Color(v) => Color32::from_rgba_unmultiplied(v[0], v[1], v[2], v[3]),
@@ -275,9 +328,12 @@ pub fn field_type_editor(
                 FieldType::Float,
                 FieldType::Bool,
                 FieldType::String,
+                FieldType::Multilines,
                 FieldType::Color,
                 FieldType::Point,
+                FieldType::FilePath,
                 FieldType::EntityRef,
+                FieldType::Tile,
             ] {
                 if ui
                     .selectable_label(selected == candidate, field_type_label(&candidate))
@@ -337,10 +393,13 @@ pub fn field_type_label(field_type: &FieldType) -> &'static str {
         FieldType::Float => "Float",
         FieldType::Bool => "Bool",
         FieldType::String => "String",
+        FieldType::Multilines => "Multilines",
         FieldType::Color => "Color",
         FieldType::Enum(_) => "Enum",
         FieldType::Point => "Point",
+        FieldType::FilePath => "FilePath",
         FieldType::EntityRef => "EntityRef",
+        FieldType::Tile => "Tile",
         FieldType::Array(_) => "Array",
     }
 }

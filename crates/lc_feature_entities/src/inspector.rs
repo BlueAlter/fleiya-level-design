@@ -21,18 +21,17 @@ use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
 use lc_ui_api::inspector::InspectorSection;
 use lc_ui_api::selection::Selection;
+use lc_ui_api::session::CanvasPickMode;
 
-use crate::field_defs::default_field_value;
-use crate::field_editors::{
-    entity_choices, field_value_editor, normalized_value, FieldEditorContext,
-};
+use crate::field_defs::{coerce_for_field_def, default_field_value, default_value_for_field};
+use crate::field_editors::{entity_choices, field_value_editor, FieldEditorContext};
 use crate::field_instance_commands::{EntityFieldUpdate, SetEntityFieldValuesCommand};
-use crate::helpers::find_entity_location;
+use crate::geometry::clamp_position_for_def;
+use crate::helpers::{filter_entity_choices, find_entity_location};
 use crate::instance_commands::{
     RemoveEntityInstancesCommand, SetEntityPositionsCommand, SetEntitySizesCommand,
 };
 use crate::stroke::FocusStrokeTracker;
-use crate::tools::clamp_position;
 
 /// Inspector section rendering the selected entity or entities.
 #[derive(Debug, Default)]
@@ -94,7 +93,6 @@ impl InspectorSection for EntityInspectorSection {
             .collect();
         let enum_defs = cx.project().defs.enums.clone();
         let choices = entity_choices(cx.project());
-        let editor_ctx = FieldEditorContext::new(&enum_defs, &choices);
 
         let mut commands: Vec<Box<dyn Command>> = Vec::new();
         let mut events: Vec<EditorEvent> = Vec::new();
@@ -102,12 +100,18 @@ impl InspectorSection for EntityInspectorSection {
         render_header(ui, &entities, &defs, level_id);
 
         if entities.len() == 1 {
+            let allow_oob = defs.first().is_some_and(|d| d.allow_out_of_bounds);
+            let rx = defs.first().is_some_and(|d| d.resizable_x);
+            let ry = defs.first().is_some_and(|d| d.resizable_y);
             render_transform(
                 ui,
                 LevelTransform {
                     level_id,
                     entity: &entities[0],
                     level_size: level.size_px,
+                    allow_out_of_bounds: allow_oob,
+                    resizable_x: rx,
+                    resizable_y: ry,
                 },
                 &mut self.strokes,
                 &mut commands,
@@ -119,6 +123,7 @@ impl InspectorSection for EntityInspectorSection {
         if common.is_empty() {
             ui.label(RichText::new("No custom fields").color(Tokens::get(ui.ctx()).faint));
         } else {
+            let all_same_def = defs.windows(2).all(|w| w[0].id == w[1].id);
             for field in common {
                 let start = effective_value(&entities[0], &field, &enum_defs);
                 let mixed = entities
@@ -126,31 +131,109 @@ impl InspectorSection for EntityInspectorSection {
                     .skip(1)
                     .any(|entity| effective_value(entity, &field, &enum_defs) != start);
 
+                let filtered_choices = if all_same_def && !defs.is_empty() {
+                    filter_entity_choices(cx.project(), defs[0].id, &field)
+                } else {
+                    choices.clone()
+                };
+                let field_ctx = FieldEditorContext::new(&enum_defs, &filtered_choices);
+
                 let mut scratch = start;
+                let mut null_toggled = false;
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(&field.name).color(Tokens::get(ui.ctx()).ink));
+                    let label_resp =
+                        ui.label(RichText::new(&field.name).color(Tokens::get(ui.ctx()).ink));
+                    if let Some(ref doc) = field.doc {
+                        label_resp.on_hover_text(doc);
+                    }
                     if mixed {
                         ui.label(RichText::new("(mixed)").color(Tokens::get(ui.ctx()).faint));
                     }
-                    let response =
-                        field_value_editor(ui, &mut scratch, &field.field_type, &editor_ctx);
-                    let held = response.keeps_stroke();
-                    if let Some(stroke) =
-                        self.strokes.id(field.name.clone(), held, response.changed)
-                    {
-                        if response.changed {
-                            let updates = entities
-                                .iter()
-                                .map(|entity| EntityFieldUpdate {
-                                    entity_id: entity.id,
+
+                    if field.can_be_null && !field.is_array() {
+                        let mut is_null = matches!(scratch, FieldValue::Null);
+                        if ui
+                            .checkbox(&mut is_null, "null")
+                            .on_hover_text("Toggle null value")
+                            .changed()
+                        {
+                            scratch = if is_null {
+                                FieldValue::Null
+                            } else {
+                                default_field_value(&field.field_type, &enum_defs)
+                            };
+                            null_toggled = true;
+                        }
+                    }
+
+                    if !matches!(scratch, FieldValue::Null) {
+                        let response =
+                            field_value_editor(ui, &mut scratch, &field.field_type, &field_ctx);
+                        let held = response.keeps_stroke();
+                        if let Some(stroke) =
+                            self.strokes.id(field.name.clone(), held, response.changed)
+                        {
+                            if response.changed {
+                                let clamped = coerce_for_field_def(&scratch, &field, &enum_defs);
+                                let updates = entities
+                                    .iter()
+                                    .map(|entity| EntityFieldUpdate {
+                                        entity_id: entity.id,
+                                        field_name: field.name.clone(),
+                                        value: clamped.clone(),
+                                    })
+                                    .collect();
+                                commands.push(Box::new(SetEntityFieldValuesCommand::with_stroke(
+                                    level_id, updates, stroke,
+                                )));
+                            }
+                        }
+
+                        if entities.len() == 1
+                            && matches!(
+                                field.field_type,
+                                lc_core::fields::FieldType::Point
+                                    | lc_core::fields::FieldType::EntityRef
+                            )
+                            && ui
+                                .small_button("Pick")
+                                .on_hover_text("Pick on canvas")
+                                .clicked()
+                        {
+                            let pick_mode = match field.field_type {
+                                lc_core::fields::FieldType::Point => CanvasPickMode::Point {
+                                    level_id,
+                                    entity_id: entities[0].id,
                                     field_name: field.name.clone(),
-                                    value: scratch.clone(),
-                                })
-                                .collect();
-                            commands.push(Box::new(SetEntityFieldValuesCommand::with_stroke(
-                                level_id, updates, stroke,
+                                    array_index: None,
+                                },
+                                _ => CanvasPickMode::EntityRef {
+                                    level_id,
+                                    entity_id: entities[0].id,
+                                    field_name: field.name.clone(),
+                                    array_index: None,
+                                },
+                            };
+                            events.push(EditorEvent::SetCanvasPickMode(Some(pick_mode)));
+                            events.push(EditorEvent::Status(format!(
+                                "Click on canvas to pick '{}' (Esc to cancel)",
+                                field.name
                             )));
                         }
+                    }
+
+                    if null_toggled {
+                        let updates = entities
+                            .iter()
+                            .map(|entity| EntityFieldUpdate {
+                                entity_id: entity.id,
+                                field_name: field.name.clone(),
+                                value: scratch.clone(),
+                            })
+                            .collect();
+                        commands.push(Box::new(SetEntityFieldValuesCommand::new(
+                            level_id, updates,
+                        )));
                     }
                 });
             }
@@ -184,6 +267,9 @@ struct LevelTransform<'a> {
     level_id: LevelId,
     entity: &'a EntityInstance,
     level_size: glam::UVec2,
+    allow_out_of_bounds: bool,
+    resizable_x: bool,
+    resizable_y: bool,
 }
 
 fn render_header(ui: &mut Ui, entities: &[EntityInstance], defs: &[EntityDef], level_id: LevelId) {
@@ -238,7 +324,12 @@ fn render_transform(
             || y.dragged();
         if let Some(stroke) = strokes.id("position".to_string(), held, changed) {
             if changed {
-                let clamped = clamp_position(position, entity.size_px, transform.level_size);
+                let clamped = clamp_position_for_def(
+                    position,
+                    entity.size_px,
+                    transform.level_size,
+                    transform.allow_out_of_bounds,
+                );
                 commands.push(Box::new(SetEntityPositionsCommand::with_stroke(
                     transform.level_id,
                     vec![(entity.id, clamped)],
@@ -248,51 +339,53 @@ fn render_transform(
         }
     });
 
-    let mut size = IVec2::new(entity.size_px.x as i32, entity.size_px.y as i32);
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("SIZE").color(t.faint));
-        let w = ui.add(DragValue::new(&mut size.x).speed(1.0));
-        let h = ui.add(DragValue::new(&mut size.y).speed(1.0));
-        let changed = w.changed() || h.changed();
-        let held = w.has_focus()
-            || h.has_focus()
-            || w.gained_focus()
-            || h.gained_focus()
-            || w.dragged()
-            || h.dragged();
-        if let Some(stroke) = strokes.id("size".to_string(), held, changed) {
-            if changed {
-                let max_w = transform.level_size.x.max(1) as i32;
-                let max_h = transform.level_size.y.max(1) as i32;
-                let clamped = IVec2::new(size.x.clamp(1, max_w), size.y.clamp(1, max_h));
-                commands.push(Box::new(SetEntitySizesCommand::with_stroke(
-                    transform.level_id,
-                    vec![(
-                        entity.id,
-                        glam::UVec2::new(clamped.x as u32, clamped.y as u32),
-                    )],
-                    stroke,
-                )));
+    if transform.resizable_x || transform.resizable_y {
+        let mut size = IVec2::new(entity.size_px.x as i32, entity.size_px.y as i32);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("SIZE").color(t.faint));
+            let w = ui.add_enabled(
+                transform.resizable_x,
+                DragValue::new(&mut size.x).speed(1.0),
+            );
+            let h = ui.add_enabled(
+                transform.resizable_y,
+                DragValue::new(&mut size.y).speed(1.0),
+            );
+            let changed = w.changed() || h.changed();
+            let held = w.has_focus()
+                || h.has_focus()
+                || w.gained_focus()
+                || h.gained_focus()
+                || w.dragged()
+                || h.dragged();
+            if let Some(stroke) = strokes.id("size".to_string(), held, changed) {
+                if changed {
+                    let max_w = transform.level_size.x.max(1) as i32;
+                    let max_h = transform.level_size.y.max(1) as i32;
+                    let clamped = IVec2::new(size.x.clamp(1, max_w), size.y.clamp(1, max_h));
+                    commands.push(Box::new(SetEntitySizesCommand::with_stroke(
+                        transform.level_id,
+                        vec![(
+                            entity.id,
+                            glam::UVec2::new(clamped.x as u32, clamped.y as u32),
+                        )],
+                        stroke,
+                    )));
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 fn effective_value(entity: &EntityInstance, field: &FieldDef, enum_defs: &[EnumDef]) -> FieldValue {
     entity
         .fields
         .get(&field.name)
-        .map(|value| normalized_value(value, &field.field_type, enum_defs))
-        .or_else(|| {
-            field
-                .default_value
-                .as_ref()
-                .map(|value| normalized_value(value, &field.field_type, enum_defs))
-        })
-        .unwrap_or_else(|| default_field_value(&field.field_type, enum_defs))
+        .map(|value| coerce_for_field_def(value, field, enum_defs))
+        .unwrap_or_else(|| default_value_for_field(field, enum_defs))
 }
 
-fn entities_in_level(
+pub fn entities_in_level(
     project: &Project,
     level_id: LevelId,
     ids: &[EntityId],
@@ -307,7 +400,7 @@ fn entities_in_level(
         .unwrap_or_default()
 }
 
-fn common_fields(defs: &[EntityDef]) -> Vec<FieldDef> {
+pub fn common_fields(defs: &[EntityDef]) -> Vec<FieldDef> {
     let Some(first) = defs.first() else {
         return Vec::new();
     };
@@ -322,117 +415,4 @@ fn common_fields(defs: &[EntityDef]) -> Vec<FieldDef> {
         })
         .cloned()
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use glam::UVec2;
-    use lc_core::defs::EntityDef;
-    use lc_core::fields::{FieldDef, FieldType};
-    use lc_core::id::EntityDefId;
-
-    fn def(id: u64, fields: Vec<FieldDef>) -> EntityDef {
-        EntityDef {
-            id: EntityDefId::new(id),
-            name: format!("Def{id}"),
-            size_px: UVec2::splat(16),
-            color: [255, 255, 255, 255],
-            pivot: glam::Vec2::splat(0.5),
-            tile: None,
-            fields,
-        }
-    }
-
-    fn field(name: &str, field_type: FieldType) -> FieldDef {
-        FieldDef {
-            name: name.to_string(),
-            field_type,
-            default_value: None,
-        }
-    }
-
-    #[test]
-    fn common_fields_keep_only_shared_name_and_type() {
-        let a = def(
-            1,
-            vec![
-                field("health", FieldType::Int),
-                field("name", FieldType::String),
-                field("only_a", FieldType::Bool),
-            ],
-        );
-        let b = def(
-            2,
-            vec![
-                field("health", FieldType::Int),
-                field("name", FieldType::Int),
-            ],
-        );
-        let common = common_fields(&[a, b]);
-        assert_eq!(common.len(), 1);
-        assert_eq!(common[0].name, "health");
-    }
-
-    #[test]
-    fn common_fields_of_single_definition_are_all_fields() {
-        let a = def(
-            1,
-            vec![
-                field("health", FieldType::Int),
-                field("name", FieldType::String),
-            ],
-        );
-        assert_eq!(common_fields(&[a]).len(), 2);
-        assert!(common_fields(&[]).is_empty());
-    }
-
-    #[test]
-    fn entities_in_level_ignore_ids_from_other_levels() {
-        use lc_core::id::{EntityId, LayerDefId, LevelId, WorldId};
-        use lc_core::layer::{EntityInstance, LayerData, LayerInstance};
-        use lc_core::level::Level;
-        use lc_core::project::Project;
-        use lc_core::world::World;
-
-        let mut project = Project::new("Scoped");
-        let mut world = World::new(WorldId::new(1), "World");
-
-        let mut first = Level::new(LevelId::new(1), "First", UVec2::splat(64));
-        first.layers.push(LayerInstance::new(
-            LayerDefId::new(1),
-            LayerData::Entities(vec![EntityInstance {
-                id: EntityId::new(1),
-                def_id: EntityDefId::new(1),
-                pos_px: IVec2::ZERO,
-                size_px: UVec2::splat(16),
-                fields: lc_core::fields::FieldValues::new(),
-            }]),
-        ));
-        world.levels.push(first);
-
-        let mut second = Level::new(LevelId::new(2), "Second", UVec2::splat(64));
-        second.layers.push(LayerInstance::new(
-            LayerDefId::new(1),
-            LayerData::Entities(vec![EntityInstance {
-                id: EntityId::new(2),
-                def_id: EntityDefId::new(1),
-                pos_px: IVec2::ZERO,
-                size_px: UVec2::splat(16),
-                fields: lc_core::fields::FieldValues::new(),
-            }]),
-        ));
-        world.levels.push(second);
-
-        project.worlds.push(world);
-
-        let ids = [EntityId::new(1), EntityId::new(2)];
-        let in_first = entities_in_level(&project, LevelId::new(1), &ids);
-        assert_eq!(in_first.len(), 1);
-        assert_eq!(in_first[0].id, EntityId::new(1));
-
-        let in_second = entities_in_level(&project, LevelId::new(2), &ids);
-        assert_eq!(in_second.len(), 1);
-        assert_eq!(in_second[0].id, EntityId::new(2));
-    }
 }

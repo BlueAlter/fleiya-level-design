@@ -1,7 +1,8 @@
 //! Top-level project model, settings, and root lookup facilities.
 
 use crate::defs::{Definitions, EntityDef, EnumDef, LayerDef, TilesetDef};
-use crate::id::{EntityDefId, EnumDefId, LayerDefId, LevelId, TilesetDefId, WorldId};
+use crate::id::{EntityDefId, EntityId, EnumDefId, LayerDefId, LevelId, TilesetDefId, WorldId};
+use crate::layer::LayerData;
 use crate::level::Level;
 use crate::world::World;
 use glam::UVec2;
@@ -35,6 +36,9 @@ pub struct Project {
     pub worlds: Vec<World>,
     /// Global project settings.
     pub settings: ProjectSettings,
+    /// Monotonic high-water mark for allocating non-reusable `EntityId` values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_entity_id: Option<u64>,
 }
 
 impl Project {
@@ -49,7 +53,33 @@ impl Project {
             defs: Definitions::new(),
             worlds: Vec::new(),
             settings: ProjectSettings::default(),
+            next_entity_id: None,
         }
+    }
+
+    /// Returns the highest live `EntityId` raw value across all worlds and levels.
+    pub fn max_live_entity_id(&self) -> u64 {
+        let mut max_id = 0_u64;
+        for world in &self.worlds {
+            for level in &world.levels {
+                for layer in &level.layers {
+                    if let LayerData::Entities(entities) = &layer.data {
+                        for entity in entities {
+                            max_id = max_id.max(entity.id.0);
+                        }
+                    }
+                }
+            }
+        }
+        max_id
+    }
+
+    /// Allocates a monotonically increasing `EntityId` that is never reused after deletion.
+    pub fn allocate_entity_id(&mut self) -> EntityId {
+        let floor = self.max_live_entity_id().saturating_add(1);
+        let id = self.next_entity_id.unwrap_or(floor).max(floor);
+        self.next_entity_id = Some(id.saturating_add(1));
+        EntityId(id)
     }
 
     /// Looks up a world by ID.

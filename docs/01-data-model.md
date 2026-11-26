@@ -37,8 +37,12 @@ pub struct LayerInstance { def_id: LayerDefId, visible: bool, data: LayerData }
 pub enum LayerData { IntGrid(Grid<i32>), Tiles(Grid<Option<TileRef>>), Entities(Vec<EntityInstance>), Auto /* reserved, not implemented v1 */ }
 pub struct EntityInstance { id: EntityId, def_id: EntityDefId, pos_px: IVec2, size_px: UVec2, fields: FieldValues }
 
-pub enum FieldType { Int, Float, Bool, String, Color, Enum(EnumDefId), Point, EntityRef, Array(Box<FieldType>) }
+pub enum FieldType { Int, Float, Bool, String, Multilines, Color, Enum(Option<EnumDefId>), Point, EntityRef, FilePath, Tile, Array(Box<FieldType>) }
 ```
+
+Notes on LDtk Entity & Field parity (`lc_core::entity` & `lc_core::fields`):
+- `EntityDef` carries full LDtk properties (`tags`, `doc`, `color`, `fill_opacity`, `line_opacity`, `hollow`, `render_mode`, `tile`, `tile_render_mode`, `nine_slice_borders`, `tile_opacity`, `ui_tile_rect`, `show_name`, `resizable_x`, `resizable_y`, `keep_aspect_ratio`, `allow_out_of_bounds`, `max_count`, `limit_scope`, `limit_behavior`, `export_to_toc`, `fields`), all using `serde(default, skip_serializing_if = ...)` for backwards compatibility.
+- `FieldDef` includes stable `id: FieldDefId`, `doc`, `is_array`, `can_be_null`, `default_value`, `min`/`max`, `regex`, `accept_file_types`, `text_language_mode`, `allowed_refs`, `allowed_ref_tags`, `allowed_refs_entity_def`, `tileset_id`, `symmetrical_ref`, `auto_chain_ref`, `array_min_length`/`array_max_length`, `editor_display_mode`, `editor_display_pos`, `editor_link_style`, `editor_display_scale`, `editor_always_show`, `editor_cut_long_values`, `editor_show_in_world`, and `editor_text_suffix`.
 
 Rules
 - `Level.layers` order = render order. A level's layers must match project `LayerDef`s (missing ones are created lazily by a Command, never silently by UI).

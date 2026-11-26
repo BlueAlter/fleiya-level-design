@@ -23,8 +23,8 @@ fn test_workspace_rail_order_and_unique_icons() {
     assert!(!WORKSPACE_RAIL_ITEMS[0].enabled);
     assert_eq!(WORKSPACE_RAIL_ITEMS[1].mode, None);
     assert!(!WORKSPACE_RAIL_ITEMS[1].enabled);
-    assert_eq!(WORKSPACE_RAIL_ITEMS[2].mode, None);
-    assert!(!WORKSPACE_RAIL_ITEMS[2].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[2].mode, Some(AppMode::Entities));
+    assert!(WORKSPACE_RAIL_ITEMS[2].enabled);
     assert_eq!(WORKSPACE_RAIL_ITEMS[3].mode, Some(AppMode::Tilesets));
     assert!(WORKSPACE_RAIL_ITEMS[3].enabled);
     assert_eq!(WORKSPACE_RAIL_ITEMS[4].mode, Some(AppMode::Enums));
@@ -108,10 +108,39 @@ fn test_mode_shortcuts_ctrl_4_ctrl_5_and_disabled_ctrl_1() {
 fn test_shows_unsaved_only_for_enums() {
     assert!(!shows_unsaved(AppMode::Editor, false));
     assert!(!shows_unsaved(AppMode::Editor, true));
+    assert!(!shows_unsaved(AppMode::Entities, false));
+    assert!(!shows_unsaved(AppMode::Entities, true));
     assert!(!shows_unsaved(AppMode::Tilesets, false));
     assert!(!shows_unsaved(AppMode::Tilesets, true));
     assert!(!shows_unsaved(AppMode::Enums, false));
     assert!(shows_unsaved(AppMode::Enums, true));
+}
+
+#[test]
+fn test_ctrl_3_switches_to_entities_workspace_and_dockind_focuses() {
+    let mut app = ShellApp::new(Project::new("Test Entities Mode"));
+    assert_eq!(app.active_mode, AppMode::Enums);
+    let ctx = Context::default();
+
+    let mut raw_input = RawInput::default();
+    raw_input.events.push(Event::Key {
+        key: Key::Num3,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::CTRL,
+    });
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    assert_eq!(app.active_mode, AppMode::Entities);
+    assert_eq!(app.active_mode.workspace_title(), "ENTITY WORKSPACE");
+
+    app.active_mode = AppMode::Enums;
+    app.open_document(DocKind::EntityDef(lc_core::id::EntityDefId(7)));
+    assert_eq!(app.active_mode, AppMode::Entities);
+    assert_eq!(app.selected_entity_def, Some(lc_core::id::EntityDefId(7)));
 }
 
 #[test]

@@ -1,11 +1,13 @@
 //! Project-level definitions and templates.
 
 pub use crate::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
-use crate::fields::FieldDef;
+pub use crate::entity::{
+    EntityDef, EntityLimitBehavior, EntityLimitScope, EntityRenderMode, TileRenderMode, TilesetRect,
+};
 use crate::id::{EntityDefId, EnumDefId, LayerDefId, TilesetDefId};
 use crate::layer::{LayerKind, TileRef};
 pub use crate::marking::TileMarking;
-use glam::{UVec2, Vec2};
+use glam::UVec2;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -292,32 +294,6 @@ pub struct LayerDef {
     pub tileset_id: Option<TilesetDefId>,
     /// Configured integer values if this is an IntGrid layer.
     pub int_grid_values: Vec<IntGridValueDef>,
-}
-
-/// Definition of an entity template.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct EntityDef {
-    /// Stable identifier of the entity definition.
-    pub id: EntityDefId,
-    /// Entity class name (e.g. "Player", "Coin").
-    pub name: String,
-    /// Default size in pixels.
-    pub size_px: UVec2,
-    /// Display color in the editor.
-    pub color: [u8; 4],
-    /// Alignment pivot point [0.0..1.0, 0.0..1.0].
-    pub pivot: Vec2,
-    /// Optional tile representation for display in canvas.
-    pub tile: Option<TileRef>,
-    /// Custom field schema definitions.
-    pub fields: Vec<FieldDef>,
-}
-
-impl EntityDef {
-    /// Finds a field definition by its name.
-    pub fn field_def(&self, name: &str) -> Option<&FieldDef> {
-        self.fields.iter().find(|f| f.name == name)
-    }
 }
 
 /// Aggregation of all project definitions and templates.

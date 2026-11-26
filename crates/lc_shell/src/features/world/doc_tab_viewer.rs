@@ -489,6 +489,7 @@ mod tests {
             pivot: Vec2::splat(0.5),
             tile: None,
             fields: Vec::new(),
+            ..Default::default()
         });
         project.defs.layers.push(LayerDef {
             id: LayerDefId(1),

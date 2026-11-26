@@ -102,6 +102,17 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 });
 
                 menu_button(ui, "WINDOWS", |ui| {
+                    if ui.button("Entities Workspace  Ctrl+3").clicked() {
+                        app.active_mode = crate::features::editor::app_mode::AppMode::Entities;
+                        if app.selected_entity_def.is_none() {
+                            app.selected_entity_def =
+                                app.project.defs.entities.first().map(|e| e.id);
+                        }
+                        if let Some(id) = app.selected_entity_def {
+                            app.entity_view_state.select_entity(id);
+                        }
+                        ui.close();
+                    }
                     if ui.button("Tilesets Workspace  Ctrl+4").clicked() {
                         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
                         if app.selected_tileset_def.is_none() {
@@ -182,8 +193,18 @@ fn menu_button(ui: &mut Ui, text: &str, add: impl FnOnce(&mut Ui)) {
 /// Handles application-wide keyboard shortcuts.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
     // Workspace rail shortcuts match vertical order:
-    // Ctrl+1 = Editor (disabled), Ctrl+2 = Layers (coming soon), Ctrl+3 = Entities (coming soon),
+    // Ctrl+1 = Editor (disabled), Ctrl+2 = Layers (coming soon), Ctrl+3 = Entities,
     // Ctrl+4 = Tilesets, Ctrl+5 = Enums.
+    let ctrl_3 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num3);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_3)) {
+        app.active_mode = crate::features::editor::app_mode::AppMode::Entities;
+        if app.selected_entity_def.is_none() {
+            app.selected_entity_def = app.project.defs.entities.first().map(|e| e.id);
+        }
+        if let Some(id) = app.selected_entity_def {
+            app.entity_view_state.select_entity(id);
+        }
+    }
     let ctrl_4 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num4);
     if ctx.input_mut(|i| i.consume_shortcut(&ctrl_4)) {
         app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;

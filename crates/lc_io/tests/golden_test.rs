@@ -65,13 +65,16 @@ fn create_sample_project() -> Project {
                 name: "checkpoint_id".to_string(),
                 field_type: FieldType::Int,
                 default_value: Some(FieldValue::Int(1)),
+                ..Default::default()
             },
             FieldDef {
                 name: "active".to_string(),
                 field_type: FieldType::Bool,
                 default_value: Some(FieldValue::Bool(true)),
+                ..Default::default()
             },
         ],
+        ..Default::default()
     };
 
     let layer_intgrid_id = gen.next_layer_def_id();

@@ -63,7 +63,9 @@ fn fixture() -> Fixture {
             name: "health".to_string(),
             field_type: FieldType::Int,
             default_value: Some(FieldValue::Int(10)),
+            ..Default::default()
         }],
+        ..Default::default()
     });
 
     let enemy_def_id = gen.next_entity_def_id();
@@ -79,13 +81,16 @@ fn fixture() -> Fixture {
                 name: "health".to_string(),
                 field_type: FieldType::Int,
                 default_value: Some(FieldValue::Int(5)),
+                ..Default::default()
             },
             FieldDef {
                 name: "name".to_string(),
                 field_type: FieldType::String,
                 default_value: None,
+                ..Default::default()
             },
         ],
+        ..Default::default()
     });
 
     let layer_def_id = gen.next_layer_def_id();
@@ -255,6 +260,7 @@ fn remove_entity_instances_clears_refs_and_restores_them() {
             name: "rival".to_string(),
             field_type: FieldType::EntityRef,
             default_value: Some(FieldValue::EntityRef(Some(EntityId::new(3)))),
+            ..Default::default()
         });
     }
     // References nested inside arrays are scrubbed too, both on instances and
@@ -1275,4 +1281,97 @@ fn add_and_remove_commands_do_not_merge() {
     let mut remove = RemoveEntityInstancesCommand::new(fixture.level_id, vec![EntityId::new(1)]);
     let other_remove = RemoveEntityInstancesCommand::new(fixture.level_id, vec![EntityId::new(2)]);
     assert!(!remove.merge(&other_remove));
+}
+
+#[test]
+fn common_fields_keep_only_shared_name_and_type() {
+    use lc_core::fields::{FieldDef, FieldType};
+    use lc_feature_entities::inspector::common_fields;
+
+    let def = |id: u64, fields: Vec<FieldDef>| EntityDef {
+        id: EntityDefId::new(id),
+        name: format!("Def{id}"),
+        size_px: UVec2::splat(16),
+        color: [255, 255, 255, 255],
+        pivot: glam::Vec2::splat(0.5),
+        tile: None,
+        fields,
+        ..Default::default()
+    };
+    let field = |name: &str, field_type: FieldType| FieldDef {
+        name: name.to_string(),
+        field_type,
+        default_value: None,
+        ..Default::default()
+    };
+
+    let a = def(
+        1,
+        vec![
+            field("health", FieldType::Int),
+            field("name", FieldType::String),
+            field("only_a", FieldType::Bool),
+        ],
+    );
+    let b = def(
+        2,
+        vec![
+            field("health", FieldType::Int),
+            field("name", FieldType::Int),
+        ],
+    );
+    let common = common_fields(&[a.clone(), b]);
+    assert_eq!(common.len(), 1);
+    assert_eq!(common[0].name, "health");
+    assert_eq!(common_fields(&[a]).len(), 3);
+    assert!(common_fields(&[]).is_empty());
+}
+
+#[test]
+fn entities_in_level_ignore_ids_from_other_levels() {
+    use lc_core::id::{LayerDefId, LevelId, WorldId};
+    use lc_core::level::Level;
+    use lc_core::project::Project;
+    use lc_core::world::World;
+    use lc_feature_entities::inspector::entities_in_level;
+
+    let mut project = Project::new("Scoped");
+    let mut world = World::new(WorldId::new(1), "World");
+
+    let mut first = Level::new(LevelId::new(1), "First", UVec2::splat(64));
+    first.layers.push(LayerInstance::new(
+        LayerDefId::new(1),
+        LayerData::Entities(vec![EntityInstance {
+            id: EntityId::new(1),
+            def_id: EntityDefId::new(1),
+            pos_px: IVec2::ZERO,
+            size_px: UVec2::splat(16),
+            fields: FieldValues::new(),
+        }]),
+    ));
+    world.levels.push(first);
+
+    let mut second = Level::new(LevelId::new(2), "Second", UVec2::splat(64));
+    second.layers.push(LayerInstance::new(
+        LayerDefId::new(1),
+        LayerData::Entities(vec![EntityInstance {
+            id: EntityId::new(2),
+            def_id: EntityDefId::new(1),
+            pos_px: IVec2::ZERO,
+            size_px: UVec2::splat(16),
+            fields: FieldValues::new(),
+        }]),
+    ));
+    world.levels.push(second);
+
+    project.worlds.push(world);
+
+    let ids = [EntityId::new(1), EntityId::new(2)];
+    let in_first = entities_in_level(&project, LevelId::new(1), &ids);
+    assert_eq!(in_first.len(), 1);
+    assert_eq!(in_first[0].id, EntityId::new(1));
+
+    let in_second = entities_in_level(&project, LevelId::new(2), &ids);
+    assert_eq!(in_second.len(), 1);
+    assert_eq!(in_second[0].id, EntityId::new(2));
 }

@@ -6,7 +6,17 @@ macro_rules! define_id {
     ($name:ident, $doc:expr) => {
         #[doc = $doc]
         #[derive(
-            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            Serialize,
+            Deserialize,
         )]
         pub struct $name(pub u64);
 
@@ -35,12 +45,13 @@ define_id!(WorldId, "Stable identifier for a World.");
 define_id!(LevelId, "Stable identifier for a Level.");
 define_id!(LayerDefId, "Stable identifier for a Layer definition.");
 define_id!(EntityDefId, "Stable identifier for an Entity definition.");
+define_id!(FieldDefId, "Stable identifier for a Field definition.");
 define_id!(EnumDefId, "Stable identifier for an Enum definition.");
 define_id!(TilesetDefId, "Stable identifier for a Tileset definition.");
 define_id!(EntityId, "Stable identifier for an Entity instance.");
 
 /// Deterministic generator for unique identifiers.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdGenerator {
     next_raw: u64,
 }
@@ -92,6 +103,11 @@ impl IdGenerator {
     /// Generates the next `EntityDefId`.
     pub fn next_entity_def_id(&mut self) -> EntityDefId {
         EntityDefId(self.next_raw())
+    }
+
+    /// Generates the next `FieldDefId`.
+    pub fn next_field_def_id(&mut self) -> FieldDefId {
+        FieldDefId(self.next_raw())
     }
 
     /// Generates the next `EnumDefId`.

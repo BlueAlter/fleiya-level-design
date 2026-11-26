@@ -49,6 +49,8 @@ pub struct LayerRenderCtx<'a> {
     pub level: &'a Level,
     /// Full project data model for resolving tilesets, enums, or entity definitions.
     pub project: &'a Project,
+    /// Active canvas selection (for rendering selection outlines and gizmos).
+    pub selection: &'a crate::selection::Selection,
     /// Whether this layer is the currently selected active layer.
     pub is_active: bool,
     /// Visual opacity multiplier in `0.0..=1.0`.

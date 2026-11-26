@@ -212,7 +212,9 @@ fn test_enum_deletion_blocked_when_referenced_and_cascade() {
             name: "difficulty_level".to_string(),
             field_type: FieldType::Enum(enum_id),
             default_value: Some(FieldValue::Enum("Easy".to_string())),
+            ..Default::default()
         }],
+        ..Default::default()
     };
     p.defs.entities.push(entity_def);
 
@@ -270,7 +272,9 @@ fn test_rename_enum_value_id_cascades_to_instances() {
             name: "mode".to_string(),
             field_type: FieldType::Enum(enum_id),
             default_value: Some(FieldValue::Enum("Easy".to_string())),
+            ..Default::default()
         }],
+        ..Default::default()
     });
 
     // Create a level with an entity instance
@@ -359,7 +363,9 @@ fn test_remove_enum_value_blocked_and_cascade() {
             name: "diff".to_string(),
             field_type: FieldType::Enum(enum_id),
             default_value: Some(FieldValue::Enum("Easy".to_string())),
+            ..Default::default()
         }],
+        ..Default::default()
     });
 
     // 1. Safe remove should fail

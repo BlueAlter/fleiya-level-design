@@ -69,6 +69,7 @@ fn render_entities_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) 
                     pivot: Vec2::new(0.5, 0.5),
                     tile: None,
                     fields: Vec::new(),
+                    ..Default::default()
                 };
                 app.execute_command(Box::new(AddEntityDefCommand::new(def)));
                 app.selected_entity_def = Some(next_id);
@@ -202,6 +203,7 @@ fn render_entities_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) 
                             name: format!("field_{next_num}"),
                             field_type: FieldType::String,
                             default_value: Some(FieldValue::String("".to_string())),
+                            ..Default::default()
                         };
                         app.execute_command(Box::new(AddEntityFieldCommand::new(
                             selected_id,

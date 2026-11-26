@@ -77,10 +77,17 @@ fn test_definition_tabs_and_windows_behavior() {
     assert_eq!(shell.selected_layer_def, Some(LayerDefId(1)));
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
-    // Opening EntityDef opens Entities window, not tab bar
+    // Opening EntityDef switches mode to Entities and selects the entity, not opening in tab bar
     shell.open_document(DocKind::EntityDef(EntityDefId(2)));
-    assert!(shell.show_entities_window);
+    assert_eq!(
+        shell.active_mode,
+        lc_shell::features::editor::app_mode::AppMode::Entities
+    );
     assert_eq!(shell.selected_entity_def, Some(EntityDefId(2)));
+    assert_eq!(
+        shell.entity_view_state.selected_entity_id,
+        Some(EntityDefId(2))
+    );
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
     // Opening TilesetDef switches mode to Tilesets and selects the tileset, not opening in tab bar
