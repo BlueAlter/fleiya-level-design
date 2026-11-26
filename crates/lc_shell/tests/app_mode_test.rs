@@ -4,76 +4,52 @@ use lc_core::command::DocKind;
 use lc_core::id::TilesetDefId;
 use lc_core::project::Project;
 use lc_shell::features::editor::app_mode::{
-    control_width, render_mode_segmented_control, shows_unsaved, AppMode, MODE_BUTTONS,
+    render_workspace_rail, shows_unsaved, AppMode, WORKSPACE_RAIL_ITEMS,
 };
 use lc_shell::features::editor::menu::handle_global_shortcuts;
 use lc_shell::ShellApp;
 use std::collections::HashSet;
 
 #[test]
-fn test_control_width_for_one_two_and_three_buttons() {
-    let size = 26.0;
-    let gap = 4.0;
-
-    assert_eq!(control_width(1, size, gap), 26.0);
-    assert_eq!(control_width(2, size, gap), 56.0);
-    assert_eq!(control_width(3, size, gap), 86.0);
-    assert_eq!(control_width(0, size, gap), 0.0);
-}
-
-#[test]
-fn test_mode_buttons_guard_exhaustive_and_unique_icons() {
-    let mut editor_count = 0;
-    let mut enums_count = 0;
-    let mut tilesets_count = 0;
-
-    for btn in &MODE_BUTTONS {
-        // Exhaustive match ensures adding an AppMode variant forces updating this test
-        match btn.mode {
-            AppMode::Editor => editor_count += 1,
-            AppMode::Enums => enums_count += 1,
-            AppMode::Tilesets => tilesets_count += 1,
-        }
-    }
-
+fn test_workspace_rail_order_and_unique_icons() {
     assert_eq!(
-        editor_count, 1,
-        "AppMode::Editor must appear in MODE_BUTTONS exactly once"
+        WORKSPACE_RAIL_ITEMS.len(),
+        5,
+        "WORKSPACE_RAIL_ITEMS must have 5 entries (Editor, Layers, Entities, Tilesets, Enums)"
     );
-    assert_eq!(
-        enums_count, 1,
-        "AppMode::Enums must appear in MODE_BUTTONS exactly once"
-    );
-    assert_eq!(
-        tilesets_count, 1,
-        "AppMode::Tilesets must appear in MODE_BUTTONS exactly once"
-    );
-    assert_eq!(
-        MODE_BUTTONS.len(),
-        3,
-        "MODE_BUTTONS must have exactly 3 entries"
-    );
+
+    // Order must be: Editor, Layers, Entities, Tilesets, Enums
+    assert_eq!(WORKSPACE_RAIL_ITEMS[0].mode, Some(AppMode::Editor));
+    assert!(!WORKSPACE_RAIL_ITEMS[0].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[1].mode, None);
+    assert!(!WORKSPACE_RAIL_ITEMS[1].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[2].mode, None);
+    assert!(!WORKSPACE_RAIL_ITEMS[2].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[3].mode, Some(AppMode::Tilesets));
+    assert!(WORKSPACE_RAIL_ITEMS[3].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[4].mode, Some(AppMode::Enums));
+    assert!(WORKSPACE_RAIL_ITEMS[4].enabled);
 
     let mut seen_icons = HashSet::new();
-    for btn in &MODE_BUTTONS {
+    for item in &WORKSPACE_RAIL_ITEMS {
         assert!(
-            seen_icons.insert(btn.icon),
-            "Duplicate icon found for mode {:?}",
-            btn.mode
+            seen_icons.insert(item.icon),
+            "Duplicate icon found in WORKSPACE_RAIL_ITEMS: {:?}",
+            item.icon
         );
     }
 }
 
 #[test]
-fn test_mode_shortcuts_ctrl_3_ctrl_1_ctrl_2() {
+fn test_mode_shortcuts_ctrl_4_ctrl_5_and_disabled_ctrl_1() {
     let mut app = ShellApp::new(Project::new("Test Mode Shortcuts"));
-    assert_eq!(app.active_mode, AppMode::Editor);
+    assert_eq!(app.active_mode, AppMode::Enums);
     let ctx = Context::default();
 
-    // 1. Ctrl+3 switches to Tilesets
+    // 1. Ctrl+4 switches to Tilesets
     let mut raw_input = RawInput::default();
     raw_input.events.push(Event::Key {
-        key: Key::Num3,
+        key: Key::Num4,
         physical_key: None,
         pressed: true,
         repeat: false,
@@ -84,7 +60,7 @@ fn test_mode_shortcuts_ctrl_3_ctrl_1_ctrl_2() {
     handle_global_shortcuts(&mut app, &ctx);
     assert_eq!(app.active_mode, AppMode::Tilesets);
 
-    // 2. Ctrl+1 returns to Editor
+    // 2. Ctrl+1 does NOT switch to Editor while Editor is disabled
     let mut raw_input = RawInput::default();
     raw_input.events.push(Event::Key {
         key: Key::Num1,
@@ -96,12 +72,12 @@ fn test_mode_shortcuts_ctrl_3_ctrl_1_ctrl_2() {
     let mut out = ctx.run_ui(raw_input, |_| {});
     out.textures_delta.clear();
     handle_global_shortcuts(&mut app, &ctx);
-    assert_eq!(app.active_mode, AppMode::Editor);
+    assert_eq!(app.active_mode, AppMode::Tilesets);
 
-    // 3. Ctrl+2 opens Enums
+    // 3. Ctrl+5 switches to Enums
     let mut raw_input = RawInput::default();
     raw_input.events.push(Event::Key {
-        key: Key::Num2,
+        key: Key::Num5,
         physical_key: None,
         pressed: true,
         repeat: false,
@@ -112,10 +88,10 @@ fn test_mode_shortcuts_ctrl_3_ctrl_1_ctrl_2() {
     handle_global_shortcuts(&mut app, &ctx);
     assert_eq!(app.active_mode, AppMode::Enums);
 
-    // 4. Ctrl+3 through full app.ui frame switches to Tilesets
+    // 4. Ctrl+4 through full app.ui frame switches to Tilesets
     let mut raw_input = RawInput::default();
     raw_input.events.push(Event::Key {
-        key: Key::Num3,
+        key: Key::Num4,
         physical_key: None,
         pressed: true,
         repeat: false,
@@ -158,7 +134,7 @@ fn test_headless_frame_tilesets_mode_renders_cleanly() {
 #[test]
 fn test_dockind_tileset_def_switches_mode_and_selects_tileset() {
     let mut app = ShellApp::new(Project::new("Test DocKind"));
-    assert_eq!(app.active_mode, AppMode::Editor);
+    assert_eq!(app.active_mode, AppMode::Enums);
     assert_eq!(app.selected_tileset_def, None);
 
     app.open_document(DocKind::TilesetDef(TilesetDefId(42)));
@@ -174,15 +150,14 @@ fn test_navigation_switching_and_active_highlight() {
     lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
     let t = Tokens::get(&ctx);
 
-    // 1. Segmented control rendering and active highlight check for all 3 modes
-    for expected_mode in [AppMode::Editor, AppMode::Enums, AppMode::Tilesets] {
+    // 1. Rail rendering and active highlight check for enabled modes (Enums & Tilesets)
+    for expected_mode in [AppMode::Enums, AppMode::Tilesets] {
         let mut active_mode = expected_mode;
         let mut output = ctx.run_ui(RawInput::default(), |ui| {
-            render_mode_segmented_control(ui, &mut active_mode, false, &t);
+            render_workspace_rail(ui, &mut active_mode, false, &t);
         });
         output.textures_delta.clear();
 
-        // One button should have t.accent fill (the active highlighted one)
         let mut accent_fill_count = 0;
         for clipped in &output.shapes {
             if let egui::Shape::Rect(r) = &clipped.shape {
@@ -193,19 +168,37 @@ fn test_navigation_switching_and_active_highlight() {
         }
         assert_eq!(
             accent_fill_count, 1,
-            "Exactly one mode button must have active accent highlight for mode {expected_mode:?}"
+            "Exactly one rail button must have active accent highlight for mode {expected_mode:?}"
         );
     }
 
-    // 2. Switching modes via Ctrl+1, Ctrl+2, Ctrl+3
+    // Disabled mode (Editor) receives no active highlight on the rail
+    {
+        let mut active_mode = AppMode::Editor;
+        let mut output = ctx.run_ui(RawInput::default(), |ui| {
+            render_workspace_rail(ui, &mut active_mode, false, &t);
+        });
+        output.textures_delta.clear();
+
+        let accent_fill_count = output
+            .shapes
+            .iter()
+            .filter(|clipped| matches!(&clipped.shape, egui::Shape::Rect(r) if r.fill == t.accent))
+            .count();
+        assert_eq!(
+            accent_fill_count, 0,
+            "Disabled Editor mode must not show an active highlight on the rail"
+        );
+    }
+
+    // 2. Switching modes via Ctrl+4 and Ctrl+5
     let mut app = ShellApp::new(Project::new("Navigation Test"));
-    assert_eq!(app.active_mode, AppMode::Editor);
+    assert_eq!(app.active_mode, AppMode::Enums);
 
     for (key, mode) in [
-        (Key::Num3, AppMode::Tilesets),
-        (Key::Num2, AppMode::Enums),
-        (Key::Num1, AppMode::Editor),
-        (Key::Num3, AppMode::Tilesets),
+        (Key::Num4, AppMode::Tilesets),
+        (Key::Num5, AppMode::Enums),
+        (Key::Num4, AppMode::Tilesets),
     ] {
         let mut raw_input = RawInput::default();
         raw_input.events.push(Event::Key {
@@ -224,4 +217,53 @@ fn test_navigation_switching_and_active_highlight() {
             key, mode
         );
     }
+}
+
+#[test]
+fn test_top_header_displays_active_workspace_title_and_rail_renders() {
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+
+    let mut app = ShellApp::new(Project::new("Header Title Test"));
+    assert_eq!(app.active_mode, AppMode::Enums);
+    assert_eq!(app.active_mode.workspace_title(), "ENUM WORKSPACE");
+
+    let mut out_enum = ctx.run_ui(RawInput::default(), |ui| {
+        app.ui(ui);
+    });
+    out_enum.textures_delta.clear();
+
+    let mut found_enum_title = false;
+    for clipped in &out_enum.shapes {
+        if let egui::Shape::Text(t) = &clipped.shape {
+            if t.galley.text() == "ENUM WORKSPACE" {
+                found_enum_title = true;
+            }
+        }
+    }
+    assert!(
+        found_enum_title,
+        "Top header must display active workspace title 'ENUM WORKSPACE'"
+    );
+
+    app.active_mode = AppMode::Tilesets;
+    assert_eq!(app.active_mode.workspace_title(), "TILESET WORKSPACE");
+    let mut out_ts = ctx.run_ui(RawInput::default(), |ui| {
+        app.ui(ui);
+    });
+    out_ts.textures_delta.clear();
+
+    let mut found_ts_title = false;
+    for clipped in &out_ts.shapes {
+        if let egui::Shape::Text(t) = &clipped.shape {
+            if t.galley.text() == "TILESET WORKSPACE" {
+                found_ts_title = true;
+            }
+        }
+    }
+    assert!(
+        found_ts_title,
+        "Top header must display active workspace title 'TILESET WORKSPACE'"
+    );
 }

@@ -247,7 +247,7 @@ impl ShellApp {
             last_central_rect: None,
             file_dialogs: Arc::new(NativeFileDialogService::new()),
             pending_file_dialogs: Vec::new(),
-            active_mode: crate::features::editor::app_mode::AppMode::Editor,
+            active_mode: crate::features::editor::app_mode::AppMode::Enums,
             enum_drafts,
             enum_saved_defs,
             enum_saved,
@@ -947,19 +947,40 @@ impl ShellApp {
             .show(ui, |ui| {
                 crate::features::editor::menu::render_menu_bar(self, ui);
             });
+
+        // 2. Bottom status bar (in Editor mode, spans full window width beneath the rail)
+        if self.active_mode == crate::features::editor::app_mode::AppMode::Editor {
+            Panel::bottom("status_bar")
+                .exact_size(theme::STATUS_H)
+                .frame(
+                    egui::Frame::new()
+                        .fill(tokens.bg)
+                        .inner_margin(egui::Margin::ZERO),
+                )
+                .show(ui, |ui| {
+                    crate::features::editor::status_bar::render_status_bar(self, ui);
+                });
+        }
+
+        // 2b. Vertical left workspace rail (Editor, Layers, Entities, Tilesets, Enums)
+        Panel::left("workspace_rail")
+            .exact_size(crate::features::editor::app_mode::WORKSPACE_RAIL_WIDTH)
+            .resizable(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(tokens.panel)
+                    .inner_margin(egui::Margin::ZERO),
+            )
+            .show(ui, |ui| {
+                crate::features::editor::app_mode::render_workspace_rail(
+                    ui,
+                    &mut self.active_mode,
+                    self.enum_unsaved,
+                    &tokens,
+                );
+            });
         match self.active_mode {
             crate::features::editor::app_mode::AppMode::Editor => {
-                // 2. Bottom status bar
-                Panel::bottom("status_bar")
-                    .exact_size(theme::STATUS_H)
-                    .frame(
-                        egui::Frame::new()
-                            .fill(tokens.bg)
-                            .inner_margin(egui::Margin::ZERO),
-                    )
-                    .show(ui, |ui| {
-                        crate::features::editor::status_bar::render_status_bar(self, ui);
-                    });
                 let mut dock_geometry =
                     crate::features::editor::dock_panels::DockGeometry::default();
                 const DOCK_UNIFORM_WIDTH: f32 = 260.0;

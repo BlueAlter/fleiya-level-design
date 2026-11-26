@@ -1,116 +1,159 @@
-//! Application modes (Editor, Enums, Tilesets) and toolbar mode switcher.
+//! Application modes (Editor, Enums, Tilesets) and vertical left workspace rail.
 
 use egui::{
-    vec2, Align2, CornerRadius, CursorIcon, FontId, Response, Sense, Stroke, StrokeKind, Ui,
+    vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Response, Sense, Stroke, StrokeKind,
+    Ui,
 };
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 
+/// Fixed width of the vertical left workspace rail.
+pub const WORKSPACE_RAIL_WIDTH: f32 = 44.0;
+
 /// Top-level application mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AppMode {
-    /// Level and world editor with dock panels.
-    #[default]
+    /// Level and world editor with dock panels (currently disabled in UI).
     Editor,
     /// Dedicated enum definitions management mode.
+    #[default]
     Enums,
     /// Dedicated tileset definitions and atlas management mode.
     Tilesets,
 }
 
-/// Specification for a mode switch button in the top toolbar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ModeButton {
-    pub mode: AppMode,
-    pub icon: Icon,
-    pub tooltip: &'static str,
-}
-
-/// Available mode buttons in toolbar order.
-pub const MODE_BUTTONS: [ModeButton; 3] = [
-    ModeButton {
-        mode: AppMode::Editor,
-        icon: Icon::Level,
-        tooltip: "Editor (Ctrl+1)",
-    },
-    ModeButton {
-        mode: AppMode::Enums,
-        icon: Icon::Enum,
-        tooltip: "Enums (Ctrl+2)",
-    },
-    ModeButton {
-        mode: AppMode::Tilesets,
-        icon: Icon::Tileset,
-        tooltip: "Tilesets (Ctrl+3)",
-    },
-];
-
-/// Computes the total width required by a segmented control of N buttons and gaps.
-pub fn control_width(button_count: usize, button_size: f32, gap: f32) -> f32 {
-    if button_count == 0 {
-        0.0
-    } else {
-        (button_count as f32) * button_size + (button_count - 1) as f32 * gap
+impl AppMode {
+    /// Returns the workspace display title shown centered in the top bar.
+    pub const fn workspace_title(self) -> &'static str {
+        match self {
+            Self::Editor => "EDITOR WORKSPACE",
+            Self::Enums => "ENUM WORKSPACE",
+            Self::Tilesets => "TILESET WORKSPACE",
+        }
     }
 }
+
+/// Specification for a workspace button in the vertical left rail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkspaceRailItem {
+    /// Target mode if implemented; `None` for upcoming workspaces.
+    pub mode: Option<AppMode>,
+    /// Icon rendered inside the square rail button.
+    pub icon: Icon,
+    /// Tooltip describing the workspace and shortcut.
+    pub tooltip: &'static str,
+    /// Whether this workspace can currently be activated.
+    pub enabled: bool,
+}
+
+/// Workspace items in vertical rail order: Editor, Layers, Entities, Tilesets, Enums.
+pub const WORKSPACE_RAIL_ITEMS: [WorkspaceRailItem; 5] = [
+    WorkspaceRailItem {
+        mode: Some(AppMode::Editor),
+        icon: Icon::Level,
+        tooltip: "Editor Workspace (Disabled)",
+        enabled: false,
+    },
+    WorkspaceRailItem {
+        mode: None,
+        icon: Icon::Layer,
+        tooltip: "Layers Workspace (Coming soon)",
+        enabled: false,
+    },
+    WorkspaceRailItem {
+        mode: None,
+        icon: Icon::Entity,
+        tooltip: "Entities Workspace (Coming soon)",
+        enabled: false,
+    },
+    WorkspaceRailItem {
+        mode: Some(AppMode::Tilesets),
+        icon: Icon::Tileset,
+        tooltip: "Tilesets Workspace (Ctrl+4)",
+        enabled: true,
+    },
+    WorkspaceRailItem {
+        mode: Some(AppMode::Enums),
+        icon: Icon::Enum,
+        tooltip: "Enums Workspace (Ctrl+5)",
+        enabled: true,
+    },
+];
 
 /// Returns true if the unsaved indicator dot should be shown for the given mode.
 pub fn shows_unsaved(mode: AppMode, enum_unsaved: bool) -> bool {
     matches!(mode, AppMode::Enums) && enum_unsaved
 }
 
-/// Renders the mode switcher segmented control in the center of the toolbar.
-pub fn render_mode_segmented_control(
+/// Renders the vertical icon-only workspace switcher rail on the left edge.
+pub fn render_workspace_rail(
     ui: &mut Ui,
     active_mode: &mut AppMode,
     enum_unsaved: bool,
     t: &Tokens,
 ) {
-    let button_size = 26.0;
-    let gap = 4.0;
-    let total_width = control_width(MODE_BUTTONS.len(), button_size, gap);
+    let button_size = 30.0;
+    let gap = 6.0;
+    let rail_rect = ui.available_rect_before_wrap();
 
-    let avail_width = ui.available_width();
-    let offset = ((avail_width - total_width) / 2.0).max(0.0);
+    ui.vertical_centered(|ui| {
+        ui.add_space(8.0);
+        ui.spacing_mut().item_spacing.y = gap;
 
-    ui.horizontal(|ui| {
-        ui.add_space(offset);
-        ui.spacing_mut().item_spacing.x = gap;
+        for item in WORKSPACE_RAIL_ITEMS {
+            let is_active = item.enabled && item.mode == Some(*active_mode);
+            let show_dot = item
+                .mode
+                .is_some_and(|mode| shows_unsaved(mode, enum_unsaved));
 
-        for btn in MODE_BUTTONS {
-            let is_active = *active_mode == btn.mode;
-            let show_dot = shows_unsaved(btn.mode, enum_unsaved);
-            let resp = render_mode_button(
+            let resp = render_rail_button(
                 ui,
-                btn.icon,
+                item.icon,
                 is_active,
+                item.enabled,
                 show_dot,
                 button_size,
-                btn.tooltip,
+                item.tooltip,
                 t,
             );
-            if resp.clicked() {
-                *active_mode = btn.mode;
+            if item.enabled && resp.clicked() {
+                if let Some(mode) = item.mode {
+                    *active_mode = mode;
+                }
             }
         }
     });
+
+    // Draw 1 px vertical hairline along the right border of the rail.
+    ui.painter()
+        .vline(rail_rect.max.x, rail_rect.y_range(), t.hairline());
 }
 
-fn render_mode_button(
+#[allow(clippy::too_many_arguments)]
+fn render_rail_button(
     ui: &mut Ui,
     icon: Icon,
     is_active: bool,
+    enabled: bool,
     show_unsaved: bool,
     size: f32,
     tooltip: &str,
     t: &Tokens,
 ) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::click());
-    let response = response
-        .on_hover_text(tooltip)
-        .on_hover_cursor(CursorIcon::PointingHand);
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), sense);
+    let mut response = response.on_hover_text(tooltip);
+    if enabled {
+        response = response.on_hover_cursor(CursorIcon::PointingHand);
+    }
 
-    let (bg, stroke, icon_color) = if is_active {
+    let (bg, stroke, icon_color) = if !enabled {
+        (Color32::TRANSPARENT, Stroke::NONE, t.faint)
+    } else if is_active {
         (t.accent, Stroke::NONE, t.invert_fg)
     } else if response.hovered() {
         (t.sunken, t.hairline(), t.ink_strong)
@@ -119,12 +162,12 @@ fn render_mode_button(
     };
 
     ui.painter()
-        .rect(rect, CornerRadius::same(3), bg, stroke, StrokeKind::Inside);
+        .rect(rect, CornerRadius::ZERO, bg, stroke, StrokeKind::Inside);
 
     // Icon glyph
     let icon_pos = rect.center();
     let glyph = icon.glyph();
-    let font_id = FontId::new(14.0, lc_canvas::icons::family(ui.ctx()));
+    let font_id = FontId::new(15.0, lc_canvas::icons::family(ui.ctx()));
     ui.painter()
         .text(icon_pos, Align2::CENTER_CENTER, glyph, font_id, icon_color);
 
