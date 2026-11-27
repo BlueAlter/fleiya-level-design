@@ -293,13 +293,16 @@ fn measure_workspace(collected: &CollectedShapes, height: f32) -> MeasuredWorksp
         })
         .expect("tags first control rect not found");
 
-    // 13. Tag "+" button and "⌄" button enclosing Icon::Add and Icon::ChevronDown glyphs
+    // 13. Tag "+" button and "⌄" button enclosing Icon::Add and Icon::ChevronDown glyphs on the Tags row
     let add_glyph = Icon::Add.glyph();
     let tag_plus_text = collected
         .texts
         .iter()
         .find(|t| {
-            t.galley.text() == add_glyph && t.pos.x > 300.0 && t.pos.y > 200.0 && t.pos.y < 280.0
+            t.galley.text() == add_glyph
+                && t.pos.x > tags_first_control_rect.max.x
+                && t.pos.y >= tags_first_control_rect.min.y
+                && t.pos.y <= tags_first_control_rect.max.y
         })
         .expect("tag add glyph not found");
     let tag_plus_button_rect = collected
@@ -316,8 +319,8 @@ fn measure_workspace(collected: &CollectedShapes, height: f32) -> MeasuredWorksp
         .find(|t| {
             t.galley.text() == chevron_glyph
                 && t.pos.x > tag_plus_button_rect.max.x
-                && t.pos.y > 200.0
-                && t.pos.y < 280.0
+                && t.pos.y >= tag_plus_button_rect.min.y
+                && t.pos.y <= tag_plus_button_rect.max.y
         })
         .expect("tag recall chevron glyph not found");
     let tag_recall_button_rect = collected
