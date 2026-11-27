@@ -165,6 +165,8 @@ pub enum DeleteTarget {
 pub struct EnumViewState {
     pub search_query: String,
     pub active_sub_tab: usize,
+    pub collapse_attributes: bool,
+    pub collapse_values: bool,
     pub tile_picker: TilePicker,
     pub enum_drag: DragListState,
     pub value_drag: DragListState,
@@ -214,6 +216,8 @@ impl Default for EnumViewState {
         Self {
             search_query: String::new(),
             active_sub_tab: ENUM_DEF_SUB_TAB,
+            collapse_attributes: false,
+            collapse_values: false,
             tile_picker: TilePicker::new(),
             enum_drag: DragListState::new(),
             value_drag: DragListState::new(),
