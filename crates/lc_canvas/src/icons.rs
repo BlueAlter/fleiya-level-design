@@ -137,6 +137,15 @@ define_icons! {
     Square => SQUARE, "A square box.";
     TrendUp => TREND_UP, "Upward trend or slope.";
     TrendDown => TREND_DOWN, "Downward trend or slope.";
+    Dice => DICE_FIVE, "Random chance or probability.";
+    Drop => DROP, "Opacity or alpha.";
+    HandPalm => HAND_PALM, "Break or stop rule cascade.";
+    FlipX => FLIP_HORIZONTAL, "Mirror horizontally (X).";
+    FlipY => FLIP_VERTICAL, "Mirror vertically (Y).";
+    Checker => DIAMONDS_FOUR, "Checkerboard filter mode.";
+    Perlin => WAVE_SINE, "Perlin noise filter.";
+    Shuffle => SHUFFLE, "Randomize seed.";
+    Prohibit => PROHIBIT, "Forbid condition.";
 }
 
 impl Icon {

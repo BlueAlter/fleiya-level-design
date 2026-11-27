@@ -8,6 +8,8 @@
 //! `lc_core`: Core data model, identifiers, and grid storage for Level Craft.
 //! No egui dependency. No filesystem access.
 
+pub mod auto_rules;
+pub mod auto_rules_eval;
 pub mod collision;
 pub mod command;
 pub mod commands;
@@ -23,6 +25,12 @@ pub mod marking;
 pub mod project;
 pub mod world;
 
+pub use auto_rules::{
+    AutoLayerRuleDef, AutoLayerRuleGroup, AutoRuleCheckerMode, AutoRuleTileMode, AutoTileRect,
+    BiomeRequirementMode, EvaluatedAutoTile, IntGridValueGroupDef, ANY_NON_ZERO_PATTERN,
+    GROUP_PATTERN_BASE,
+};
+pub use auto_rules_eval::evaluate_auto_rules;
 pub use collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 pub use command::{Command, DocKind, UndoStack};
 pub use commands::{
@@ -41,8 +49,8 @@ pub use fields::{
 };
 pub use grid::Grid;
 pub use id::{
-    EntityDefId, EntityId, EnumDefId, FieldDefId, IdGenerator, LayerDefId, LevelId, ProjectId,
-    TilesetDefId, WorldId,
+    AutoRuleGroupId, AutoRuleId, EntityDefId, EntityId, EnumDefId, FieldDefId, IdGenerator,
+    LayerDefId, LevelId, ProjectId, TilesetDefId, WorldId,
 };
 pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;

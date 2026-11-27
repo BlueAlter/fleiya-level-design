@@ -106,6 +106,7 @@ fn fixture() -> Fixture {
         grid_size: UVec2::splat(16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
 
     let level_id = gen.next_level_id();

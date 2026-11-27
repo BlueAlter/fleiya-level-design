@@ -49,6 +49,11 @@ define_id!(FieldDefId, "Stable identifier for a Field definition.");
 define_id!(EnumDefId, "Stable identifier for an Enum definition.");
 define_id!(TilesetDefId, "Stable identifier for a Tileset definition.");
 define_id!(EntityId, "Stable identifier for an Entity instance.");
+define_id!(
+    AutoRuleGroupId,
+    "Stable identifier for an Auto-Layer Rule Group."
+);
+define_id!(AutoRuleId, "Stable identifier for an Auto-Layer Rule.");
 
 /// Deterministic generator for unique identifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,5 +128,15 @@ impl IdGenerator {
     /// Generates the next `EntityId`.
     pub fn next_entity_id(&mut self) -> EntityId {
         EntityId(self.next_raw())
+    }
+
+    /// Generates the next `AutoRuleGroupId`.
+    pub fn next_auto_rule_group_id(&mut self) -> AutoRuleGroupId {
+        AutoRuleGroupId(self.next_raw())
+    }
+
+    /// Generates the next `AutoRuleId`.
+    pub fn next_auto_rule_id(&mut self) -> AutoRuleId {
+        AutoRuleId(self.next_raw())
     }
 }

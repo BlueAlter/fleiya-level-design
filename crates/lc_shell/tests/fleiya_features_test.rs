@@ -71,10 +71,17 @@ fn test_definition_tabs_and_windows_behavior() {
         values: Vec::new(),
     });
 
-    // Opening LayerDef opens Layer window, not tab bar
+    // Opening LayerDef switches mode to Layers and selects the layer, not opening in tab bar
     shell.open_document(DocKind::LayerDef(LayerDefId(1)));
-    assert!(shell.show_layer_window);
+    assert_eq!(
+        shell.active_mode,
+        lc_shell::features::editor::app_mode::AppMode::Layers
+    );
     assert_eq!(shell.selected_layer_def, Some(LayerDefId(1)));
+    assert_eq!(
+        shell.layer_view_state.selected_layer_id,
+        Some(LayerDefId(1))
+    );
     assert_eq!(shell.dock_state.iter_all_tabs().count(), 0);
 
     // Opening EntityDef switches mode to Entities and selects the entity, not opening in tab bar
@@ -185,6 +192,7 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(TilesetDefId(1)),
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
     project.defs.layers.push(tiles_layer);
 
@@ -196,6 +204,7 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
     project.defs.layers.push(entities_layer);
 
@@ -210,7 +219,9 @@ fn test_combined_tileset_panel_renders_per_layer_type() {
             value: 1,
             name: "Solid".to_string(),
             color: [255, 0, 0, 255],
+            ..Default::default()
         }],
+        ..Default::default()
     };
     project.defs.layers.push(intgrid_layer);
 

@@ -498,6 +498,7 @@ mod tests {
             grid_size: UVec2::splat(16),
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         });
         project
     }

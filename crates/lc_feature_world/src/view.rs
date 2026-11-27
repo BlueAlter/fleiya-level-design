@@ -23,6 +23,7 @@ use crate::commands::{
     DuplicateLevelCommand, SetLevelPositionsCommand, SetWorldLayoutCommand, WorldScopedCommand,
 };
 use crate::helpers::{level_name, next_level_id};
+use crate::layer_tag_commands::{PruneUnusedWorldLayersCommand, SetWorldLayerTagsCommand};
 use crate::layout::{
     arrange_linear, axis_order, default_level_size, depths, snap_position, world_bounds,
     world_grid, LINEAR_SPACING,
@@ -58,6 +59,8 @@ pub struct WorldViewState {
     pub grid_snap: bool,
     /// Active drag gesture, if any.
     pub drag: Option<LevelDrag>,
+    /// Whether the per-World layer tag filter drawer is open.
+    pub show_layer_tags: bool,
 }
 
 impl Default for WorldViewState {
@@ -69,6 +72,7 @@ impl Default for WorldViewState {
             selected_level: None,
             grid_snap: true,
             drag: None,
+            show_layer_tags: false,
         }
     }
 }
@@ -250,9 +254,108 @@ fn render_toolbar(
                             ),
                             t.faint,
                         );
+                        ui.separator();
+                        let total_layers = cx.project().defs.layers.len();
+                        let active_layers =
+                            world.matching_layer_defs(&cx.project().defs.layers).len();
+                        let tag_btn_lbl = format!("Layer Tags ({active_layers}/{total_layers})");
+                        if ui
+                            .selectable_label(state.show_layer_tags, tag_btn_lbl)
+                            .clicked()
+                        {
+                            state.show_layer_tags = !state.show_layer_tags;
+                        }
                     });
+
+                    if state.show_layer_tags {
+                        ui.add_space(4.0);
+                        ui.separator();
+                        render_world_layer_tags_drawer(ui, world, cx, &t);
+                    }
                 });
         });
+}
+
+fn render_world_layer_tags_drawer(ui: &mut Ui, world: &World, cx: &mut EditorCtx, t: &Tokens) {
+    let mut inc_buf = world.included_layer_tags.join(", ");
+    let mut exc_buf = world.excluded_layer_tags.join(", ");
+    let mut changed = false;
+
+    let parse_csv = |s: &str| -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for part in s.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            if !out.iter().any(|x| x.eq_ignore_ascii_case(part)) {
+                out.push(part.to_string());
+            }
+        }
+        out
+    };
+
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new("Include tags:")
+                .size(11.0)
+                .color(t.ink_strong),
+        );
+        if ui
+            .add(
+                egui::TextEdit::singleline(&mut inc_buf)
+                    .hint_text("empty = all (e.g. tundra, core)")
+                    .desired_width(180.0),
+            )
+            .changed()
+        {
+            changed = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new("Exclude tags:")
+                .size(11.0)
+                .color(t.ink_strong),
+        );
+        if ui
+            .add(
+                egui::TextEdit::singleline(&mut exc_buf)
+                    .hint_text("e.g. lava, debug")
+                    .desired_width(180.0),
+            )
+            .changed()
+        {
+            changed = true;
+        }
+    });
+
+    if changed {
+        let inc = parse_csv(&inc_buf);
+        let exc = parse_csv(&exc_buf);
+        let stroke = world.id.0.wrapping_add(0x5754_4701);
+        cx.exec(SetWorldLayerTagsCommand::with_stroke(
+            world.id, inc, exc, stroke,
+        ));
+    }
+
+    // Warnings for Auto-Layers whose source IntGrid is excluded
+    let missing = world.missing_auto_sources(&cx.project().defs.layers);
+    for (auto_def, src_def) in missing {
+        ui.label(
+            egui::RichText::new(format!(
+                "Warning: '{}' needs IntGrid '{}' which is filtered out.",
+                auto_def.name, src_def.name
+            ))
+            .size(10.5)
+            .color(t.warn),
+        );
+    }
+
+    let unused = PruneUnusedWorldLayersCommand::count_unused(cx.project(), world.id);
+    if unused > 0
+        && ui
+            .small_button(format!("Prune {unused} unused layer instance(s)"))
+            .clicked()
+    {
+        cx.exec(PruneUnusedWorldLayersCommand::new(world.id));
+    }
 }
 
 fn layout_combo(ui: &mut Ui, world: &World, cx: &mut EditorCtx) {

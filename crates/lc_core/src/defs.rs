@@ -1,13 +1,14 @@
 //! Project-level definitions and templates.
 
+pub use crate::auto_rules::{AutoLayerRuleGroup, IntGridValueGroupDef};
 pub use crate::collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
 pub use crate::entity::{
     EntityDef, EntityLimitBehavior, EntityLimitScope, EntityRenderMode, TileRenderMode, TilesetRect,
 };
-use crate::id::{EntityDefId, EnumDefId, LayerDefId, TilesetDefId};
+use crate::id::{AutoRuleGroupId, EntityDefId, EnumDefId, FieldDefId, LayerDefId, TilesetDefId};
 use crate::layer::{LayerKind, TileRef};
 pub use crate::marking::TileMarking;
-use glam::UVec2;
+use glam::{IVec2, UVec2, Vec2};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -268,6 +269,38 @@ impl EnumDef {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn default_one_f32() -> f32 {
+    1.0
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
+fn is_one_f32(v: &f32) -> bool {
+    (*v - 1.0).abs() <= f32::EPSILON
+}
+
+fn is_zero_ivec2(v: &IVec2) -> bool {
+    *v == IVec2::ZERO
+}
+
+fn is_zero_uvec2(v: &UVec2) -> bool {
+    *v == UVec2::ZERO
+}
+
+fn is_zero_vec2(v: &Vec2) -> bool {
+    *v == Vec2::ZERO
+}
+
 /// Definition of a value within an IntGrid layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntGridValueDef {
@@ -277,10 +310,28 @@ pub struct IntGridValueDef {
     pub name: String,
     /// Color representation in the editor.
     pub color: [u8; 4],
+    /// Optional parent `IntGridValueGroupDef::uid`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_uid: Option<u32>,
+    /// Optional tileset icon representation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tile: Option<TilesetRect>,
 }
 
-/// Definition of a layer template in the project.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+impl Default for IntGridValueDef {
+    fn default() -> Self {
+        Self {
+            value: 1,
+            name: String::new(),
+            color: [96, 165, 250, 255],
+            group_uid: None,
+            tile: None,
+        }
+    }
+}
+
+/// Definition of a layer template in the project (LDtk parity).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LayerDef {
     /// Stable identifier of the layer definition.
     pub id: LayerDefId,
@@ -290,10 +341,148 @@ pub struct LayerDef {
     pub kind: LayerKind,
     /// Grid cell dimensions in pixels.
     pub grid_size: UVec2,
-    /// Optional tileset reference (for Tiles or IntGrid with auto-rules).
+    /// Optional tileset reference (for Tiles, Auto, or IntGrid with auto-rules).
     pub tileset_id: Option<TilesetDefId>,
+    /// Optional separate tileset used to render `Values interface icons` in IntGrid settings & rules.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub int_grid_icons_tileset_id: Option<TilesetDefId>,
     /// Configured integer values if this is an IntGrid layer.
     pub int_grid_values: Vec<IntGridValueDef>,
+    /// Category tags for left-panel grouping and per-World layer filtering.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// Optional designer documentation note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc: Option<String>,
+    /// Optional custom UI accent color.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_color: Option<[u8; 4]>,
+    /// Active layer display opacity (`0.0..=1.0`).
+    #[serde(default = "default_one_f32", skip_serializing_if = "is_one_f32")]
+    pub display_opacity: f32,
+    /// Opacity when layer is inactive (`0.0..=1.0`).
+    #[serde(default = "default_one_f32", skip_serializing_if = "is_one_f32")]
+    pub inactive_opacity: f32,
+    /// Global pixel offset applied when rendering this layer.
+    #[serde(default, skip_serializing_if = "is_zero_ivec2")]
+    pub px_offset: IVec2,
+    /// Parallax scroll factors (`-1.0..=1.0`).
+    #[serde(default, skip_serializing_if = "is_zero_vec2")]
+    pub parallax_factor: Vec2,
+    /// Whether layer scales proportionally with parallax factor.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub parallax_scaling: bool,
+    /// Secondary visual guide grid dimensions (`0,0` disables).
+    #[serde(default, skip_serializing_if = "is_zero_uvec2")]
+    pub guide_grid_size: UVec2,
+    /// Hides layer in level editor layer list.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub hide_in_list: bool,
+    /// Allows selecting elements when this layer is not the active layer.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub can_select_when_inactive: bool,
+    /// Hides entity field overlays when this layer is inactive.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub hide_fields_when_inactive: bool,
+    /// Renders this layer in the World overview map.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub render_in_world_view: bool,
+    /// Marks layer for asynchronous rendering in exported editors/runtimes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub async_render: bool,
+    /// Normalized tile pivot point for `LayerKind::Tiles` (`0.0..=1.0` per axis).
+    #[serde(default, skip_serializing_if = "is_zero_vec2")]
+    pub tile_pivot: Vec2,
+    /// IntGrid value groups for categorizing values and rule matching.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub int_grid_value_groups: Vec<IntGridValueGroupDef>,
+    /// Source IntGrid layer ID for pure `LayerKind::Auto` layers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_source_layer_def_id: Option<LayerDefId>,
+    /// Optional layer ID whose non-empty cells cull generated auto-tiles.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_tiles_killed_by_other_layer_id: Option<LayerDefId>,
+    /// Optional level Enum field ID used for biome-conditional rule groups.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biome_field_id: Option<FieldDefId>,
+    /// Ordered Auto-Layer rule groups (used when `uses_auto_rules()` is true).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auto_rule_groups: Vec<AutoLayerRuleGroup>,
+    /// Required entity tags whitelist (for `LayerKind::Entities`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_tags: Vec<String>,
+    /// Excluded entity tags blacklist (for `LayerKind::Entities`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_tags: Vec<String>,
+}
+
+impl Default for LayerDef {
+    fn default() -> Self {
+        Self {
+            id: LayerDefId(0),
+            name: String::new(),
+            kind: LayerKind::Tiles,
+            grid_size: UVec2::new(16, 16),
+            tileset_id: None,
+            int_grid_icons_tileset_id: None,
+            int_grid_values: Vec::new(),
+            tags: Vec::new(),
+            doc: None,
+            ui_color: None,
+            display_opacity: 1.0,
+            inactive_opacity: 1.0,
+            px_offset: IVec2::ZERO,
+            parallax_factor: Vec2::ZERO,
+            parallax_scaling: true,
+            guide_grid_size: UVec2::ZERO,
+            hide_in_list: false,
+            can_select_when_inactive: true,
+            hide_fields_when_inactive: false,
+            render_in_world_view: true,
+            async_render: false,
+            tile_pivot: Vec2::ZERO,
+            int_grid_value_groups: Vec::new(),
+            auto_source_layer_def_id: None,
+            auto_tiles_killed_by_other_layer_id: None,
+            biome_field_id: None,
+            auto_rule_groups: Vec::new(),
+            required_tags: Vec::new(),
+            excluded_tags: Vec::new(),
+        }
+    }
+}
+
+impl LayerDef {
+    /// Creates a new layer definition with LDtk-compatible defaults.
+    pub fn new(id: LayerDefId, name: impl Into<String>, kind: LayerKind) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            kind,
+            ..Self::default()
+        }
+    }
+
+    /// Returns `true` if this layer uses Auto-Layer rules (`LayerKind::Auto` or `IntGrid` with a bound tileset).
+    pub const fn uses_auto_rules(&self) -> bool {
+        matches!(self.kind, LayerKind::Auto)
+            || (matches!(self.kind, LayerKind::IntGrid) && self.tileset_id.is_some())
+    }
+
+    /// Returns the effective tileset ID for IntGrid value interface icons (`int_grid_icons_tileset_id` or fallback `tileset_id`).
+    pub fn effective_int_grid_icons_tileset(&self) -> Option<TilesetDefId> {
+        self.int_grid_icons_tileset_id.or(self.tileset_id)
+    }
+
+    /// Finds an auto-rule group by ID.
+    pub fn rule_group(&self, id: AutoRuleGroupId) -> Option<&AutoLayerRuleGroup> {
+        self.auto_rule_groups.iter().find(|g| g.id == id)
+    }
+
+    /// Finds a mutable auto-rule group by ID.
+    pub fn rule_group_mut(&mut self, id: AutoRuleGroupId) -> Option<&mut AutoLayerRuleGroup> {
+        self.auto_rule_groups.iter_mut().find(|g| g.id == id)
+    }
 }
 
 /// Aggregation of all project definitions and templates.

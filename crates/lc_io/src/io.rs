@@ -122,6 +122,8 @@ pub fn load_project(project_file: &Path) -> Result<Project, IoError> {
             layout: world_file_data.layout,
             default_grid: world_file_data.default_grid,
             levels,
+            included_layer_tags: world_file_data.included_layer_tags,
+            excluded_layer_tags: world_file_data.excluded_layer_tags,
         });
     }
 
@@ -203,6 +205,8 @@ pub fn save_project(project: &Project, project_file: &Path) -> Result<(), IoErro
             name: world.name.clone(),
             layout: world.layout,
             default_grid: world.default_grid,
+            included_layer_tags: world.included_layer_tags.clone(),
+            excluded_layer_tags: world.excluded_layer_tags.clone(),
             levels: level_manifest_entries,
         };
 

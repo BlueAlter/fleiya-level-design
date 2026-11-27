@@ -5,10 +5,10 @@ use lc_canvas::theme::Tokens;
 use lc_core::defs::EntityDef;
 use lc_core::fields::{AllowedRefs, FieldDef, FieldType, TextLanguageMode};
 
-use super::attributes_card::attr_row;
+use super::attributes_card::{attr_row, attr_wrap_row, buffered_text_field};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::ui::checkbox::styled_checkbox;
-use crate::shared::ui::text_field::{text_field, FieldOutline, FieldStyle};
+use crate::shared::ui::text_field::{FieldOutline, FieldStyle};
 
 /// Renders type-specific constraint rows inside the `VALUE SPECIFICATIONS` section.
 pub fn render_type_constraints(
@@ -23,7 +23,7 @@ pub fn render_type_constraints(
     match draft.base_type().clone() {
         FieldType::Int | FieldType::Float => {
             ui.add_space(6.0);
-            attr_row(ui, t, "Limits", |ui| {
+            attr_wrap_row(ui, t, "Limits", |ui| {
                 let mut has_min = draft.min.is_some();
                 if styled_checkbox(ui, t, &mut has_min, "Min").changed() {
                     draft.min = has_min.then_some(0.0);
@@ -34,9 +34,9 @@ pub fn render_type_constraints(
                         *changed = true;
                     }
                 }
-                ui.add_space(8.0);
+                ui.add_space(4.0);
                 ui.label(RichText::new("to").color(t.muted));
-                ui.add_space(8.0);
+                ui.add_space(4.0);
                 let mut has_max = draft.max.is_some();
                 if styled_checkbox(ui, t, &mut has_max, "Max").changed() {
                     draft.max = has_max.then_some(100.0);
@@ -52,18 +52,26 @@ pub fn render_type_constraints(
         FieldType::String => {
             ui.add_space(6.0);
             attr_row(ui, t, "Regex check", |ui| {
-                let mut regex_buf = draft.regex.clone().unwrap_or_default();
-                let res = text_field(
+                let external = draft.regex.clone().unwrap_or_default();
+                let (res, text) = buffered_text_field(
                     ui,
-                    &mut regex_buf,
+                    ("field_regex", def.id, field_idx),
+                    &external,
                     FieldStyle::default()
                         .with_hint("(none)")
                         .with_outline_preset(FieldOutline::Hairline),
                 );
-                if res.changed {
-                    let trimmed = regex_buf.trim().to_string();
-                    draft.regex = (!trimmed.is_empty()).then_some(trimmed);
-                    *changed = true;
+                if res.changed || res.committed {
+                    let next = if res.committed {
+                        let trimmed = text.trim().to_string();
+                        (!trimmed.is_empty()).then_some(trimmed)
+                    } else {
+                        (!text.trim().is_empty()).then_some(text)
+                    };
+                    if next != draft.regex {
+                        draft.regex = next;
+                        *changed = true;
+                    }
                 }
             });
         }
@@ -101,21 +109,25 @@ pub fn render_type_constraints(
         FieldType::FilePath => {
             ui.add_space(6.0);
             attr_row(ui, t, "File extensions", |ui| {
-                let mut exts_buf = draft.accept_file_types.join(", ");
-                let res = text_field(
+                let external = draft.accept_file_types.join(", ");
+                let (res, text) = buffered_text_field(
                     ui,
-                    &mut exts_buf,
+                    ("field_accept_ext", def.id, field_idx),
+                    &external,
                     FieldStyle::default()
                         .with_hint("Any file (e.g. png, json)")
                         .with_outline_preset(FieldOutline::Hairline),
                 );
-                if res.changed {
-                    draft.accept_file_types = exts_buf
+                if res.changed || res.committed {
+                    let parsed: Vec<String> = text
                         .split(',')
                         .map(|s| s.trim().trim_start_matches('.').to_string())
                         .filter(|s| !s.is_empty())
                         .collect();
-                    *changed = true;
+                    if parsed != draft.accept_file_types {
+                        draft.accept_file_types = parsed;
+                        *changed = true;
+                    }
                 }
             });
         }
@@ -131,7 +143,7 @@ pub fn render_type_constraints(
         }
         FieldType::EntityRef => {
             ui.add_space(6.0);
-            attr_row(ui, t, "Reference options", |ui| {
+            attr_wrap_row(ui, t, "Reference options", |ui| {
                 if draft.allowed_refs == AllowedRefs::OnlySame {
                     if styled_checkbox(ui, t, &mut draft.symmetrical_ref, "Symmetrical").changed() {
                         *changed = true;
@@ -144,7 +156,7 @@ pub fn render_type_constraints(
                             .color(t.faint),
                     );
                 }
-                ui.add_space(10.0);
+                ui.add_space(8.0);
                 if styled_checkbox(ui, t, &mut draft.auto_chain_ref, "Auto-chain").changed() {
                     *changed = true;
                 }
@@ -200,21 +212,25 @@ pub fn render_type_constraints(
             } else if draft.allowed_refs == AllowedRefs::OnlyTags {
                 ui.add_space(4.0);
                 attr_row(ui, t, "Target Tags", |ui| {
-                    let mut tags_buf = draft.allowed_ref_tags.join(", ");
-                    let res = text_field(
+                    let external = draft.allowed_ref_tags.join(", ");
+                    let (res, text) = buffered_text_field(
                         ui,
-                        &mut tags_buf,
+                        ("field_ref_tags", def.id, field_idx),
+                        &external,
                         FieldStyle::default()
                             .with_hint("comma-separated tags")
                             .with_outline_preset(FieldOutline::Hairline),
                     );
-                    if res.changed {
-                        draft.allowed_ref_tags = tags_buf
+                    if res.changed || res.committed {
+                        let parsed: Vec<String> = text
                             .split(',')
                             .map(|s| s.trim().to_string())
                             .filter(|s| !s.is_empty())
                             .collect();
-                        *changed = true;
+                        if parsed != draft.allowed_ref_tags {
+                            draft.allowed_ref_tags = parsed;
+                            *changed = true;
+                        }
                     }
                 });
             }

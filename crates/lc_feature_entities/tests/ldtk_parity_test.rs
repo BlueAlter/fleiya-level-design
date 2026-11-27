@@ -36,6 +36,7 @@ fn build_test_project() -> (
         grid_size: UVec2::splat(16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
 
     let def_a = gen.next_entity_def_id();

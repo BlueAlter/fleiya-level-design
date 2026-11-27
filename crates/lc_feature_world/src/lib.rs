@@ -6,6 +6,7 @@
 pub mod canvas;
 pub mod commands;
 pub mod helpers;
+pub mod layer_tag_commands;
 pub mod layout;
 pub mod view;
 
@@ -13,6 +14,7 @@ pub use canvas::{level_screen_rect, render_world_canvas};
 pub use commands::{
     DuplicateLevelCommand, SetLevelPositionsCommand, SetWorldLayoutCommand, WorldScopedCommand,
 };
+pub use layer_tag_commands::{PruneUnusedWorldLayersCommand, SetWorldLayerTagsCommand};
 pub use view::{LevelDrag, WorldDocumentView, WorldViewState};
 
 use lc_core::command::DocKind;

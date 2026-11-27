@@ -342,157 +342,173 @@ pub fn search_picker<K: Clone + PartialEq>(
         .width(cfg.width)
         .show(|ui| {
             ui.set_width(cfg.width);
-            ui.spacing_mut().interact_size.y = PICKER_ROW_HEIGHT;
-
-            // Search field (outside the scroll area so it never scrolls away).
-            ui.horizontal(|ui| {
-                let icon_rect = Rect::from_min_size(ui.cursor().min, vec2(16.0, PICKER_ROW_HEIGHT));
-                paint_icon(
-                    ui.painter(),
-                    icon_rect.center(),
-                    Icon::Search,
-                    12.0,
-                    t.muted,
-                );
-                ui.add_space(20.0);
-                let search_w = ui.available_width().max(60.0);
-                let search_resp = ui.add_sized(
-                    [search_w, PICKER_ROW_HEIGHT],
-                    TextEdit::singleline(&mut state.search)
-                        .id(id.with("search_input"))
-                        .hint_text(cfg.hint)
-                        .vertical_align(Align::Center)
-                        .margin(Margin::symmetric(6, 0)),
-                );
-                if just_opened {
-                    search_resp.request_focus();
-                }
-            });
-
-            ui.add_space(4.0);
-
-            let rows = picker_rows(
-                items,
-                &state.search,
-                cfg.none_label,
-                cfg.group_untagged_label,
-                cfg.ungrouped_label,
-            );
-
-            if just_opened {
-                state.selected_idx = first_item_row(&rows)
-                    .or_else(|| first_selectable(&rows))
-                    .unwrap_or(0);
-            } else if !rows.get(state.selected_idx).is_some_and(is_selectable) {
-                state.selected_idx = first_selectable(&rows).unwrap_or(0);
-            }
-
-            if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
-                if let Some(next) = step_selection(&rows, Some(state.selected_idx), true) {
-                    state.selected_idx = next;
-                }
-            }
-            if ui.input(|i| i.key_pressed(Key::ArrowUp)) {
-                if let Some(prev) = step_selection(&rows, Some(state.selected_idx), false) {
-                    state.selected_idx = prev;
-                }
-            }
-            if ui.input(|i| i.key_pressed(Key::Enter)) {
-                match rows.get(state.selected_idx) {
-                    Some(PickerRow::NoneRow) => {
-                        choice = Some(PickerChoice::None);
-                        ui.close();
-                    }
-                    Some(PickerRow::Item {
-                        idx,
-                        disabled: false,
-                    }) => {
-                        if let Some(item) = items.get(*idx) {
-                            choice = Some(PickerChoice::Item(item.key.clone()));
-                            ui.close();
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            if ui.input(|i| i.key_pressed(Key::Escape)) {
+            choice = search_picker_contents(ui, id, items, state, cfg, just_opened);
+            if choice.is_some() || ui.input(|i| i.key_pressed(Key::Escape)) {
                 ui.close();
             }
+        });
 
-            let list_height = cfg.max_rows.max(1) as f32 * PICKER_ROW_HEIGHT;
-            ScrollArea::vertical()
-                .id_salt(id.with("scroll"))
-                .max_height(list_height)
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    if rows.is_empty() {
-                        ui.vertical_centered(|ui| {
-                            ui.add_space(8.0);
-                            ui.label(
-                                RichText::new(tr(common_keys::SEARCH_NO_RESULTS))
-                                    .size(12.0)
-                                    .color(t.muted),
-                            );
-                            ui.add_space(8.0);
-                        });
-                        return;
+    choice
+}
+
+/// Renders the searchable list body of a [`search_picker`] directly inside an existing UI
+/// (such as a parent popup or context menu panel), sharing the exact Tileset/Entity enum picker UI.
+pub fn search_picker_contents<K: Clone + PartialEq>(
+    ui: &mut Ui,
+    id: Id,
+    items: &[PickerItem<K>],
+    state: &mut SearchPickerState,
+    cfg: &SearchPickerConfig<'_, K>,
+    just_opened: bool,
+) -> Option<PickerChoice<K>> {
+    if just_opened {
+        state.search.clear();
+        state.selected_idx = 0;
+    }
+    let t = Tokens::get(ui.ctx());
+    let mut choice: Option<PickerChoice<K>> = None;
+    ui.spacing_mut().interact_size.y = PICKER_ROW_HEIGHT;
+
+    // Search field (outside the scroll area so it never scrolls away).
+    ui.horizontal(|ui| {
+        let icon_rect = Rect::from_min_size(ui.cursor().min, vec2(16.0, PICKER_ROW_HEIGHT));
+        paint_icon(
+            ui.painter(),
+            icon_rect.center(),
+            Icon::Search,
+            12.0,
+            t.muted,
+        );
+        ui.add_space(20.0);
+        let search_w = ui.available_width().max(60.0);
+        let search_resp = ui.add_sized(
+            [search_w, PICKER_ROW_HEIGHT],
+            TextEdit::singleline(&mut state.search)
+                .id(id.with("search_input"))
+                .hint_text(cfg.hint)
+                .vertical_align(Align::Center)
+                .margin(Margin::symmetric(6, 0)),
+        );
+        if just_opened {
+            search_resp.request_focus();
+        }
+    });
+
+    ui.add_space(4.0);
+
+    let rows = picker_rows(
+        items,
+        &state.search,
+        cfg.none_label,
+        cfg.group_untagged_label,
+        cfg.ungrouped_label,
+    );
+
+    if just_opened {
+        state.selected_idx = first_item_row(&rows)
+            .or_else(|| first_selectable(&rows))
+            .unwrap_or(0);
+    } else if !rows.get(state.selected_idx).is_some_and(is_selectable) {
+        state.selected_idx = first_selectable(&rows).unwrap_or(0);
+    }
+
+    if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
+        if let Some(next) = step_selection(&rows, Some(state.selected_idx), true) {
+            state.selected_idx = next;
+        }
+    }
+    if ui.input(|i| i.key_pressed(Key::ArrowUp)) {
+        if let Some(prev) = step_selection(&rows, Some(state.selected_idx), false) {
+            state.selected_idx = prev;
+        }
+    }
+    if ui.input(|i| i.key_pressed(Key::Enter)) {
+        match rows.get(state.selected_idx) {
+            Some(PickerRow::NoneRow) => {
+                choice = Some(PickerChoice::None);
+            }
+            Some(PickerRow::Item {
+                idx,
+                disabled: false,
+            }) => {
+                if let Some(item) = items.get(*idx) {
+                    choice = Some(PickerChoice::Item(item.key.clone()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let list_height = cfg.max_rows.max(1) as f32 * PICKER_ROW_HEIGHT;
+    ScrollArea::vertical()
+        .id_salt(id.with("scroll"))
+        .max_height(list_height)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            if rows.is_empty() {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new(tr(common_keys::SEARCH_NO_RESULTS))
+                            .size(12.0)
+                            .color(t.muted),
+                    );
+                    ui.add_space(8.0);
+                });
+                return;
+            }
+
+            for (row_idx, row) in rows.iter().enumerate() {
+                match row {
+                    PickerRow::Header(label) => {
+                        let (rect, _) = ui.allocate_exact_size(
+                            vec2(ui.available_width(), PICKER_HEADER_HEIGHT),
+                            Sense::hover(),
+                        );
+                        ui.painter().text(
+                            Pos2::new(rect.min.x + 8.0, rect.center().y),
+                            Align2::LEFT_CENTER,
+                            label,
+                            FontId::proportional(11.0),
+                            t.muted,
+                        );
                     }
-
-                    for (row_idx, row) in rows.iter().enumerate() {
-                        match row {
-                            PickerRow::Header(label) => {
-                                let (rect, _) = ui.allocate_exact_size(
-                                    vec2(ui.available_width(), PICKER_HEADER_HEIGHT),
-                                    Sense::hover(),
-                                );
-                                ui.painter().text(
-                                    Pos2::new(rect.min.x + 8.0, rect.center().y),
-                                    Align2::LEFT_CENTER,
-                                    label,
-                                    FontId::proportional(11.0),
-                                    t.muted,
-                                );
-                            }
-                            PickerRow::NoneRow => {
-                                let label = cfg.none_label.unwrap_or("-- None --");
-                                let is_current = cfg.current.is_none();
-                                let clicked = draw_row(
-                                    ui,
-                                    &t,
-                                    row_idx,
-                                    label,
-                                    false,
-                                    is_current,
-                                    &mut state.selected_idx,
-                                );
-                                if clicked {
-                                    choice = Some(PickerChoice::None);
-                                    ui.close();
-                                }
-                            }
-                            PickerRow::Item { idx, disabled } => {
-                                let Some(item) = items.get(*idx) else {
-                                    continue;
-                                };
-                                let is_current =
-                                    cfg.current.as_ref().is_some_and(|c| c == &item.key);
-                                let clicked = draw_row(
-                                    ui,
-                                    &t,
-                                    row_idx,
-                                    &item.label,
-                                    *disabled,
-                                    is_current,
-                                    &mut state.selected_idx,
-                                );
-                                if clicked {
-                                    choice = Some(PickerChoice::Item(item.key.clone()));
-                                    ui.close();
-                                }
-                            }
+                    PickerRow::NoneRow => {
+                        let label = cfg.none_label.unwrap_or("-- None --");
+                        let is_current = cfg.current.is_none();
+                        let clicked = draw_row(
+                            ui,
+                            &t,
+                            row_idx,
+                            label,
+                            false,
+                            is_current,
+                            &mut state.selected_idx,
+                        );
+                        if clicked {
+                            choice = Some(PickerChoice::None);
                         }
                     }
-                });
+                    PickerRow::Item { idx, disabled } => {
+                        let Some(item) = items.get(*idx) else {
+                            continue;
+                        };
+                        let is_current = cfg.current.as_ref().is_some_and(|c| c == &item.key);
+                        let clicked = draw_row(
+                            ui,
+                            &t,
+                            row_idx,
+                            &item.label,
+                            *disabled,
+                            is_current,
+                            &mut state.selected_idx,
+                        );
+                        if clicked {
+                            choice = Some(PickerChoice::Item(item.key.clone()));
+                        }
+                    }
+                }
+            }
         });
 
     choice

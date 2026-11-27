@@ -5,7 +5,7 @@ use lc_canvas::theme::Tokens;
 use lc_core::defs::EntityDef;
 use lc_core::fields::{EditorDisplayMode, EditorDisplayPos, EditorLinkStyle, FieldDef, FieldType};
 
-use super::attributes_card::attr_row;
+use super::attributes_card::{attr_row, attr_wrap_row, buffered_singleline};
 use super::field_config_card::render_sub_heading;
 use crate::shared::ui::checkbox::styled_checkbox;
 
@@ -74,7 +74,7 @@ pub fn render_editor_display_settings(
             | EditorDisplayMode::RefLinkBetweenCenters
     );
 
-    attr_row(ui, t, "Display in editor", |ui| {
+    attr_wrap_row(ui, t, "Display in editor", |ui| {
         ComboBox::from_id_salt(("field_display_mode", def.id, field_idx))
             .selected_text(format!("{:?}", draft.editor_display_mode))
             .show_ui(ui, |ui| {
@@ -147,33 +147,47 @@ pub fn render_editor_display_settings(
 
     if matches!(base, FieldType::Int | FieldType::Float) {
         ui.add_space(6.0);
-        attr_row(ui, t, "Prefix / suffix", |ui| {
-            let mut prefix_buf = draft.editor_text_prefix.clone().unwrap_or_default();
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut prefix_buf)
-                        .desired_width(64.0)
-                        .hint_text("$"),
-                )
-                .changed()
-            {
-                let trimmed = prefix_buf.trim().to_string();
-                draft.editor_text_prefix = (!trimmed.is_empty()).then_some(trimmed);
-                *changed = true;
+        attr_wrap_row(ui, t, "Prefix / suffix", |ui| {
+            let ext_prefix = draft.editor_text_prefix.clone().unwrap_or_default();
+            let (p_resp, p_text) = buffered_singleline(
+                ui,
+                ("field_prefix", def.id, field_idx),
+                &ext_prefix,
+                58.0,
+                "$",
+            );
+            if p_resp.changed() || p_resp.lost_focus() {
+                let next = if p_resp.lost_focus() {
+                    let trimmed = p_text.trim().to_string();
+                    (!trimmed.is_empty()).then_some(trimmed)
+                } else {
+                    (!p_text.trim().is_empty()).then_some(p_text)
+                };
+                if next != draft.editor_text_prefix {
+                    draft.editor_text_prefix = next;
+                    *changed = true;
+                }
             }
             ui.label(RichText::new("1234").color(t.faint));
-            let mut suffix_buf = draft.editor_text_suffix.clone().unwrap_or_default();
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut suffix_buf)
-                        .desired_width(64.0)
-                        .hint_text("px"),
-                )
-                .changed()
-            {
-                let trimmed = suffix_buf.trim().to_string();
-                draft.editor_text_suffix = (!trimmed.is_empty()).then_some(trimmed);
-                *changed = true;
+            let ext_suffix = draft.editor_text_suffix.clone().unwrap_or_default();
+            let (s_resp, s_text) = buffered_singleline(
+                ui,
+                ("field_suffix", def.id, field_idx),
+                &ext_suffix,
+                58.0,
+                "px",
+            );
+            if s_resp.changed() || s_resp.lost_focus() {
+                let next = if s_resp.lost_focus() {
+                    let trimmed = s_text.trim().to_string();
+                    (!trimmed.is_empty()).then_some(trimmed)
+                } else {
+                    (!s_text.trim().is_empty()).then_some(s_text)
+                };
+                if next != draft.editor_text_suffix {
+                    draft.editor_text_suffix = next;
+                    *changed = true;
+                }
             }
         });
     }

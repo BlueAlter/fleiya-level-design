@@ -51,9 +51,12 @@ impl Command for AddLayerDefCommand {
         self.inserted_index = Some(idx);
         p.defs.layers.push(self.def.clone());
 
-        // Instantiate layer instance in each level matching LayerDef
+        // Instantiate layer instance in each level matching LayerDef (filtered by World layer tags)
         self.inserted_level_layers.clear();
         for world in &mut p.worlds {
+            if !world.layer_matches(&self.def) {
+                continue;
+            }
             for level in &mut world.levels {
                 let cell_w = (level.size_px.x / self.def.grid_size.x.max(1)).max(1);
                 let cell_h = (level.size_px.y / self.def.grid_size.y.max(1)).max(1);
@@ -117,12 +120,14 @@ impl Command for AddLayerDefCommand {
     }
 }
 
-/// Updates an existing `LayerDef` properties.
+/// Updates an existing `LayerDef` properties and syncs matching level layer instances on kind/grid changes.
 #[derive(Debug, Clone)]
 pub struct UpdateLayerDefCommand {
     updated: LayerDef,
+    stroke_id: Option<u64>,
     previous: Option<LayerDef>,
     previous_index: Option<usize>,
+    previous_instances: Vec<RemovedLayerInstance>,
 }
 
 impl UpdateLayerDefCommand {
@@ -130,14 +135,75 @@ impl UpdateLayerDefCommand {
     pub fn new(updated: LayerDef) -> Self {
         Self {
             updated,
+            stroke_id: None,
             previous: None,
             previous_index: None,
+            previous_instances: Vec::new(),
+        }
+    }
+
+    /// Creates a mergeable command tagged with a continuous UI stroke identifier.
+    pub fn with_stroke(updated: LayerDef, stroke_id: u64) -> Self {
+        Self {
+            updated,
+            stroke_id: Some(stroke_id),
+            previous: None,
+            previous_index: None,
+            previous_instances: Vec::new(),
         }
     }
 
     /// Accessor for the updated definition.
     pub fn updated(&self) -> &LayerDef {
         &self.updated
+    }
+}
+
+fn rebuild_layer_data_for_update(
+    old_data: &LayerData,
+    new_kind: LayerKind,
+    cell_w: u32,
+    cell_h: u32,
+) -> LayerData {
+    match (old_data, new_kind) {
+        (LayerData::IntGrid(old_grid), LayerKind::IntGrid) => {
+            let mut next = Grid::new(cell_w, cell_h, 0);
+            let copy_w = old_grid.width().min(cell_w);
+            let copy_h = old_grid.height().min(cell_h);
+            for y in 0..copy_h {
+                for x in 0..copy_w {
+                    if let Some(&val) = old_grid.get(x, y) {
+                        if val != 0 {
+                            let _ = next.set(x, y, val);
+                        }
+                    }
+                }
+            }
+            LayerData::IntGrid(next)
+        }
+        (LayerData::Tiles(old_grid), LayerKind::Tiles) => {
+            let mut next = Grid::new(cell_w, cell_h, None);
+            let copy_w = old_grid.width().min(cell_w);
+            let copy_h = old_grid.height().min(cell_h);
+            for y in 0..copy_h {
+                for x in 0..copy_w {
+                    if let Some(&tile) = old_grid.get(x, y) {
+                        if tile.is_some() {
+                            let _ = next.set(x, y, tile);
+                        }
+                    }
+                }
+            }
+            LayerData::Tiles(next)
+        }
+        (LayerData::Entities(entities), LayerKind::Entities) => {
+            LayerData::Entities(entities.clone())
+        }
+        (LayerData::Auto, LayerKind::Auto) => LayerData::Auto,
+        (_, LayerKind::IntGrid) => LayerData::IntGrid(Grid::new(cell_w, cell_h, 0)),
+        (_, LayerKind::Tiles) => LayerData::Tiles(Grid::new(cell_w, cell_h, None)),
+        (_, LayerKind::Entities) => LayerData::Entities(Vec::new()),
+        (_, LayerKind::Auto) => LayerData::Auto,
     }
 }
 
@@ -150,8 +216,40 @@ impl Command for UpdateLayerDefCommand {
             .position(|l| l.id == self.updated.id)
             .ok_or_else(|| CoreError::DefNotFound(format!("LayerDef {:?}", self.updated.id)))?;
 
-        self.previous = Some(p.defs.layers[idx].clone());
+        let prev_def = p.defs.layers[idx].clone();
+        let kind_changed = prev_def.kind != self.updated.kind;
+        let grid_changed = prev_def.grid_size != self.updated.grid_size;
+
+        self.previous = Some(prev_def);
         self.previous_index = Some(idx);
+        self.previous_instances.clear();
+
+        if kind_changed || grid_changed {
+            let grid_w = self.updated.grid_size.x.max(1);
+            let grid_h = self.updated.grid_size.y.max(1);
+            for world in &mut p.worlds {
+                for level in &mut world.levels {
+                    let cell_w = (level.size_px.x / grid_w).max(1);
+                    let cell_h = (level.size_px.y / grid_h).max(1);
+                    if let Some((inst_idx, inst)) = level
+                        .layers
+                        .iter_mut()
+                        .enumerate()
+                        .find(|(_, l)| l.def_id == self.updated.id)
+                    {
+                        self.previous_instances
+                            .push((world.id, level.id, inst_idx, inst.clone()));
+                        inst.data = rebuild_layer_data_for_update(
+                            &inst.data,
+                            self.updated.kind,
+                            cell_w,
+                            cell_h,
+                        );
+                    }
+                }
+            }
+        }
+
         p.defs.layers[idx] = self.updated.clone();
         Ok(())
     }
@@ -164,11 +262,32 @@ impl Command for UpdateLayerDefCommand {
                 p.defs.layers[pos] = prev;
             }
         }
+
+        for (world_id, level_id, inst_idx, prev_inst) in self.previous_instances.drain(..) {
+            if let Some(world) = p.world_mut(world_id) {
+                if let Some(level) = world.level_mut(level_id) {
+                    if inst_idx < level.layers.len()
+                        && level.layers[inst_idx].def_id == self.updated.id
+                    {
+                        level.layers[inst_idx] = prev_inst;
+                    } else if let Some(pos) = level
+                        .layers
+                        .iter()
+                        .position(|l| l.def_id == self.updated.id)
+                    {
+                        level.layers[pos] = prev_inst;
+                    }
+                }
+            }
+        }
     }
 
     fn merge(&mut self, next: &dyn Command) -> bool {
         if let Some(other) = next.as_any().downcast_ref::<Self>() {
-            if self.updated.id == other.updated.id {
+            if self.updated.id == other.updated.id && self.stroke_id == other.stroke_id {
+                if self.previous_instances.is_empty() && !other.previous_instances.is_empty() {
+                    return false;
+                }
                 self.updated = other.updated.clone();
                 return true;
             }
@@ -189,7 +308,8 @@ impl Command for UpdateLayerDefCommand {
     }
 }
 
-/// Removes a `LayerDef` and cascades deletion to matching layer instances in levels.
+/// Removes a `LayerDef` and cascades deletion to matching layer instances in levels
+/// as well as Auto-Layer source/culling references pointing to it.
 #[derive(Debug, Clone)]
 pub struct RemoveLayerDefCommand {
     layer_def_id: LayerDefId,
@@ -197,6 +317,8 @@ pub struct RemoveLayerDefCommand {
     removed_def: Option<LayerDef>,
     removed_index: Option<usize>,
     removed_instances: Vec<RemovedLayerInstance>,
+    cleared_source_refs: Vec<LayerDefId>,
+    cleared_killer_refs: Vec<LayerDefId>,
 }
 
 impl RemoveLayerDefCommand {
@@ -213,6 +335,8 @@ impl RemoveLayerDefCommand {
             removed_def: None,
             removed_index: None,
             removed_instances: Vec::new(),
+            cleared_source_refs: Vec::new(),
+            cleared_killer_refs: Vec::new(),
         }
     }
 
@@ -280,10 +404,35 @@ impl Command for RemoveLayerDefCommand {
 
         self.removed_index = Some(idx);
         self.removed_def = Some(p.defs.layers.remove(idx));
+
+        // Cascade-clear Auto-Layer references pointing to the removed layer
+        self.cleared_source_refs.clear();
+        self.cleared_killer_refs.clear();
+        for other in &mut p.defs.layers {
+            if other.auto_source_layer_def_id == Some(self.layer_def_id) {
+                other.auto_source_layer_def_id = None;
+                self.cleared_source_refs.push(other.id);
+            }
+            if other.auto_tiles_killed_by_other_layer_id == Some(self.layer_def_id) {
+                other.auto_tiles_killed_by_other_layer_id = None;
+                self.cleared_killer_refs.push(other.id);
+            }
+        }
         Ok(())
     }
 
     fn revert(&mut self, p: &mut Project) {
+        for other_id in self.cleared_source_refs.drain(..) {
+            if let Some(other) = p.defs.layer_mut(other_id) {
+                other.auto_source_layer_def_id = Some(self.layer_def_id);
+            }
+        }
+        for other_id in self.cleared_killer_refs.drain(..) {
+            if let Some(other) = p.defs.layer_mut(other_id) {
+                other.auto_tiles_killed_by_other_layer_id = Some(self.layer_def_id);
+            }
+        }
+
         if let (Some(def), Some(idx)) = (self.removed_def.take(), self.removed_index.take()) {
             if idx <= p.defs.layers.len() {
                 p.defs.layers.insert(idx, def);
@@ -502,7 +651,9 @@ mod tests {
                 value: 1,
                 name: "Solid".to_string(),
                 color: [255, 0, 0, 255],
+                ..Default::default()
             }],
+            ..Default::default()
         };
 
         let mut project = Project::new("Layer Test");
@@ -533,6 +684,7 @@ mod tests {
             grid_size: UVec2::new(16, 16),
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         };
 
         let mut cmd = AddLayerDefCommand::new(new_def.clone());
@@ -638,6 +790,7 @@ mod tests {
             grid_size: UVec2::new(16, 16),
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         });
 
         let level = project.level_mut(level_id).unwrap();

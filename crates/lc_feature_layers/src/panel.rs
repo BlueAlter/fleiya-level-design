@@ -69,8 +69,20 @@ impl PanelView for LayersPanel {
         let active_layer_id = cx.active_layer();
         let mut actions = ActionQueue::default();
 
-        // Layer defs from project
-        let all_layer_defs = project.defs.layers.clone();
+        let active_world = cx
+            .active_level()
+            .and_then(|lid| project.level_and_world(lid))
+            .map(|(w, _)| w);
+
+        // Layer defs from project (filtered by active world's layer tag filter, and excluding hide_in_list)
+        let all_layer_defs: Vec<LayerDef> = project
+            .defs
+            .layers
+            .iter()
+            .filter(|def| !def.hide_in_list)
+            .filter(|def| active_world.is_none_or(|w| w.layer_matches(def)))
+            .cloned()
+            .collect();
         let total_count = all_layer_defs.len();
 
         // 1. Top Header: Icon + Title + Count + "+ Add Layer" Menu
@@ -91,7 +103,14 @@ impl PanelView for LayersPanel {
                 ui.menu_button("+ LAYER", |ui| {
                     if ui.button("Tiles Layer").clicked() {
                         let next_id = LayerDefId(
-                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                            project
+                                .defs
+                                .layers
+                                .iter()
+                                .map(|l| l.id.0)
+                                .max()
+                                .unwrap_or(0)
+                                + 1,
                         );
                         let default_tileset = project.defs.tilesets.first().map(|ts| ts.id);
                         let def = LayerDef {
@@ -101,6 +120,7 @@ impl PanelView for LayersPanel {
                             grid_size: UVec2::new(16, 16),
                             tileset_id: default_tileset,
                             int_grid_values: Vec::new(),
+                            ..Default::default()
                         };
                         actions.exec(AddLayerDefCommand::new(def));
                         actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
@@ -110,7 +130,14 @@ impl PanelView for LayersPanel {
 
                     if ui.button("IntGrid Layer").clicked() {
                         let next_id = LayerDefId(
-                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                            project
+                                .defs
+                                .layers
+                                .iter()
+                                .map(|l| l.id.0)
+                                .max()
+                                .unwrap_or(0)
+                                + 1,
                         );
                         let def = LayerDef {
                             id: next_id,
@@ -122,7 +149,42 @@ impl PanelView for LayersPanel {
                                 value: 1,
                                 name: "Solid".to_string(),
                                 color: [220, 50, 50, 255],
+                                ..Default::default()
                             }],
+                            ..Default::default()
+                        };
+                        actions.exec(AddLayerDefCommand::new(def));
+                        actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
+                        actions.emit(EditorEvent::OpenDocument(DocKind::LayerDef(next_id)));
+                        ui.close();
+                    }
+
+                    if ui.button("Auto-Layer").clicked() {
+                        let next_id = LayerDefId(
+                            project
+                                .defs
+                                .layers
+                                .iter()
+                                .map(|l| l.id.0)
+                                .max()
+                                .unwrap_or(0)
+                                + 1,
+                        );
+                        let default_tileset = project.defs.tilesets.first().map(|ts| ts.id);
+                        let source_intgrid = project
+                            .defs
+                            .layers
+                            .iter()
+                            .find(|l| l.kind == LayerKind::IntGrid)
+                            .map(|l| l.id);
+                        let def = LayerDef {
+                            id: next_id,
+                            name: format!("Auto_{}", next_id.0),
+                            kind: LayerKind::Auto,
+                            grid_size: UVec2::new(16, 16),
+                            tileset_id: default_tileset,
+                            auto_source_layer_def_id: source_intgrid,
+                            ..Default::default()
                         };
                         actions.exec(AddLayerDefCommand::new(def));
                         actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
@@ -132,7 +194,14 @@ impl PanelView for LayersPanel {
 
                     if ui.button("Entities Layer").clicked() {
                         let next_id = LayerDefId(
-                            all_layer_defs.iter().map(|l| l.id.0).max().unwrap_or(0) + 1,
+                            project
+                                .defs
+                                .layers
+                                .iter()
+                                .map(|l| l.id.0)
+                                .max()
+                                .unwrap_or(0)
+                                + 1,
                         );
                         let def = LayerDef {
                             id: next_id,
@@ -141,6 +210,7 @@ impl PanelView for LayersPanel {
                             grid_size: UVec2::new(16, 16),
                             tileset_id: None,
                             int_grid_values: Vec::new(),
+                            ..Default::default()
                         };
                         actions.exec(AddLayerDefCommand::new(def));
                         actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));
@@ -379,6 +449,7 @@ impl PanelView for LayersPanel {
                 grid_size: UVec2::new(16, 16),
                 tileset_id: default_tileset,
                 int_grid_values: Vec::new(),
+                ..Default::default()
             };
             actions.exec(AddLayerDefCommand::new(def));
             actions.emit(EditorEvent::SetActiveLayer(Some(next_id)));

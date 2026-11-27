@@ -841,6 +841,7 @@ mod tests {
             grid_size: UVec2::new(16, 16),
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         };
         p.defs.layers.push(layer_def);
 
@@ -868,6 +869,7 @@ mod tests {
             grid_size: UVec2::new(16, 16),
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         };
         p.defs.layers.push(layer_def);
 

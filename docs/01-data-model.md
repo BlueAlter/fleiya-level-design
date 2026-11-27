@@ -28,7 +28,8 @@ pub struct TileMarking {
 }
 
 pub struct World { id: WorldId, name: String, layout: WorldLayout /* Free|GridVania|LinearH|LinearV */,
-                   default_grid: Option<UVec2>, levels: Vec<Level> }
+                   default_grid: Option<UVec2>, levels: Vec<Level>,
+                   included_layer_tags: Vec<String>, excluded_layer_tags: Vec<String> }
 pub struct Level { id: LevelId, name: String, world_pos: IVec2, world_depth: i32, size_px: UVec2,
                    layers: Vec<LayerInstance>, fields: FieldValues }
 
@@ -39,6 +40,11 @@ pub struct EntityInstance { id: EntityId, def_id: EntityDefId, pos_px: IVec2, si
 
 pub enum FieldType { Int, Float, Bool, String, Multilines, Color, Enum(Option<EnumDefId>), Point, EntityRef, FilePath, Tile, Array(Box<FieldType>) }
 ```
+
+Notes on LDtk Layer & Auto-Rule parity (`lc_core::defs::LayerDef`, `lc_core::auto_rules`, `lc_core::world::World`):
+- `LayerDef` carries full LDtk properties (`tags`, `doc`, `ui_color`, `display_opacity`, `inactive_opacity`, `px_offset`, `parallax_factor`, `parallax_scaling`, `guide_grid_size`, `hide_in_list`, `can_select_when_inactive`, `hide_fields_when_inactive`, `render_in_world_view`, `int_grid_value_groups`, `auto_source_layer_def_id`, `auto_tiles_killed_by_other_layer_id`, `biome_field_id`, `auto_rule_groups`, `required_tags`, `excluded_tags`), all using `serde(default, skip_serializing_if = ...)`.
+- `AutoLayerRuleGroup` and `AutoLayerRuleDef` support 1x1/3x3/5x5/7x7 patterns, `Single`/`Stamp` tile outputs, `break_on_match`, `flip_x`/`flip_y`, `chance`, `modulo`/`offset`, `checker`, `out_of_bounds_value`, Perlin noise, and biome filtering (`lc_core::auto_rules_eval::evaluate_auto_rules`).
+- `World::layer_matches(&LayerDef)` filters active layers per world via `included_layer_tags` (empty = allow all; non-empty = Any/OR match) and `excluded_layer_tags` (always overrides).
 
 Notes on LDtk Entity & Field parity (`lc_core::entity` & `lc_core::fields`):
 - `EntityDef` carries full LDtk properties (`tags`, `doc`, `color`, `fill_opacity`, `line_opacity`, `hollow`, `render_mode`, `tile`, `tile_render_mode`, `nine_slice_borders`, `tile_opacity`, `ui_tile_rect`, `show_name`, `resizable_x`, `resizable_y`, `keep_aspect_ratio`, `allow_out_of_bounds`, `max_count`, `limit_scope`, `limit_behavior`, `export_to_toc`, `fields`), all using `serde(default, skip_serializing_if = ...)` for backwards compatibility.

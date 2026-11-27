@@ -88,7 +88,9 @@ fn create_sample_project() -> Project {
             value: 1,
             name: "SolidWall".to_string(),
             color: [128, 128, 128, 255],
+            ..Default::default()
         }],
+        ..Default::default()
     };
 
     let layer_entities_id = gen.next_layer_def_id();
@@ -99,6 +101,7 @@ fn create_sample_project() -> Project {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
 
     let mut project = Project::new("GoldenSample");

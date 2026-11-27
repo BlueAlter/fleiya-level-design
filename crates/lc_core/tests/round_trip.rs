@@ -131,13 +131,16 @@ fn test_core_model_serde_round_trip() {
                 value: 1,
                 name: "Solid".to_string(),
                 color: [255, 255, 255, 255],
+                ..Default::default()
             },
             IntGridValueDef {
                 value: 2,
                 name: "Water".to_string(),
                 color: [0, 0, 255, 255],
+                ..Default::default()
             },
         ],
+        ..Default::default()
     };
 
     let layer_tiles_id = gen.next_layer_def_id();
@@ -148,6 +151,7 @@ fn test_core_model_serde_round_trip() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(tileset_id),
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
 
     let layer_entities_id = gen.next_layer_def_id();
@@ -158,9 +162,21 @@ fn test_core_model_serde_round_trip() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
 
     let layer_auto_id = gen.next_layer_def_id();
+    let mut auto_rule = AutoLayerRuleDef::new(gen.next_auto_rule_id());
+    auto_rule.set_pattern_at(1, 1, 1);
+    auto_rule.tile_rects.push(AutoTileRect::single(3));
+    auto_rule.flip_x = true;
+    auto_rule.x_modulo = 2;
+    auto_rule.checker = AutoRuleCheckerMode::Horizontal;
+    auto_rule.perlin_active = true;
+    let mut auto_group = AutoLayerRuleGroup::new(gen.next_auto_rule_group_id(), "Foliage");
+    auto_group.is_optional = true;
+    auto_group.rules.push(auto_rule);
+
     let layer_auto_def = LayerDef {
         id: layer_auto_id,
         name: "AutoFoliage".to_string(),
@@ -168,6 +184,13 @@ fn test_core_model_serde_round_trip() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(tileset_id),
         int_grid_values: Vec::new(),
+        tags: vec!["tundra".to_string()],
+        auto_source_layer_def_id: Some(layer_intgrid_id),
+        auto_rule_groups: vec![auto_group],
+        display_opacity: 0.9,
+        inactive_opacity: 0.5,
+        parallax_factor: Vec2::new(0.25, 0.0),
+        ..Default::default()
     };
 
     let mut project = Project::new("LevelCraft_Demo");
@@ -183,6 +206,8 @@ fn test_core_model_serde_round_trip() {
     let mut world = World::new(world_id, "DungeonWorld");
     world.layout = WorldLayout::GridVania;
     world.default_grid = Some(UVec2::new(256, 256));
+    world.included_layer_tags = vec!["tundra".to_string()];
+    world.excluded_layer_tags = vec!["debug".to_string()];
 
     let level_id = gen.next_level_id();
     let mut level = Level::new(level_id, "Room_01", UVec2::new(256, 256));
