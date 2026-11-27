@@ -4,7 +4,8 @@ use lc_core::command::DocKind;
 use lc_core::id::TilesetDefId;
 use lc_core::project::Project;
 use lc_shell::features::editor::app_mode::{
-    render_workspace_rail, shows_unsaved, AppMode, WORKSPACE_RAIL_ITEMS,
+    render_workspace_rail, shows_unsaved, AppMode, RailSvgIcon, SETTINGS_RAIL_ITEM,
+    WORKSPACE_RAIL_ITEMS,
 };
 use lc_shell::features::editor::menu::handle_global_shortcuts;
 use lc_shell::ShellApp;
@@ -31,13 +32,39 @@ fn test_workspace_rail_order_and_unique_icons() {
     assert!(WORKSPACE_RAIL_ITEMS[4].enabled);
 
     let mut seen_icons = HashSet::new();
-    for item in &WORKSPACE_RAIL_ITEMS {
+    let mut seen_svg_icons = HashSet::new();
+    let mut seen_uris = HashSet::new();
+    for item in WORKSPACE_RAIL_ITEMS
+        .iter()
+        .chain(std::iter::once(&SETTINGS_RAIL_ITEM))
+    {
         assert!(
             seen_icons.insert(item.icon),
-            "Duplicate icon found in WORKSPACE_RAIL_ITEMS: {:?}",
+            "Duplicate icon found in workspace rail: {:?}",
             item.icon
         );
+        assert!(
+            seen_svg_icons.insert(item.svg_icon),
+            "Duplicate SVG icon found in workspace rail: {:?}",
+            item.svg_icon
+        );
+        assert!(
+            seen_uris.insert(item.svg_icon.uri()),
+            "Duplicate SVG URI found in workspace rail: {}",
+            item.svg_icon.uri()
+        );
+        assert!(
+            item.svg_icon.raw_svg().contains("<svg"),
+            "Embedded SVG asset must contain <svg tag: {:?}",
+            item.svg_icon
+        );
     }
+    assert_eq!(WORKSPACE_RAIL_ITEMS[0].svg_icon, RailSvgIcon::Editor);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[1].svg_icon, RailSvgIcon::Layers);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[2].svg_icon, RailSvgIcon::Entity);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[3].svg_icon, RailSvgIcon::Tileset);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[4].svg_icon, RailSvgIcon::Enum);
+    assert_eq!(SETTINGS_RAIL_ITEM.svg_icon, RailSvgIcon::Setting);
 }
 
 #[test]
@@ -323,5 +350,71 @@ fn test_top_header_displays_active_workspace_title_and_rail_renders() {
     assert!(
         found_ts_title,
         "Top header must display active workspace title 'TILESET WORKSPACE'"
+    );
+}
+
+#[test]
+fn test_workspace_rail_renders_and_rasterizes_all_svg_icons() {
+    let ctx = Context::default();
+    lc_canvas::theme::install_fonts(&ctx);
+    lc_canvas::theme::apply(&ctx, lc_canvas::theme::ThemeChoice::Dark);
+    let t = Tokens::get(&ctx);
+
+    let mut active_mode = AppMode::Layers;
+    let mut output = ctx.run_ui(RawInput::default(), |ui| {
+        render_workspace_rail(ui, &mut active_mode, false, &t);
+    });
+    let svg_texture_count = output
+        .textures_delta
+        .set
+        .iter()
+        .filter(|(id, _)| **id != egui::TextureId::Managed(0))
+        .count();
+    let textured_rect_count = output
+        .shapes
+        .iter()
+        .filter(|clipped| {
+            matches!(
+                &clipped.shape,
+                egui::Shape::Rect(r) if r.fill_texture_id() != egui::TextureId::default()
+            )
+        })
+        .count();
+    output.textures_delta.clear();
+
+    // All 6 rail SVGs (5 WORKSPACE_RAIL_ITEMS + SETTINGS_RAIL_ITEM) should be rasterized as textures
+    // and their ImageSource normalized to white fills for theme tinting.
+    for item in WORKSPACE_RAIL_ITEMS
+        .iter()
+        .chain(std::iter::once(&SETTINGS_RAIL_ITEM))
+    {
+        match item.svg_icon.image_source() {
+            egui::ImageSource::Bytes { uri, bytes } => {
+                assert!(uri.ends_with(".svg"));
+                let text = std::str::from_utf8(bytes.as_ref()).expect("valid utf8 svg");
+                assert!(
+                    text.contains("#ffffff"),
+                    "Normalized SVG {:?} must use #ffffff for tinting",
+                    item.svg_icon
+                );
+                assert!(
+                    !text.contains("#000000"),
+                    "Normalized SVG {:?} must not keep #000000 fills",
+                    item.svg_icon
+                );
+            }
+            other => panic!("Expected ImageSource::Bytes, got {:?}", other),
+        }
+    }
+
+    assert_eq!(
+        svg_texture_count, 6,
+        "Expected 6 rasterized SVG textures in textures_delta, got {}",
+        svg_texture_count
+    );
+    assert_eq!(
+        textured_rect_count, 6,
+        "Expected 6 textured icon rects on the workspace rail, got {}",
+        textured_rect_count
     );
 }

@@ -1,8 +1,12 @@
-//! Application modes (Editor, Enums, Tilesets) and vertical left workspace rail.
+//! Application modes (Editor, Layers, Entities, Tilesets, Enums, Settings) and vertical left workspace rail.
 
+use std::borrow::Cow;
+use std::sync::{Arc, OnceLock};
+
+use egui::load::Bytes;
 use egui::{
-    vec2, Align2, Color32, CornerRadius, CursorIcon, FontId, Response, Sense, Stroke, StrokeKind,
-    Ui,
+    vec2, Color32, CornerRadius, CursorIcon, ImageSource, Rect, Response, Sense, Stroke,
+    StrokeKind, Ui,
 };
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
@@ -42,13 +46,92 @@ impl AppMode {
     }
 }
 
+/// Custom SVG icon asset rendered inside the vertical left workspace rail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RailSvgIcon {
+    /// `assets/Icons/Editor.svg`
+    Editor,
+    /// `assets/Icons/Layers.svg`
+    Layers,
+    /// `assets/Icons/Entity.svg`
+    Entity,
+    /// `assets/Icons/Tileset.svg`
+    Tileset,
+    /// `assets/Icons/Enum.svg`
+    Enum,
+    /// `assets/Icons/Setting.svg`
+    Setting,
+}
+
+impl RailSvgIcon {
+    /// Stable virtual URI used by `egui_extras::SvgLoader` to cache rasterized sizes.
+    pub const fn uri(self) -> &'static str {
+        match self {
+            Self::Editor => "bytes://workspace_rail/editor.svg",
+            Self::Layers => "bytes://workspace_rail/layers.svg",
+            Self::Entity => "bytes://workspace_rail/entity.svg",
+            Self::Tileset => "bytes://workspace_rail/tileset.svg",
+            Self::Enum => "bytes://workspace_rail/enum.svg",
+            Self::Setting => "bytes://workspace_rail/setting.svg",
+        }
+    }
+
+    /// Embedded raw SVG text from `assets/Icons/`.
+    pub const fn raw_svg(self) -> &'static str {
+        match self {
+            Self::Editor => include_str!("../../../../../assets/Icons/Editor.svg"),
+            Self::Layers => include_str!("../../../../../assets/Icons/Layers.svg"),
+            Self::Entity => include_str!("../../../../../assets/Icons/Entity.svg"),
+            Self::Tileset => include_str!("../../../../../assets/Icons/Tileset.svg"),
+            Self::Enum => include_str!("../../../../../assets/Icons/Enum.svg"),
+            Self::Setting => include_str!("../../../../../assets/Icons/Setting.svg"),
+        }
+    }
+
+    /// Returns a tintable `ImageSource` (white fill normalized once for theme tinting).
+    pub fn image_source(self) -> ImageSource<'static> {
+        static EDITOR: OnceLock<Arc<[u8]>> = OnceLock::new();
+        static LAYERS: OnceLock<Arc<[u8]>> = OnceLock::new();
+        static ENTITY: OnceLock<Arc<[u8]>> = OnceLock::new();
+        static TILESET: OnceLock<Arc<[u8]>> = OnceLock::new();
+        static ENUM: OnceLock<Arc<[u8]>> = OnceLock::new();
+        static SETTING: OnceLock<Arc<[u8]>> = OnceLock::new();
+
+        let slot = match self {
+            Self::Editor => &EDITOR,
+            Self::Layers => &LAYERS,
+            Self::Entity => &ENTITY,
+            Self::Tileset => &TILESET,
+            Self::Enum => &ENUM,
+            Self::Setting => &SETTING,
+        };
+        let bytes = slot.get_or_init(|| normalize_svg_for_tint(self.raw_svg()));
+        ImageSource::Bytes {
+            uri: Cow::Borrowed(self.uri()),
+            bytes: Bytes::Shared(Arc::clone(bytes)),
+        }
+    }
+}
+
+/// Converts black `#000000` fills in source SVGs to `#ffffff` so `egui::Image::tint`
+/// applies theme token colours cleanly without altering the source `.svg` files.
+fn normalize_svg_for_tint(raw_svg: &str) -> Arc<[u8]> {
+    let normalized = raw_svg
+        .replace("#000000", "#ffffff")
+        .replace("#000;", "#fff;")
+        .replace("#000}", "#fff}");
+    Arc::from(normalized.into_bytes().into_boxed_slice())
+}
+
 /// Specification for a workspace button in the vertical left rail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkspaceRailItem {
     /// Target mode if implemented; `None` for upcoming workspaces.
     pub mode: Option<AppMode>,
-    /// Icon rendered inside the square rail button.
+    /// Semantic icon identifier preserved for metadata/uniqueness checks.
     pub icon: Icon,
+    /// Custom SVG icon asset rendered inside the square rail button.
+    pub svg_icon: RailSvgIcon,
     /// Tooltip describing the workspace and shortcut.
     pub tooltip: &'static str,
     /// Whether this workspace can currently be activated.
@@ -60,30 +143,35 @@ pub const WORKSPACE_RAIL_ITEMS: [WorkspaceRailItem; 5] = [
     WorkspaceRailItem {
         mode: Some(AppMode::Editor),
         icon: Icon::Level,
+        svg_icon: RailSvgIcon::Editor,
         tooltip: "Editor Workspace (Disabled)",
         enabled: false,
     },
     WorkspaceRailItem {
         mode: Some(AppMode::Layers),
         icon: Icon::Layer,
+        svg_icon: RailSvgIcon::Layers,
         tooltip: "Layers Workspace (Ctrl+2)",
         enabled: true,
     },
     WorkspaceRailItem {
         mode: Some(AppMode::Entities),
         icon: Icon::Entity,
+        svg_icon: RailSvgIcon::Entity,
         tooltip: "Entities Workspace (Ctrl+3)",
         enabled: true,
     },
     WorkspaceRailItem {
         mode: Some(AppMode::Tilesets),
         icon: Icon::Tileset,
+        svg_icon: RailSvgIcon::Tileset,
         tooltip: "Tilesets Workspace (Ctrl+4)",
         enabled: true,
     },
     WorkspaceRailItem {
         mode: Some(AppMode::Enums),
         icon: Icon::Enum,
+        svg_icon: RailSvgIcon::Enum,
         tooltip: "Enums Workspace (Ctrl+5)",
         enabled: true,
     },
@@ -93,6 +181,7 @@ pub const WORKSPACE_RAIL_ITEMS: [WorkspaceRailItem; 5] = [
 pub const SETTINGS_RAIL_ITEM: WorkspaceRailItem = WorkspaceRailItem {
     mode: Some(AppMode::Settings),
     icon: Icon::Settings,
+    svg_icon: RailSvgIcon::Setting,
     tooltip: "Settings Workspace (Ctrl+6)",
     enabled: true,
 };
@@ -109,6 +198,8 @@ pub fn render_workspace_rail(
     enum_unsaved: bool,
     t: &Tokens,
 ) {
+    egui_extras::install_image_loaders(ui.ctx());
+
     let button_size = 30.0;
     let gap = 6.0;
     let rail_rect = ui.available_rect_before_wrap();
@@ -125,7 +216,7 @@ pub fn render_workspace_rail(
 
             let resp = render_rail_button(
                 ui,
-                item.icon,
+                item.svg_icon,
                 is_active,
                 item.enabled,
                 show_dot,
@@ -146,7 +237,7 @@ pub fn render_workspace_rail(
         let is_active = SETTINGS_RAIL_ITEM.enabled && SETTINGS_RAIL_ITEM.mode == Some(*active_mode);
         let resp = render_rail_button(
             ui,
-            SETTINGS_RAIL_ITEM.icon,
+            SETTINGS_RAIL_ITEM.svg_icon,
             is_active,
             SETTINGS_RAIL_ITEM.enabled,
             false,
@@ -169,7 +260,7 @@ pub fn render_workspace_rail(
 #[allow(clippy::too_many_arguments)]
 fn render_rail_button(
     ui: &mut Ui,
-    icon: Icon,
+    svg_icon: RailSvgIcon,
     is_active: bool,
     enabled: bool,
     show_unsaved: bool,
@@ -201,12 +292,11 @@ fn render_rail_button(
     ui.painter()
         .rect(rect, CornerRadius::ZERO, bg, stroke, StrokeKind::Inside);
 
-    // Icon glyph
-    let icon_pos = rect.center();
-    let glyph = icon.glyph();
-    let font_id = FontId::new(15.0, lc_canvas::icons::family(ui.ctx()));
-    ui.painter()
-        .text(icon_pos, Align2::CENTER_CENTER, glyph, font_id, icon_color);
+    // Custom SVG icon centered inside the rail button, tinted to match theme tokens.
+    let icon_rect = Rect::from_center_size(rect.center(), vec2(18.0, 18.0));
+    egui::Image::new(svg_icon.image_source())
+        .tint(icon_color)
+        .paint_at(ui, icon_rect);
 
     // Unsaved indicator dot
     if show_unsaved {
