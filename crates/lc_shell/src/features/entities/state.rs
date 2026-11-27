@@ -30,6 +30,10 @@ pub struct EntityViewState {
     pub selected_field_idx: Option<usize>,
     /// Open context menu `(entity_id, popup_pos)`.
     pub context_menu: Option<(EntityDefId, Pos2)>,
+    /// Open right-click context menu on a field value row `(entity_id, field_idx, popup_pos)`.
+    pub field_context_menu: Option<(EntityDefId, usize, Pos2)>,
+    /// Whether the field context menu is currently showing the type/enum converter view.
+    pub field_context_convert: bool,
     /// Pending delete confirmation target `(id, name, instance_count)`.
     pub pending_delete: Option<(EntityDefId, String, usize)>,
     /// Active tile picker popup, if open.
@@ -56,6 +60,8 @@ impl Default for EntityViewState {
             active_sub_tab: 0,
             selected_field_idx: None,
             context_menu: None,
+            field_context_menu: None,
+            field_context_convert: false,
             pending_delete: None,
             tile_picker: None,
             error_message: None,
@@ -74,6 +80,8 @@ impl EntityViewState {
         if self.selected_entity_id != Some(id) {
             self.selected_entity_id = Some(id);
             self.selected_field_idx = None;
+            self.field_context_menu = None;
+            self.field_context_convert = false;
         }
     }
 }

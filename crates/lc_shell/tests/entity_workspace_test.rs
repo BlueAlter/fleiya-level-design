@@ -417,3 +417,361 @@ fn clicking_single_value_opens_11_type_grid_popup_and_adds_field() {
         .len();
     assert_eq!(new_count, prev_count + 1);
 }
+
+fn find_text_rect_in(shapes: &[egui::epaint::ClippedShape], needle: &str) -> Option<Rect> {
+    fn walk(shape: &egui::Shape, needle: &str) -> Option<Rect> {
+        match shape {
+            egui::Shape::Text(t) if t.galley.text() == needle => {
+                Some(Rect::from_min_size(t.pos, t.galley.size()))
+            }
+            egui::Shape::Vec(v) => v.iter().find_map(|s| walk(s, needle)),
+            _ => None,
+        }
+    }
+    shapes.iter().find_map(|s| walk(&s.shape, needle))
+}
+
+fn click_at(
+    ctx: &Context,
+    app: &mut ShellApp,
+    full: Rect,
+    pos: Pos2,
+    button: egui::PointerButton,
+) -> egui::FullOutput {
+    let mut last_out = None;
+    for pressed in [true, false] {
+        let mut out = ctx.run_ui(
+            RawInput {
+                screen_rect: Some(full),
+                events: vec![
+                    egui::Event::PointerMoved(pos),
+                    egui::Event::PointerButton {
+                        pos,
+                        button,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                ..Default::default()
+            },
+            |ui| {
+                render_entity_view(app, ui);
+            },
+        );
+        out.textures_delta.clear();
+        app.process_commands_and_events();
+        last_out = Some(out);
+    }
+    last_out.expect("click frames run")
+}
+
+#[test]
+fn typing_in_right_card_persists_without_wiping_and_supports_array_defaults() {
+    let mut app = make_entity_app();
+    app.entity_view_state.collapse_settings = true;
+    app.entity_view_state.selected_field_idx = Some(0);
+    // Add an Array<Int> field to verify Array scalar element default persistence.
+    app.execute_command(Box::new(AddEntityFieldCommand::new(
+        EntityDefId::new(1),
+        FieldDef {
+            name: "drops".to_string(),
+            field_type: FieldType::Array(Box::new(FieldType::Int)),
+            default_value: Some(FieldValue::Int(25)),
+            ..Default::default()
+        },
+    )));
+    app.process_commands_and_events();
+    let arr_field = app
+        .project
+        .defs
+        .entity(EntityDefId::new(1))
+        .unwrap()
+        .field_def("drops")
+        .unwrap();
+    assert_eq!(arr_field.default_value, Some(FieldValue::Int(25)));
+
+    // Updating the array field preserves its scalar element default (not wiped to Array([])).
+    let mut updated_arr = arr_field.clone();
+    updated_arr.doc = Some("Item ids".to_string());
+    app.execute_command(Box::new(
+        lc_feature_entities::UpdateEntityFieldCommand::new(
+            EntityDefId::new(1),
+            "drops",
+            updated_arr,
+        ),
+    ));
+    app.process_commands_and_events();
+    let arr_after = app
+        .project
+        .defs
+        .entity(EntityDefId::new(1))
+        .unwrap()
+        .field_def("drops")
+        .unwrap();
+    assert_eq!(arr_after.default_value, Some(FieldValue::Int(25)));
+
+    // Type into Field identifier across frames without pressing Enter.
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let full = Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0));
+
+    let mut out0 = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out0.textures_delta.clear();
+    let name_rect = find_text_rect_in(&out0.shapes, "hp")
+        .or_else(|| find_text_rect_in(&out0.shapes, "Field identifier"))
+        .unwrap();
+    // Click to focus the Field identifier TextEdit (positioned to the right of "Field identifier" label).
+    let label_rect = find_text_rect_in(&out0.shapes, "Field identifier").unwrap();
+    let input_pos = Pos2::new(
+        label_rect.max.x + 80.0,
+        label_rect.center().y.max(name_rect.top()),
+    );
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        input_pos,
+        egui::PointerButton::Primary,
+    );
+
+    // Backspace "hp" to empty across a frame, then type "armor" character by character without Enter.
+    let mut out_clear = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            events: vec![
+                egui::Event::Key {
+                    key: egui::Key::Backspace,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+                egui::Event::Key {
+                    key: egui::Key::Backspace,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_clear.textures_delta.clear();
+    app.process_commands_and_events();
+
+    let mut out_type = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            events: vec![egui::Event::Text("armor".to_string())],
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_type.textures_delta.clear();
+    app.process_commands_and_events();
+
+    // Run extra idle frame: typed text must NOT wipe back to "hp"!
+    let mut out_next = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_next.textures_delta.clear();
+    assert_eq!(
+        app.project.defs.entity(EntityDefId::new(1)).unwrap().fields[0].name,
+        "armor"
+    );
+    assert!(find_text_rect_in(&out_next.shapes, "armor").is_some());
+}
+
+#[test]
+fn right_click_field_item_opens_context_menu_and_converts_type_and_array() {
+    let mut app = make_entity_app();
+    app.entity_view_state.collapse_settings = true;
+    app.entity_view_state.selected_field_idx = Some(0);
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let full = Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0));
+
+    let mut out0 = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out0.textures_delta.clear();
+    assert!(
+        find_text_rect_in(&out0.shapes, "CONVERT:").is_none(),
+        "CONVERT: should no longer appear inside GENERAL SETTINGS"
+    );
+
+    // Right-click the "hp" field item row in ENTITY VALUES list.
+    let hp_rect =
+        find_text_rect_in(&out0.shapes, "hp").expect("hp field item must appear in left list");
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        hp_rect.center(),
+        egui::PointerButton::Secondary,
+    );
+
+    let mut out_menu = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_menu.textures_delta.clear();
+
+    let convert_arr_rect = find_text_rect_in(&out_menu.shapes, "Convert to Array")
+        .expect("Context menu should show Convert to Array");
+    assert!(find_text_rect_in(&out_menu.shapes, "Convert type...").is_some());
+
+    // Click "Convert to Array".
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        convert_arr_rect.center(),
+        egui::PointerButton::Primary,
+    );
+    assert_eq!(
+        app.project.defs.entity(EntityDefId::new(1)).unwrap().fields[0].field_type,
+        FieldType::Array(Box::new(FieldType::Int))
+    );
+}
+
+#[test]
+fn enum_type_card_uses_searchable_picker_and_keeps_right_card_width_fixed() {
+    use lc_core::defs::{EnumDef, EnumValueDef};
+
+    let mut app = make_entity_app();
+    let mut enum1 = EnumDef::new(EnumDefId::new(1), "BiomeType");
+    enum1.values.push(EnumValueDef {
+        id: "Forest".to_string(),
+        name: "Forest".to_string(),
+        color: [80, 180, 100, 255],
+        tile: None,
+    });
+    app.project.defs.enums.push(enum1);
+    let mut enum2 = EnumDef::new(EnumDefId::new(2), "VeryLongWeaponCategoryEnumName");
+    enum2.values.push(EnumValueDef {
+        id: "Sword".to_string(),
+        name: "Sword".to_string(),
+        color: [200, 90, 90, 255],
+        tile: None,
+    });
+    app.project.defs.enums.push(enum2);
+    app.entity_view_state.collapse_settings = true;
+    app.entity_view_state.selected_field_idx = Some(0);
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let full = Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0));
+
+    let mut out0 = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out0.textures_delta.clear();
+    let single_rect = find_text_rect_in(&out0.shapes, "+ SINGLE VALUE").unwrap();
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        single_rect.center(),
+        egui::PointerButton::Primary,
+    );
+
+    let mut out_grid = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_grid.textures_delta.clear();
+    let enum_card_rect = find_text_rect_in(&out_grid.shapes, "Enum")
+        .expect("Enum card should render in 11-type grid");
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        enum_card_rect.center(),
+        egui::PointerButton::Primary,
+    );
+
+    let mut out_enum_picker = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_enum_picker.textures_delta.clear();
+    assert!(
+        find_text_rect_in(&out_enum_picker.shapes, "PICK ENUM DEFINITION").is_some(),
+        "Clicking Enum must open enum definition picker"
+    );
+    assert!(
+        find_text_rect_in(&out_enum_picker.shapes, "Search enums...").is_some(),
+        "Enum picker must use Tileset's searchable picker component"
+    );
+    let weapon_row = find_text_rect_in(&out_enum_picker.shapes, "VeryLongWeaponCategoryEnumName")
+        .expect("Enum option must render inside shared search picker");
+
+    let prev_len = app
+        .project
+        .defs
+        .entity(EntityDefId::new(1))
+        .unwrap()
+        .fields
+        .len();
+    click_at(
+        &ctx,
+        &mut app,
+        full,
+        weapon_row.center(),
+        egui::PointerButton::Primary,
+    );
+
+    let fields = &app.project.defs.entity(EntityDefId::new(1)).unwrap().fields;
+    assert_eq!(fields.len(), prev_len + 1);
+    assert_eq!(
+        fields.last().unwrap().field_type,
+        FieldType::Enum(EnumDefId::new(2))
+    );
+
+    // Select the Enum field and verify right card heading widths remain aligned & bounded.
+    app.entity_view_state.selected_field_idx = Some(fields.len() - 1);
+    let mut out_enum_cfg = ctx.run_ui(
+        RawInput {
+            screen_rect: Some(full),
+            ..Default::default()
+        },
+        |ui| render_entity_view(&mut app, ui),
+    );
+    out_enum_cfg.textures_delta.clear();
+    let gen_rect = find_text_rect_in(&out_enum_cfg.shapes, "GENERAL SETTINGS").unwrap();
+    let val_rect = find_text_rect_in(&out_enum_cfg.shapes, "VALUE SPECIFICATIONS").unwrap();
+    assert!((gen_rect.left() - val_rect.left()).abs() < 1.0);
+}
