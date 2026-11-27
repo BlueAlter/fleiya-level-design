@@ -1,16 +1,19 @@
 //! Selected Entity Field Configuration right-column panels (100% LDtk FieldDefsForm rules).
 
-use egui::{Color32, DragValue, Pos2, RichText, Stroke, Ui};
+use egui::{Align, Color32, DragValue, Layout, Pos2, RichText, Sense, Stroke, Ui};
 use lc_canvas::icons::Icon;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::{EntityDef, TilesetRect};
 use lc_core::fields::{FieldDef, FieldType, FieldValue};
 use lc_feature_entities::{
-    entity_choices, field_type_editor, field_type_label, field_value_editor, FieldEditorContext,
+    entity_choices, field_type_label, field_value_editor, FieldEditorContext,
     UpdateEntityFieldCommand,
 };
 
-use super::attributes_card::{attr_row, open_tile_picker, resolve_tile_icon};
+use super::attributes_card::{
+    attr_row, attr_wrap_row, buffered_multiline, buffered_singleline, buffered_text_field,
+    open_tile_picker, resolve_tile_icon,
+};
 use super::field_constraints_card::render_type_constraints;
 use super::field_display_card::render_editor_display_settings;
 use super::state::{EntityTileSlot, EntityViewState};
@@ -18,23 +21,29 @@ use crate::features::editor::shell_app::ShellApp;
 use crate::shared::ui::checkbox::styled_checkbox;
 use crate::shared::ui::icon_button::{icon_button, IconButtonStyle};
 use crate::shared::ui::swatch::{color_swatch, tile_icon_button};
-use crate::shared::ui::text_field::{text_field, FieldOutline, FieldStyle};
+use crate::shared::ui::text_field::{FieldOutline, FieldStyle};
 use crate::shared::ui::tileset_select::{tileset_select, TilesetSelectItem};
 use crate::shared::ui::workspace_metrics::ICON_BUTTON_SIZE_FORM;
 
-/// Renders an LDtk-style uppercase gold/accent sub-heading with a full-width hairline underline.
+/// Renders an LDtk-style uppercase gold/accent sub-heading aligned left-center
+/// with a consistent full-width bottom hairline divider.
 pub(crate) fn render_sub_heading(ui: &mut Ui, t: &Tokens, title: &str) {
-    ui.label(RichText::new(title).size(12.0).strong().color(t.accent_ink));
     let avail = ui.available_width().max(120.0);
-    let (line_rect, _) = ui.allocate_exact_size(egui::vec2(avail, 4.0), egui::Sense::hover());
+    let (row_rect, _) = ui.allocate_exact_size(egui::vec2(avail, 24.0), Sense::hover());
+    let mut header_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(row_rect)
+            .layout(Layout::left_to_right(Align::Center)),
+    );
+    header_ui.label(RichText::new(title).size(12.0).strong().color(t.accent_ink));
     ui.painter().line_segment(
         [
-            Pos2::new(line_rect.left(), line_rect.top() + 1.0),
-            Pos2::new(line_rect.right(), line_rect.top() + 1.0),
+            Pos2::new(row_rect.left(), row_rect.bottom()),
+            Pos2::new(row_rect.right(), row_rect.bottom()),
         ],
         Stroke::new(1.0, t.line),
     );
-    ui.add_space(4.0);
+    ui.add_space(6.0);
 }
 
 /// Renders the detailed configuration for the selected field inside the scrollable right card.
@@ -47,18 +56,33 @@ pub fn render_selected_field_config(
     field_idx: usize,
     orig: &FieldDef,
 ) {
+    ui.push_id(("entity_field_cfg", def.id, field_idx), |ui| {
+        render_selected_field_config_inner(app, ui, t, state, def, field_idx, orig);
+    });
+}
+
+fn render_selected_field_config_inner(
+    app: &mut ShellApp,
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut EntityViewState,
+    def: &EntityDef,
+    field_idx: usize,
+    orig: &FieldDef,
+) {
     let mut draft = orig.clone();
     let mut changed = false;
     let enums = app.project.defs.enums.clone();
     let choices = entity_choices(&app.project);
-    let editor_ctx = FieldEditorContext::new(&enums, &choices);
+    let mut editor_ctx = FieldEditorContext::new(&enums, &choices);
+    editor_ctx.width = (ui.available_width() - 120.0).clamp(90.0, 200.0);
     let base_ty = draft.base_type().clone();
 
     // 1. GENERAL SETTINGS
     render_sub_heading(ui, t, "GENERAL SETTINGS");
 
-    attr_row(ui, t, "Type", |ui| {
-        let mut is_array = draft.is_array();
+    attr_wrap_row(ui, t, "Type", |ui| {
+        let is_array = draft.is_array();
         let type_text = match &base_ty {
             FieldType::Enum(eid) => {
                 let ename = enums
@@ -80,57 +104,51 @@ pub fn render_selected_field_config(
                 }
             }
         };
-        ui.label(RichText::new(type_text).color(t.ink_strong).strong());
-        ui.add_space(8.0);
-        ui.label(RichText::new("CONVERT:").size(10.5).color(t.muted));
-        if let Some(new_base) = field_type_editor(ui, &base_ty, &enums) {
-            let clean_base = match new_base {
-                FieldType::Array(inner) => *inner,
-                other => other,
-            };
-            draft.field_type = if is_array {
-                FieldType::Array(Box::new(clean_base))
-            } else {
-                clean_base
-            };
-            changed = true;
-        }
-        ui.add_space(6.0);
-        if styled_checkbox(ui, t, &mut is_array, "Array").changed() {
-            let base = draft.base_type().clone();
-            draft.field_type = if is_array {
-                FieldType::Array(Box::new(base))
-            } else {
-                base
-            };
-            changed = true;
-        }
+        ui.add(egui::Label::new(RichText::new(type_text).color(t.ink_strong).strong()).wrap());
     });
     ui.add_space(6.0);
 
     attr_row(ui, t, "Field identifier", |ui| {
-        let mut name_buf = draft.name.clone();
+        let name_salt = ("field_name_buf", def.id, field_idx);
+        let preview_text = {
+            let mut tmp = draft.name.clone();
+            let id = ui.make_persistent_id(name_salt);
+            // Peek without mutating focus so validation error reflects live typing
+            ui.ctx().data_mut(|d| {
+                if let Some(s) = d.get_temp::<String>(id.with("err_peek")) {
+                    tmp = s;
+                }
+            });
+            tmp
+        };
         let mut style = FieldStyle::default()
             .with_hint("field_name")
             .with_outline_preset(FieldOutline::Hairline);
-        if name_buf.trim().is_empty() {
+        if preview_text.trim().is_empty() {
             style = style.with_error("Field name cannot be empty");
         } else if def
             .fields
             .iter()
             .enumerate()
-            .any(|(i, f)| i != field_idx && f.name == name_buf.trim())
+            .any(|(i, f)| i != field_idx && f.name == preview_text.trim())
         {
             style = style.with_error("Duplicate field name");
         }
-        let res = text_field(ui, &mut name_buf, style);
-        if res.committed && !name_buf.trim().is_empty() {
-            let trimmed = name_buf.trim().to_string();
-            if !def
-                .fields
-                .iter()
-                .enumerate()
-                .any(|(i, f)| i != field_idx && f.name == trimmed)
+        let (res, text) = buffered_text_field(ui, name_salt, &draft.name, style);
+        ui.ctx().data_mut(|d| {
+            d.insert_temp(
+                ui.make_persistent_id(name_salt).with("err_peek"),
+                text.clone(),
+            );
+        });
+        if (res.changed || res.committed) && !text.trim().is_empty() {
+            let trimmed = text.trim().to_string();
+            if trimmed != draft.name
+                && !def
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .any(|(i, f)| i != field_idx && f.name == trimmed)
             {
                 draft.name = trimmed;
                 changed = true;
@@ -140,18 +158,26 @@ pub fn render_selected_field_config(
     ui.add_space(6.0);
 
     attr_row(ui, t, "Documentation", |ui| {
-        let mut doc_buf = draft.doc.clone().unwrap_or_default();
-        let res = text_field(
+        let external = draft.doc.clone().unwrap_or_default();
+        let (res, text) = buffered_text_field(
             ui,
-            &mut doc_buf,
+            ("field_doc_buf", def.id, field_idx),
+            &external,
             FieldStyle::default()
                 .with_hint("Field description")
                 .with_outline_preset(FieldOutline::Hairline),
         );
-        if res.changed {
-            let trimmed = doc_buf.trim().to_string();
-            draft.doc = (!trimmed.is_empty()).then_some(trimmed);
-            changed = true;
+        if res.changed || res.committed {
+            let next_doc = if res.committed {
+                let trimmed = text.trim().to_string();
+                (!trimmed.is_empty()).then_some(trimmed)
+            } else {
+                (!text.trim().is_empty()).then_some(text)
+            };
+            if next_doc != draft.doc {
+                draft.doc = next_doc;
+                changed = true;
+            }
         }
     });
     ui.add_space(6.0);
@@ -234,7 +260,7 @@ pub fn render_selected_field_config(
 
     if draft.is_array() {
         ui.add_space(6.0);
-        attr_row(ui, t, "Array length", |ui| {
+        attr_wrap_row(ui, t, "Array length", |ui| {
             let mut has_min = draft.array_min_length.is_some();
             if styled_checkbox(ui, t, &mut has_min, "Min").changed() {
                 draft.array_min_length = has_min.then_some(0);
@@ -245,7 +271,7 @@ pub fn render_selected_field_config(
                     changed = true;
                 }
             }
-            ui.add_space(8.0);
+            ui.add_space(6.0);
             let mut has_max = draft.array_max_length.is_some();
             if styled_checkbox(ui, t, &mut has_max, "Max").changed() {
                 draft.array_max_length = has_max.then_some(10);
@@ -315,7 +341,7 @@ fn render_default_value_row(
             });
         }
         FieldType::Tile => {
-            attr_row(ui, t, "Tileset", |ui| {
+            attr_wrap_row(ui, t, "Tileset", |ui| {
                 let ts_items: Vec<TilesetSelectItem<lc_core::id::TilesetDefId>> = app
                     .project
                     .defs
@@ -371,7 +397,7 @@ fn render_default_value_row(
         | FieldType::String
         | FieldType::Multilines
         | FieldType::Enum(_) => {
-            attr_row(ui, t, "Default value", |ui| {
+            attr_wrap_row(ui, t, "Default value", |ui| {
                 let mut has_default = draft.default_value.is_some();
                 if styled_checkbox(ui, t, &mut has_default, "Custom").changed() {
                     draft.default_value = has_default
@@ -380,9 +406,51 @@ fn render_default_value_row(
                 }
                 if let Some(ref mut val) = draft.default_value {
                     ui.add_space(6.0);
-                    let resp = field_value_editor(ui, val, base_ty, editor_ctx);
-                    if resp.changed {
-                        *changed = true;
+                    let ed_w = ui.available_width().clamp(80.0, 200.0);
+                    match base_ty {
+                        FieldType::String => {
+                            let cur = match val {
+                                FieldValue::String(s) => s.as_str(),
+                                _ => "",
+                            };
+                            let (resp, next) = buffered_singleline(
+                                ui,
+                                ("field_default_str", def.id, field_idx),
+                                cur,
+                                ed_w,
+                                "Default string",
+                            );
+                            if resp.changed() {
+                                *val = FieldValue::String(next);
+                                *changed = true;
+                            }
+                        }
+                        FieldType::Multilines => {
+                            let cur = match val {
+                                FieldValue::Multilines(s) | FieldValue::String(s) => s.as_str(),
+                                _ => "",
+                            };
+                            let (resp, next) = buffered_multiline(
+                                ui,
+                                ("field_default_multi", def.id, field_idx),
+                                cur,
+                                ed_w,
+                            );
+                            if resp.changed() {
+                                *val = FieldValue::Multilines(next);
+                                *changed = true;
+                            }
+                        }
+                        _ => {
+                            let resp = ui
+                                .push_id(("field_default_editor", def.id, field_idx), |ui| {
+                                    field_value_editor(ui, val, base_ty, editor_ctx)
+                                })
+                                .inner;
+                            if resp.changed {
+                                *changed = true;
+                            }
+                        }
                     }
                 }
             });

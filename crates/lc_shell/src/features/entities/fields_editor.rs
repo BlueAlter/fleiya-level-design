@@ -3,17 +3,23 @@
 use egui::{
     vec2, Color32, CornerRadius, Frame, Id, Margin, Pos2, Rect, RichText, ScrollArea, Sense, Ui,
 };
+use lc_canvas::icons::Icon;
 use lc_canvas::theme::{self, Tokens};
 use lc_core::defs::EntityDef;
 use lc_core::fields::{FieldDef, FieldType};
 use lc_feature_entities::{
     AddEntityFieldCommand, RemoveEntityFieldCommand, ReorderEntityFieldCommand,
+    UpdateEntityFieldCommand,
 };
 
 use super::field_config_card::render_selected_field_config;
-use super::field_type_grid::{field_type_color, render_add_field_buttons};
+use super::field_type_grid::{
+    clear_type_grid_selector_state, field_type_color, render_add_field_buttons,
+    render_type_grid_selector,
+};
 use super::state::EntityViewState;
 use crate::features::editor::shell_app::ShellApp;
+use crate::shared::ui::context_menu::{show_context_menu_contents, ContextMenuTheme, MenuItem};
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::reorder_list::{reorder_list, ListItem};
 use crate::shared::ui::reorder_row::{
@@ -171,14 +177,15 @@ pub fn render_entity_fields_section(
                 ui.set_width(inner_w);
                 ui.set_max_width(inner_w);
 
+                let content_w = (inner_w - 8.0).max(150.0);
                 ScrollArea::vertical()
                     .id_salt(("entity_field_config_scroll", def.id))
                     .max_width(inner_w)
                     .max_height(inner_rect.height().max(80.0))
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        ui.set_width(inner_w);
-                        ui.set_max_width(inner_w);
+                        ui.set_width(content_w);
+                        ui.set_max_width(content_w);
                         if let Some(sel_idx) = state.selected_field_idx {
                             if let Some(field) = def.fields.get(sel_idx) {
                                 render_selected_field_config(
@@ -212,15 +219,20 @@ pub fn render_entity_fields_section(
         state.selected_field_idx = Some(def.fields.len());
     }
 
-    if let Some(name) = delete_name {
+    if let Some(name) = delete_name.clone() {
         app.execute_command(Box::new(RemoveEntityFieldCommand::new(def.id, name)));
         state.selected_field_idx = None;
+        state.field_context_menu = None;
+        state.field_context_convert = false;
     }
 
     if let Some((from, to)) = reorder_pair {
         app.execute_command(Box::new(ReorderEntityFieldCommand::new(def.id, from, to)));
         state.selected_field_idx = Some(to);
+        state.field_context_menu = None;
     }
+
+    render_field_context_menu(app, ui, t, state, def);
 }
 
 fn render_field_list(
@@ -261,6 +273,8 @@ fn render_field_list(
         })
         .collect();
 
+    let mut child_context_req: Option<(usize, Pos2)> = None;
+
     let events = reorder_list(
         ui,
         &mut drag_state,
@@ -290,6 +304,13 @@ fn render_field_list(
                 );
                 if label_resp.clicked() {
                     state.selected_field_idx = Some(idx);
+                }
+                if label_resp.secondary_clicked() && child_context_req.is_none() {
+                    let pos = ui
+                        .ctx()
+                        .input(|i| i.pointer.interact_pos())
+                        .unwrap_or_else(|| label_resp.rect.left_bottom());
+                    child_context_req = Some((idx, pos));
                 }
             });
 
@@ -321,11 +342,16 @@ fn render_field_list(
                         .selectable(false),
                     );
                 }
-                if pill_resp
-                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked()
-                {
+                let pill_resp = pill_resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                if pill_resp.clicked() {
                     state.selected_field_idx = Some(idx);
+                }
+                if pill_resp.secondary_clicked() && child_context_req.is_none() {
+                    let pos = ui
+                        .ctx()
+                        .input(|i| i.pointer.interact_pos())
+                        .unwrap_or_else(|| pill_rect.left_bottom());
+                    child_context_req = Some((idx, pos));
                 }
             });
         },
@@ -351,6 +377,175 @@ fn render_field_list(
             *reorder_pair = Some((idx, target));
         }
     }
+    if let Some((idx, pos)) = events.context_menu_requested.or(child_context_req) {
+        state.selected_field_idx = Some(idx);
+        state.field_context_menu = Some((def.id, idx, pos));
+        state.field_context_convert = false;
+        clear_type_grid_selector_state(ui.ctx(), Id::new(("entity_field_ctx_menu", def.id, idx)));
+    }
 
     ui.ctx().data_mut(|d| d.insert_temp(drag_id, drag_state));
+}
+
+fn render_field_context_menu(
+    app: &mut ShellApp,
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut EntityViewState,
+    def: &EntityDef,
+) {
+    let Some((menu_def_id, field_idx, pos)) = state.field_context_menu else {
+        return;
+    };
+    if menu_def_id != def.id {
+        return;
+    }
+    let Some(field) = def.fields.get(field_idx).cloned() else {
+        state.field_context_menu = None;
+        state.field_context_convert = false;
+        return;
+    };
+
+    let popup_id = Id::new(("entity_field_ctx_menu", def.id, field_idx));
+    let theme = ContextMenuTheme::default();
+    let mut closed = false;
+    let mut pending_action: Option<&'static str> = None;
+    let mut pending_convert_base: Option<FieldType> = None;
+
+    let area_resp = egui::Area::new(popup_id)
+        .order(egui::Order::Foreground)
+        .fixed_pos(pos)
+        .show(ui.ctx(), |ui| {
+            theme.frame(t).show(ui, |ui| {
+                if state.field_context_convert {
+                    ui.label(
+                        RichText::new("CONVERT FIELD TYPE")
+                            .size(11.0)
+                            .strong()
+                            .color(t.accent_ink),
+                    );
+                    ui.add_space(4.0);
+                    let cur_enum = match field.base_type() {
+                        FieldType::Enum(id) => Some(*id),
+                        _ => None,
+                    };
+                    let (picked, should_close) =
+                        render_type_grid_selector(ui, app, t, popup_id, cur_enum, false);
+                    if let Some(new_base) = picked {
+                        pending_convert_base = Some(new_base);
+                        closed = true;
+                    } else if should_close {
+                        closed = true;
+                    }
+                    ui.add_space(4.0);
+                    if ui.button("<- Back").clicked() {
+                        state.field_context_convert = false;
+                        clear_type_grid_selector_state(ui.ctx(), popup_id);
+                    }
+                } else {
+                    let array_label = if field.is_array() {
+                        "Convert to Single value"
+                    } else {
+                        "Convert to Array"
+                    };
+                    let items = [
+                        MenuItem::action("toggle_array", array_label, Icon::Layer),
+                        MenuItem::action("convert_type", "Convert type...", Icon::Settings),
+                        MenuItem::separator(),
+                        MenuItem::action("duplicate", "Duplicate", Icon::Duplicate),
+                        MenuItem::destructive("delete", "Delete", Icon::Delete),
+                    ];
+                    let menu_w = theme.compute_menu_width(ui.ctx(), &items);
+                    if let Some(action) = show_context_menu_contents(ui, &theme, t, menu_w, &items)
+                    {
+                        match action {
+                            "convert_type" => {
+                                state.field_context_convert = true;
+                                clear_type_grid_selector_state(ui.ctx(), popup_id);
+                            }
+                            "toggle_array" => {
+                                pending_action = Some("toggle_array");
+                                closed = true;
+                            }
+                            "duplicate" => {
+                                pending_action = Some("duplicate");
+                                closed = true;
+                            }
+                            "delete" => {
+                                pending_action = Some("delete");
+                                closed = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            });
+        });
+
+    if let Some(pointer_pos) = ui.input(|i| i.pointer.interact_pos()) {
+        if ui.input(|i| i.pointer.any_pressed()) && !area_resp.response.rect.contains(pointer_pos) {
+            closed = true;
+        }
+    }
+
+    if let Some(new_base) = pending_convert_base {
+        let mut updated = field.clone();
+        let clean_base = match new_base {
+            FieldType::Array(inner) => *inner,
+            other => other,
+        };
+        updated.field_type = if field.is_array() {
+            FieldType::Array(Box::new(clean_base))
+        } else {
+            clean_base
+        };
+        app.execute_command(Box::new(UpdateEntityFieldCommand::new(
+            def.id,
+            field.name.clone(),
+            updated,
+        )));
+    } else if let Some(action) = pending_action {
+        match action {
+            "toggle_array" => {
+                let mut updated = field.clone();
+                let base = field.base_type().clone();
+                updated.field_type = if field.is_array() {
+                    base
+                } else {
+                    FieldType::Array(Box::new(base))
+                };
+                app.execute_command(Box::new(UpdateEntityFieldCommand::new(
+                    def.id,
+                    field.name.clone(),
+                    updated,
+                )));
+            }
+            "duplicate" => {
+                let mut suffix_idx = 2usize;
+                let mut candidate = format!("{}_copy", field.name);
+                while def.field_def(&candidate).is_some() {
+                    candidate = format!("{}_copy_{suffix_idx}", field.name);
+                    suffix_idx += 1;
+                }
+                let mut dup = field.clone();
+                dup.name = candidate;
+                app.execute_command(Box::new(AddEntityFieldCommand::new(def.id, dup)));
+                state.selected_field_idx = Some(def.fields.len());
+            }
+            "delete" => {
+                app.execute_command(Box::new(RemoveEntityFieldCommand::new(
+                    def.id,
+                    field.name.clone(),
+                )));
+                state.selected_field_idx = None;
+            }
+            _ => {}
+        }
+    }
+
+    if closed {
+        state.field_context_menu = None;
+        state.field_context_convert = false;
+        clear_type_grid_selector_state(ui.ctx(), popup_id);
+    }
 }

@@ -27,11 +27,30 @@ fn enum_defs(p: &Project) -> &[EnumDef] {
 }
 
 fn default_for(field: &FieldDef, enums: &[EnumDef]) -> FieldValue {
+    if field.is_array() {
+        return match &field.default_value {
+            Some(FieldValue::Array(items)) => FieldValue::Array(items.clone()),
+            _ => default_field_value(&field.field_type, enums),
+        };
+    }
     field
         .default_value
         .clone()
         .map(|value| coerce_field_value(&value, &field.field_type, enums))
         .unwrap_or_else(|| default_field_value(&field.field_type, enums))
+}
+
+fn coerce_default_override(
+    field: &FieldDef,
+    default: &FieldValue,
+    enums: &[EnumDef],
+) -> FieldValue {
+    let coerce_ty = if field.is_array() && !matches!(default, FieldValue::Array(_)) {
+        field.base_type()
+    } else {
+        &field.field_type
+    };
+    coerce_field_value(default, coerce_ty, enums)
 }
 
 fn validate_field_name(name: &str) -> Result<String, CoreError> {
@@ -79,10 +98,10 @@ impl Command for AddEntityFieldCommand {
             )));
         }
 
-        let default = default_for(&self.field, &enums);
-        if self.field.default_value.is_some() {
-            self.field.default_value = Some(default.clone());
+        if let Some(ref dv) = self.field.default_value {
+            self.field.default_value = Some(coerce_default_override(&self.field, dv, &enums));
         }
+        let default = default_for(&self.field, &enums);
         def.fields.push(self.field.clone());
 
         let inserted = &mut self.inserted_values;
@@ -173,8 +192,7 @@ impl Command for UpdateEntityFieldCommand {
         let new_name = validate_field_name(&self.field.name)?;
         self.field.name = new_name.clone();
         if let Some(default) = &self.field.default_value {
-            self.field.default_value =
-                Some(coerce_field_value(default, &self.field.field_type, &enums));
+            self.field.default_value = Some(coerce_default_override(&self.field, default, &enums));
         }
 
         let def = p
