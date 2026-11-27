@@ -1,0 +1,10 @@
+{
+    "settings.header": "SETTINGS",
+    "settings.search_hint": "Search settings...",
+    "settings.group.application": "APPLICATION",
+    "settings.group.project": "CURRENT PROJECT",
+    "settings.footer.saved": "App preferences auto-save to user config",
+    "settings.footer.memory_only": "Session preferences (in-memory)",
+    "settings.reset_section": "RESET SECTION",
+    "settings.reset_all": "RESET ALL PREFERENCES",
+}

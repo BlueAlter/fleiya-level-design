@@ -42,16 +42,32 @@ fn main() -> eframe::Result {
             theme::apply(&cc.egui_ctx, theme::ThemeChoice::Dark);
 
             let mut shell = ShellApp::from_console(console_buffer);
+            shell.init_preferences(&cc.egui_ctx);
 
             let project_path_arg = std::env::args().nth(1);
-            let candidate_path = project_path_arg.map(std::path::PathBuf::from).or_else(|| {
-                let sample = std::path::PathBuf::from("examples/sample_project/project.lcproj");
-                if sample.exists() {
-                    Some(sample)
-                } else {
-                    None
-                }
-            });
+            let candidate_path = project_path_arg
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    if shell.preferences.general.auto_open_last_project {
+                        shell
+                            .preferences
+                            .general
+                            .last_project_path
+                            .as_ref()
+                            .map(std::path::PathBuf::from)
+                            .filter(|p| p.exists())
+                    } else {
+                        None
+                    }
+                })
+                .or_else(|| {
+                    let sample = std::path::PathBuf::from("examples/sample_project/project.lcproj");
+                    if sample.exists() {
+                        Some(sample)
+                    } else {
+                        None
+                    }
+                });
 
             if let Some(ref path) = candidate_path {
                 if let Err(e) = shell.open_project_from_path(path) {

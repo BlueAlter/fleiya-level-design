@@ -163,6 +163,14 @@ pub struct ShellApp {
     /// Saved copy of enum value tile rects for revert/save parity.
     pub enum_saved_tile_rects:
         HashMap<(lc_core::id::EnumDefId, String), crate::shared::ui::tile_bounds::TileRect>,
+    /// Persisted application preferences (theme, shortcuts, canvas/system options).
+    pub preferences: lc_io::AppPreferences,
+    /// Optional disk path where user preferences are persisted.
+    pub preferences_path: Option<PathBuf>,
+    /// View state for the Settings workspace.
+    pub settings_view_state: crate::features::settings::state::SettingsViewState,
+    /// Last egui frame timestamp (seconds) when auto-save ran.
+    last_auto_save_time: f64,
 }
 
 /// Strongly typed identifier for a project tag.
@@ -278,6 +286,10 @@ impl ShellApp {
             enum_tags_saved: HashMap::new(),
             enum_value_tile_rects: HashMap::new(),
             enum_saved_tile_rects: HashMap::new(),
+            preferences: lc_io::AppPreferences::default(),
+            preferences_path: None,
+            settings_view_state: Default::default(),
+            last_auto_save_time: 0.0,
         }
     }
 
@@ -571,7 +583,60 @@ impl ShellApp {
     /// Applies a new appearance preference immediately.
     pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
         self.theme_choice = choice;
+        self.preferences.appearance.theme =
+            crate::features::settings::theme::theme_pref_from_choice(choice);
         theme::apply(ctx, choice);
+        self.save_preferences();
+    }
+
+    /// Loads user preferences from the OS config directory and applies them.
+    pub fn init_preferences(&mut self, ctx: &egui::Context) {
+        let path = lc_io::default_preferences_path();
+        if let Some(ref p) = path {
+            self.preferences = lc_io::load_preferences_or_default(p);
+        }
+        self.preferences_path = path;
+        self.apply_preferences(ctx);
+        self.active_mode = match self.preferences.general.default_workspace {
+            lc_io::WorkspaceStartupMode::Enums => {
+                crate::features::editor::app_mode::AppMode::Enums
+            }
+            lc_io::WorkspaceStartupMode::Entities => {
+                crate::features::editor::app_mode::AppMode::Entities
+            }
+            lc_io::WorkspaceStartupMode::Tilesets => {
+                crate::features::editor::app_mode::AppMode::Tilesets
+            }
+            lc_io::WorkspaceStartupMode::Settings => {
+                crate::features::editor::app_mode::AppMode::Settings
+            }
+        };
+    }
+
+    /// Applies current [`Self::preferences`] values to the active egui context and editor services.
+    pub fn apply_preferences(&mut self, ctx: &egui::Context) {
+        let choice = crate::features::settings::theme::theme_choice_from_pref(
+            self.preferences.appearance.theme,
+        );
+        self.theme_choice = choice;
+        theme::apply(ctx, choice);
+
+        let scale = self.preferences.appearance.ui_scale.clamp(0.75, 2.0);
+        if (ctx.zoom_factor() - scale).abs() > f32::EPSILON {
+            ctx.set_zoom_factor(scale);
+        }
+
+        lc_ui_api::i18n::set_language(&self.preferences.general.language);
+    }
+
+    /// Persists [`Self::preferences`] to [`Self::preferences_path`] when configured.
+    pub fn save_preferences(&mut self) {
+        if let Some(ref path) = self.preferences_path {
+            if let Err(err) = lc_io::save_preferences(&self.preferences, path) {
+                tracing::error!(path = %path.display(), error = %err, "Failed to save preferences");
+                self.status_message = format!("Failed to save preferences: {err}");
+            }
+        }
     }
 
     /// Saves the active project to the given directory path using `lc_io`.
@@ -581,6 +646,8 @@ impl ShellApp {
         self.assets
             .set_project_dir(path.parent().map(|p| p.to_path_buf()));
         self.is_dirty = false;
+        self.preferences.general.last_project_path = Some(path.display().to_string());
+        self.save_preferences();
         self.status_message = format!("Project saved to {}", path.display());
         tracing::info!(path = %path.display(), "Saved project");
         Ok(())
@@ -643,6 +710,8 @@ impl ShellApp {
         self.open_documents.clear();
         self.dock_state = DockState::new(Vec::new());
         self.is_dirty = false;
+        self.preferences.general.last_project_path = Some(path.display().to_string());
+        self.save_preferences();
         self.status_message = format!("Opened project from {}", path.display());
         tracing::info!(path = %path.display(), "Opened project");
         Ok(())
@@ -1065,6 +1134,23 @@ impl ShellApp {
             }
             crate::features::editor::app_mode::AppMode::Tilesets => {
                 crate::features::tileset::view::render_tileset_view(self, ui);
+            }
+            crate::features::editor::app_mode::AppMode::Settings => {
+                crate::features::settings::view::render_settings_view(self, ui);
+            }
+        }
+
+        if self.preferences.system.auto_save_enabled && self.is_dirty && self.project_path.is_some()
+        {
+            let now = ui.input(|i| i.time);
+            if self.last_auto_save_time <= 0.0 {
+                self.last_auto_save_time = now;
+            } else {
+                let interval = self.preferences.system.auto_save_interval_secs.max(30) as f64;
+                if now - self.last_auto_save_time >= interval {
+                    self.last_auto_save_time = now;
+                    self.events.push(EditorEvent::SaveProject);
+                }
             }
         }
 

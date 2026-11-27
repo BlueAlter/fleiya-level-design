@@ -15,12 +15,14 @@ pub fn render_status_bar(app: &mut ShellApp, ui: &mut Ui) {
         ui.add_space(theme::PANEL_PAD as f32);
 
         // 1. Grid coordinates
-        if let Some(pos) = app.cursor_grid_pos {
-            hud(ui, &format!("GRID {}:{}", pos.x, pos.y), t.muted);
-        } else {
-            hud(ui, "GRID -", t.muted);
+        if app.preferences.appearance.show_status_bar_coords {
+            if let Some(pos) = app.cursor_grid_pos {
+                hud(ui, &format!("GRID {}:{}", pos.x, pos.y), t.muted);
+            } else {
+                hud(ui, "GRID -", t.muted);
+            }
+            rule(ui, 12.0);
         }
-        rule(ui, 12.0);
 
         // 2. Zoom percentage
         hud(ui, &format!("{:.0}%", app.zoom_level * 100.0), t.muted);
