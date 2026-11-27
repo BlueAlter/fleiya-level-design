@@ -26,7 +26,10 @@ pub fn render_keybindings_section(
                     state.notice = Some("Shortcut capture cancelled.".to_string());
                 }
                 ShortcutCapture::Captured(binding) => {
-                    let conflicts = app.preferences.shortcuts.conflicts_for(target_action, binding);
+                    let conflicts = app
+                        .preferences
+                        .shortcuts
+                        .conflicts_for(target_action, binding);
                     app.preferences.shortcuts.set(target_action, binding);
                     app.save_preferences();
                     state.capturing_shortcut = None;
@@ -72,8 +75,12 @@ pub fn render_keybindings_section(
     }
 
     let mut collapsed = false;
-    SectionContainer::new("GLOBAL SHORTCUTS")
-        .show(ui, t, &mut collapsed, |_| {}, |ui| {
+    SectionContainer::new("GLOBAL SHORTCUTS").show(
+        ui,
+        t,
+        &mut collapsed,
+        |_| {},
+        |ui| {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(
@@ -127,9 +134,7 @@ pub fn render_keybindings_section(
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label(
-                                        RichText::new(action.label())
-                                            .strong()
-                                            .color(t.ink_strong),
+                                        RichText::new(action.label()).strong().color(t.ink_strong),
                                     );
                                     if !row_conflicts.is_empty() {
                                         ui.add_space(6.0);
@@ -150,10 +155,8 @@ pub fn render_keybindings_section(
                                     if is_capturing {
                                         state.capturing_shortcut = None;
                                     }
-                                    state.notice = Some(format!(
-                                        "Reset '{}' to default.",
-                                        action.label()
-                                    ));
+                                    state.notice =
+                                        Some(format!("Reset '{}' to default.", action.label()));
                                 }
 
                                 ui.add_space(6.0);
@@ -181,5 +184,6 @@ pub fn render_keybindings_section(
                     });
                 ui.add_space(6.0);
             }
-        });
+        },
+    );
 }

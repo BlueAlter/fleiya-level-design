@@ -36,8 +36,7 @@ pub fn render_settings_view(app: &mut ShellApp, ui: &mut Ui) {
         render_left_categories(ui, &t, &mut state);
     });
 
-    let right_rect =
-        Rect::from_min_max(Pos2::new(left_rect.max.x, full_rect.min.y), full_rect.max);
+    let right_rect = Rect::from_min_max(Pos2::new(left_rect.max.x, full_rect.min.y), full_rect.max);
     let body_bottom = (right_rect.max.y - DEF_FOOTER_HEIGHT).max(right_rect.min.y);
     let content_rect = Rect::from_min_max(
         Pos2::new(
@@ -65,8 +64,7 @@ pub fn render_settings_view(app: &mut ShellApp, ui: &mut Ui) {
 fn render_left_categories(ui: &mut Ui, t: &Tokens, state: &mut SettingsViewState) {
     let rect = ui.max_rect();
     ui.painter().rect_filled(rect, CornerRadius::ZERO, t.panel);
-    ui.painter()
-        .vline(rect.max.x, rect.y_range(), t.hairline());
+    ui.painter().vline(rect.max.x, rect.y_range(), t.hairline());
 
     let inner = rect.shrink(WORKSPACE_PADDING);
     ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
@@ -108,12 +106,7 @@ fn render_left_categories(ui: &mut Ui, t: &Tokens, state: &mut SettingsViewState
     });
 }
 
-fn category_row(
-    ui: &mut Ui,
-    t: &Tokens,
-    state: &mut SettingsViewState,
-    cat: SettingsCategory,
-) {
+fn category_row(ui: &mut Ui, t: &Tokens, state: &mut SettingsViewState, cat: SettingsCategory) {
     let selected = state.selected_category == cat;
     let width = ui.available_width();
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 34.0), Sense::click());
@@ -200,9 +193,12 @@ fn render_right_content(
             );
         } else {
             ui.label(
-                RichText::new(format!("Search results for \"{}\"", state.search_query.trim()))
-                    .font(egui::FontId::new(20.0, theme::display_for(ui.ctx())))
-                    .color(t.ink_strong),
+                RichText::new(format!(
+                    "Search results for \"{}\"",
+                    state.search_query.trim()
+                ))
+                .font(egui::FontId::new(20.0, theme::display_for(ui.ctx())))
+                .color(t.ink_strong),
             );
             ui.add_space(4.0);
             ui.label(
@@ -235,8 +231,7 @@ fn render_right_content(
                             .show(ui, |ui| {
                                 ui.set_width(ui.available_width());
                                 ui.label(
-                                    RichText::new("No settings matched your query.")
-                                        .color(t.muted),
+                                    RichText::new("No settings matched your query.").color(t.muted),
                                 );
                             });
                     } else {
@@ -265,11 +260,7 @@ fn render_footer(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, state: &mut Settin
     });
 }
 
-fn reset_active_category(
-    app: &mut ShellApp,
-    ctx: &egui::Context,
-    state: &mut SettingsViewState,
-) {
+fn reset_active_category(app: &mut ShellApp, ctx: &egui::Context, state: &mut SettingsViewState) {
     match state.selected_category {
         SettingsCategory::General => {
             app.preferences.general = lc_io::GeneralPreferences::default();

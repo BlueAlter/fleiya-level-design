@@ -60,11 +60,21 @@ impl SettingsCategory {
     pub const fn description(self) -> &'static str {
         match self {
             Self::General => "Configure startup workspace, language, and project loading behavior.",
-            Self::Appearance => "Choose editor color palette, UI scale, and workspace chrome visibility.",
-            Self::Canvas => "Adjust default grid overlay, snapping, zoom sensitivity, and pan speed.",
-            Self::Keybindings => "Inspect and rebind global keyboard shortcuts with collision detection.",
-            Self::System => "Manage auto-save intervals, console defaults, undo history, and reset actions.",
-            Self::Project => "Edit active project title and default grid dimensions stored in project.lcproj.",
+            Self::Appearance => {
+                "Choose editor color palette, UI scale, and workspace chrome visibility."
+            }
+            Self::Canvas => {
+                "Adjust default grid overlay, snapping, zoom sensitivity, and pan speed."
+            }
+            Self::Keybindings => {
+                "Inspect and rebind global keyboard shortcuts with collision detection."
+            }
+            Self::System => {
+                "Manage auto-save intervals, console defaults, undo history, and reset actions."
+            }
+            Self::Project => {
+                "Edit active project title and default grid dimensions stored in project.lcproj."
+            }
         }
     }
 
@@ -83,12 +93,22 @@ impl SettingsCategory {
     /// Search keywords matched when filtering settings in the workspace.
     pub const fn keywords(self) -> &'static str {
         match self {
-            Self::General => "general startup language workspace auto open last project confirm exit",
-            Self::Appearance => "appearance theme dark light color palette ui scale zoom title status bar",
+            Self::General => {
+                "general startup language workspace auto open last project confirm exit"
+            }
+            Self::Appearance => {
+                "appearance theme dark light color palette ui scale zoom title status bar"
+            }
             Self::Canvas => "canvas grid snap zoom sensitivity pan speed checkerboard",
-            Self::Keybindings => "keybindings shortcuts hotkeys ctrl undo redo save workspace rebind",
-            Self::System => "system storage auto save interval console debug collapse undo limit reset layout",
-            Self::Project => "project name default grid size version worlds entities tilesets enums",
+            Self::Keybindings => {
+                "keybindings shortcuts hotkeys ctrl undo redo save workspace rebind"
+            }
+            Self::System => {
+                "system storage auto save interval console debug collapse undo limit reset layout"
+            }
+            Self::Project => {
+                "project name default grid size version worlds entities tilesets enums"
+            }
         }
     }
 

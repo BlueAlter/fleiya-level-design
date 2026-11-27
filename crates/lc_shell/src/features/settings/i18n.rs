@@ -68,6 +68,9 @@ mod tests {
     fn settings_keys_resolve_to_english_text() {
         register();
         assert_eq!(tr_for(DEFAULT_LANGUAGE, keys::HEADER), "SETTINGS");
-        assert_eq!(tr_for(DEFAULT_LANGUAGE, keys::GROUP_PROJECT), "CURRENT PROJECT");
+        assert_eq!(
+            tr_for(DEFAULT_LANGUAGE, keys::GROUP_PROJECT),
+            "CURRENT PROJECT"
+        );
     }
 }

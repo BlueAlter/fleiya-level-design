@@ -177,13 +177,13 @@ pub const fn from_egui_key(key: Key) -> Option<ShortcutKey> {
 pub fn to_egui_shortcut(binding: ShortcutBinding) -> KeyboardShortcut {
     let mut modifiers = Modifiers::NONE;
     if binding.ctrl {
-        modifiers = modifiers | Modifiers::CTRL;
+        modifiers |= Modifiers::CTRL;
     }
     if binding.shift {
-        modifiers = modifiers | Modifiers::SHIFT;
+        modifiers |= Modifiers::SHIFT;
     }
     if binding.alt {
-        modifiers = modifiers | Modifiers::ALT;
+        modifiers |= Modifiers::ALT;
     }
     KeyboardShortcut::new(modifiers, to_egui_key(binding.key))
 }

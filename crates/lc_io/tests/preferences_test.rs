@@ -49,14 +49,20 @@ fn load_preferences_or_default_handles_missing_and_corrupt_files() {
     if let Some(parent) = missing.parent() {
         let _ = std::fs::remove_dir_all(parent);
     }
-    assert_eq!(load_preferences_or_default(&missing), AppPreferences::default());
+    assert_eq!(
+        load_preferences_or_default(&missing),
+        AppPreferences::default()
+    );
 
     let corrupt = temp_prefs_path("corrupt");
     if let Some(parent) = corrupt.parent() {
         std::fs::create_dir_all(parent).expect("create temp parent");
     }
     std::fs::write(&corrupt, "{ not valid json").expect("write corrupt file");
-    assert_eq!(load_preferences_or_default(&corrupt), AppPreferences::default());
+    assert_eq!(
+        load_preferences_or_default(&corrupt),
+        AppPreferences::default()
+    );
 
     if let Some(parent) = corrupt.parent() {
         let _ = std::fs::remove_dir_all(parent);
@@ -69,8 +75,11 @@ fn partial_json_uses_serde_defaults() {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("create temp parent");
     }
-    std::fs::write(&path, "{\n  \"appearance\": {\n    \"theme\": \"ProDark\"\n  }\n}\n")
-        .expect("write partial json");
+    std::fs::write(
+        &path,
+        "{\n  \"appearance\": {\n    \"theme\": \"ProDark\"\n  }\n}\n",
+    )
+    .expect("write partial json");
 
     let loaded = load_preferences(&path).expect("load partial json");
     assert_eq!(loaded.appearance.theme, ThemePreference::ProDark);

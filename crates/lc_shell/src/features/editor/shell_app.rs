@@ -601,9 +601,7 @@ impl ShellApp {
         self.preferences_path = path;
         self.apply_preferences(ctx);
         self.active_mode = match self.preferences.general.default_workspace {
-            lc_io::WorkspaceStartupMode::Enums => {
-                crate::features::editor::app_mode::AppMode::Enums
-            }
+            lc_io::WorkspaceStartupMode::Enums => crate::features::editor::app_mode::AppMode::Enums,
             lc_io::WorkspaceStartupMode::Entities => {
                 crate::features::editor::app_mode::AppMode::Entities
             }
