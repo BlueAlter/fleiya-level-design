@@ -1,13 +1,16 @@
 //! Menu bar rendering and global shortcut handling.
 
-use egui::{Key, RichText, Ui};
+use egui::{RichText, Ui};
 use egui_dock::DockState;
 use lc_canvas::theme::{self};
 use lc_canvas::widgets::{hud, hud_elided, status_dot};
 use lc_core::project::Project;
+use lc_io::ShortcutAction;
 use lc_ui_api::events::EditorEvent;
 
+use crate::features::editor::app_mode::AppMode;
 use crate::features::editor::shell_app::ShellApp;
+use crate::features::settings::shortcuts::{actions_in_dispatch_order, to_egui_shortcut};
 
 /// Handles top-level menu bar rendering.
 pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
@@ -82,6 +85,19 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                         app.redo();
                         ui.close();
                     }
+
+                    ui.separator();
+                    let pref_label = format!(
+                        "Preferences...  ({})",
+                        app.preferences
+                            .shortcuts
+                            .get(ShortcutAction::OpenSettingsAlt)
+                            .display_label()
+                    );
+                    if ui.button(pref_label).clicked() {
+                        app.active_mode = AppMode::Settings;
+                        ui.close();
+                    }
                 });
 
                 menu_button(ui, "VIEW", |ui| {
@@ -125,11 +141,14 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                         ui.close();
                     }
                     if ui.button("Enums Workspace  Ctrl+5").clicked() {
-                        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
+                        app.active_mode = AppMode::Enums;
                         ui.close();
                     }
-                    let in_editor =
-                        app.active_mode == crate::features::editor::app_mode::AppMode::Editor;
+                    if ui.button("Settings Workspace  Ctrl+6").clicked() {
+                        app.active_mode = AppMode::Settings;
+                        ui.close();
+                    }
+                    let in_editor = app.active_mode == AppMode::Editor;
                     ui.add_enabled_ui(in_editor, |ui| {
                         if ui
                             .checkbox(&mut app.show_entities_window, "Entities Window")
@@ -147,18 +166,20 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 });
 
                 // Centered workspace title in the top bar
-                let title_text = app.active_mode.workspace_title();
-                let bar_rect = ui.max_rect();
-                let galley = ui.painter().layout_no_wrap(
-                    title_text.to_owned(),
-                    egui::FontId::new(11.0, theme::mono_bold_for(ui.ctx())),
-                    t.ink_strong,
-                );
-                let title_pos = egui::pos2(
-                    bar_rect.center().x - galley.size().x * 0.5,
-                    bar_rect.center().y - galley.size().y * 0.5,
-                );
-                ui.painter().galley(title_pos, galley, t.ink_strong);
+                if app.preferences.appearance.show_workspace_titles {
+                    let title_text = app.active_mode.workspace_title();
+                    let bar_rect = ui.max_rect();
+                    let galley = ui.painter().layout_no_wrap(
+                        title_text.to_owned(),
+                        egui::FontId::new(11.0, theme::mono_bold_for(ui.ctx())),
+                        t.ink_strong,
+                    );
+                    let title_pos = egui::pos2(
+                        bar_rect.center().x - galley.size().x * 0.5,
+                        bar_rect.center().y - galley.size().y * 0.5,
+                    );
+                    ui.painter().galley(title_pos, galley, t.ink_strong);
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     hud_elided(ui, &app.project.name, t.muted, 220.0);
@@ -190,56 +211,62 @@ fn menu_button(ui: &mut Ui, text: &str, add: impl FnOnce(&mut Ui)) {
     ui.menu_button(label, add);
 }
 
-/// Handles application-wide keyboard shortcuts.
+/// Handles application-wide keyboard shortcuts using user-configured bindings.
 pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
-    // Workspace rail shortcuts match vertical order:
-    // Ctrl+1 = Editor (disabled), Ctrl+2 = Layers (coming soon), Ctrl+3 = Entities,
-    // Ctrl+4 = Tilesets, Ctrl+5 = Enums.
-    let ctrl_3 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num3);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_3)) {
-        app.active_mode = crate::features::editor::app_mode::AppMode::Entities;
-        if app.selected_entity_def.is_none() {
-            app.selected_entity_def = app.project.defs.entities.first().map(|e| e.id);
-        }
-        if let Some(id) = app.selected_entity_def {
-            app.entity_view_state.select_entity(id);
-        }
-    }
-    let ctrl_4 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num4);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_4)) {
-        app.active_mode = crate::features::editor::app_mode::AppMode::Tilesets;
-        if app.selected_tileset_def.is_none() {
-            app.selected_tileset_def = app.project.defs.tilesets.first().map(|t| t.id);
-        }
-        if let Some(id) = app.selected_tileset_def {
-            app.tileset_view_state.select_tileset(id);
-        }
-    }
-    let ctrl_5 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num5);
-    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_5)) {
-        app.active_mode = crate::features::editor::app_mode::AppMode::Enums;
+    if app.active_mode == AppMode::Settings && app.settings_view_state.capturing_shortcut.is_some()
+    {
+        return;
     }
 
-    ctx.input(|i| {
-        // Ctrl+` (Backtick): Toggle bottom dock
-        if i.modifiers.ctrl && i.key_pressed(Key::Backtick) {
-            app.dock_layout.toggle_bottom_dock();
+    let ordered = actions_in_dispatch_order(&app.preferences.shortcuts);
+    for (action, binding) in ordered {
+        let shortcut = to_egui_shortcut(binding);
+        if ctx.input_mut(|i| i.consume_shortcut(&shortcut)) {
+            dispatch_shortcut_action(app, action);
         }
+    }
+}
 
-        // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
-        if i.modifiers.ctrl && i.key_pressed(Key::Z) {
-            if i.modifiers.shift {
-                app.redo();
-            } else {
-                app.undo();
-            }
-        } else if i.modifiers.ctrl && i.key_pressed(Key::Y) {
-            app.redo();
-        }
-
-        // Ctrl+S: Save
-        if i.modifiers.ctrl && i.key_pressed(Key::S) {
+fn dispatch_shortcut_action(app: &mut ShellApp, action: ShortcutAction) {
+    match action {
+        ShortcutAction::SaveProject => {
             app.events.push(EditorEvent::SaveProject);
         }
-    });
+        ShortcutAction::Undo => {
+            app.undo();
+        }
+        ShortcutAction::Redo | ShortcutAction::RedoAlt => {
+            app.redo();
+        }
+        ShortcutAction::ToggleBottomDock => {
+            app.dock_layout.toggle_bottom_dock();
+        }
+        ShortcutAction::WorkspaceEditor => {
+            // Editor mode remains disabled in the workspace rail until level canvas cutover.
+        }
+        ShortcutAction::WorkspaceEntities => {
+            app.active_mode = AppMode::Entities;
+            if app.selected_entity_def.is_none() {
+                app.selected_entity_def = app.project.defs.entities.first().map(|e| e.id);
+            }
+            if let Some(id) = app.selected_entity_def {
+                app.entity_view_state.select_entity(id);
+            }
+        }
+        ShortcutAction::WorkspaceTilesets => {
+            app.active_mode = AppMode::Tilesets;
+            if app.selected_tileset_def.is_none() {
+                app.selected_tileset_def = app.project.defs.tilesets.first().map(|t| t.id);
+            }
+            if let Some(id) = app.selected_tileset_def {
+                app.tileset_view_state.select_tileset(id);
+            }
+        }
+        ShortcutAction::WorkspaceEnums => {
+            app.active_mode = AppMode::Enums;
+        }
+        ShortcutAction::WorkspaceSettings | ShortcutAction::OpenSettingsAlt => {
+            app.active_mode = AppMode::Settings;
+        }
+    }
 }

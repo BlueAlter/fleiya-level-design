@@ -21,6 +21,7 @@ pub mod layer;
 pub mod level;
 pub mod marking;
 pub mod project;
+pub mod project_commands;
 pub mod world;
 
 pub use collision::{CollisionShape, CollisionShapeGeometry, TileCollisionDef};
@@ -48,6 +49,7 @@ pub use layer::{EntityInstance, LayerData, LayerInstance, LayerKind, TileRef};
 pub use level::Level;
 pub use marking::{known_tags, normalize_tag, tags_eq, TileMarking};
 pub use project::{Project, ProjectSettings};
+pub use project_commands::{RenameProjectCommand, UpdateProjectSettingsCommand};
 pub use world::{World, WorldLayout};
 
 #[cfg(test)]

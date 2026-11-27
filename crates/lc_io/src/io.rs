@@ -232,7 +232,7 @@ pub fn save_project(project: &Project, project_file: &Path) -> Result<(), IoErro
     Ok(())
 }
 
-fn format_json<T: serde::Serialize>(data: &T, path: &Path) -> Result<String, IoError> {
+pub(crate) fn format_json<T: serde::Serialize>(data: &T, path: &Path) -> Result<String, IoError> {
     serde_json::to_string_pretty(data)
         .map(|mut s| {
             s.push('\n');
@@ -247,7 +247,7 @@ fn format_json<T: serde::Serialize>(data: &T, path: &Path) -> Result<String, IoE
         })
 }
 
-fn write_file_atomic(path: &Path, content: String) -> Result<(), IoError> {
+pub(crate) fn write_file_atomic(path: &Path, content: String) -> Result<(), IoError> {
     let tmp_path = path.with_extension("tmp_atomic");
     fs::write(&tmp_path, content).map_err(|e| {
         tracing::error!(path = %tmp_path.display(), error = %e, "File write to temporary file failed");

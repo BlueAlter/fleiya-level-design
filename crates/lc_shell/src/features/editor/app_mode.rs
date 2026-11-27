@@ -22,6 +22,8 @@ pub enum AppMode {
     Enums,
     /// Dedicated tileset definitions and atlas management mode.
     Tilesets,
+    /// Dedicated application and project settings workspace.
+    Settings,
 }
 
 impl AppMode {
@@ -32,6 +34,7 @@ impl AppMode {
             Self::Entities => "ENTITY WORKSPACE",
             Self::Enums => "ENUM WORKSPACE",
             Self::Tilesets => "TILESET WORKSPACE",
+            Self::Settings => "SETTINGS WORKSPACE",
         }
     }
 }
@@ -83,6 +86,14 @@ pub const WORKSPACE_RAIL_ITEMS: [WorkspaceRailItem; 5] = [
     },
 ];
 
+/// Settings workspace button pinned to the bottom of the vertical left rail.
+pub const SETTINGS_RAIL_ITEM: WorkspaceRailItem = WorkspaceRailItem {
+    mode: Some(AppMode::Settings),
+    icon: Icon::Settings,
+    tooltip: "Settings Workspace (Ctrl+6)",
+    enabled: true,
+};
+
 /// Returns true if the unsaved indicator dot should be shown for the given mode.
 pub fn shows_unsaved(mode: AppMode, enum_unsaved: bool) -> bool {
     matches!(mode, AppMode::Enums) && enum_unsaved
@@ -123,6 +134,26 @@ pub fn render_workspace_rail(
                 if let Some(mode) = item.mode {
                     *active_mode = mode;
                 }
+            }
+        }
+    });
+
+    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+        ui.add_space(8.0);
+        let is_active = SETTINGS_RAIL_ITEM.enabled && SETTINGS_RAIL_ITEM.mode == Some(*active_mode);
+        let resp = render_rail_button(
+            ui,
+            SETTINGS_RAIL_ITEM.icon,
+            is_active,
+            SETTINGS_RAIL_ITEM.enabled,
+            false,
+            button_size,
+            SETTINGS_RAIL_ITEM.tooltip,
+            t,
+        );
+        if SETTINGS_RAIL_ITEM.enabled && resp.clicked() {
+            if let Some(mode) = SETTINGS_RAIL_ITEM.mode {
+                *active_mode = mode;
             }
         }
     });
