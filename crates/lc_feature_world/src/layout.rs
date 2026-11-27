@@ -387,6 +387,7 @@ mod tests {
             layout: WorldLayout::Free,
             default_grid: None,
             levels: vec![level(1, IVec2::ZERO, UVec2::splat(10), 2)],
+            ..Default::default()
         };
         assert_eq!(depths(&world, 0), vec![0, 2]);
         assert_eq!(depths(&world, 5), vec![2, 5]);
@@ -403,6 +404,7 @@ mod tests {
                 level(1, IVec2::new(-20, 10), UVec2::new(40, 40), 0),
                 level(2, IVec2::new(100, -50), UVec2::new(20, 20), 0),
             ],
+            ..Default::default()
         };
         assert_eq!(
             world_bounds(&world),

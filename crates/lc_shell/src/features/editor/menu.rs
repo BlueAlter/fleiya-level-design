@@ -118,6 +118,16 @@ pub fn render_menu_bar(app: &mut ShellApp, ui: &mut Ui) {
                 });
 
                 menu_button(ui, "WINDOWS", |ui| {
+                    if ui.button("Layers Workspace  Ctrl+2").clicked() {
+                        app.active_mode = crate::features::editor::app_mode::AppMode::Layers;
+                        if app.selected_layer_def.is_none() {
+                            app.selected_layer_def = app.project.defs.layers.first().map(|l| l.id);
+                        }
+                        if let Some(id) = app.selected_layer_def {
+                            app.layer_view_state.select_layer(id);
+                        }
+                        ui.close();
+                    }
                     if ui.button("Entities Workspace  Ctrl+3").clicked() {
                         app.active_mode = crate::features::editor::app_mode::AppMode::Entities;
                         if app.selected_entity_def.is_none() {
@@ -216,6 +226,17 @@ pub fn handle_global_shortcuts(app: &mut ShellApp, ctx: &egui::Context) {
     if app.active_mode == AppMode::Settings && app.settings_view_state.capturing_shortcut.is_some()
     {
         return;
+    }
+
+    let ctrl_2 = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Num2);
+    if ctx.input_mut(|i| i.consume_shortcut(&ctrl_2)) {
+        app.active_mode = AppMode::Layers;
+        if app.selected_layer_def.is_none() {
+            app.selected_layer_def = app.project.defs.layers.first().map(|l| l.id);
+        }
+        if let Some(id) = app.selected_layer_def {
+            app.layer_view_state.select_layer(id);
+        }
     }
 
     let ordered = actions_in_dispatch_order(&app.preferences.shortcuts);

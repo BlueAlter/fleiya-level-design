@@ -415,6 +415,7 @@ fn test_continuous_mouse_drag_merges_undo_step() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     project.worlds[0].levels.push(level);
 
@@ -511,6 +512,7 @@ fn test_tiles_layer_handler_render_and_viewport_culling() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     project.worlds[0].levels.push(level);
 
@@ -557,11 +559,13 @@ fn test_intgrid_layer_handler_render() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     };
     layer_def.int_grid_values.push(IntGridValueDef {
         value: 1,
         name: "Solid".to_string(),
         color: [255, 0, 0, 255],
+        ..Default::default()
     });
     project.defs.layers.push(layer_def);
 
@@ -628,6 +632,7 @@ fn test_canvas_copy_paste_shortcuts_emit_commands() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     project.worlds[0].levels.push(level);
 
@@ -782,6 +787,7 @@ fn test_select_tool_emits_region_selection_on_click() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(tileset_id),
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     project.worlds[0].levels.push(level);
 
@@ -891,6 +897,7 @@ fn test_eyedropper_tool_emits_tile_selection() {
         grid_size: UVec2::new(16, 16),
         tileset_id: None,
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     project.worlds[0].levels.push(level);
 

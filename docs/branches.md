@@ -37,6 +37,14 @@ without touching the same files. `main` is the integration branch; every
   - `crates/lc_shell/src/features/editor/app_mode.rs`: lines 1, 17, 21-60, 71, 74, 90-104: added `AppMode::Tilesets`, `ModeButton`, `MODE_BUTTONS`, `control_width`, `shows_unsaved`, and data-driven segmented control.
   - `crates/lc_shell/src/features/editor/menu.rs`: lines 105-114, 180, 189-198: replaced `show_tileset_window` checkbox with "Tilesets Workspace  Ctrl+3" button; added `Ctrl+3` shortcut to switch to `AppMode::Tilesets` and select tileset def.
   - `crates/lc_shell/src/features/editor/shell_app.rs`: lines 130-131, 262, 806-810, 1038-1040: replaced `show_tileset_window` field with `tileset_view_state`, redirected `DocKind::TilesetDef` to switch to `AppMode::Tilesets` and select def, removed `render_tileset_window`, and dispatched `AppMode::Tilesets` to `render_tileset_view`.
+- `feature/layer` task (Layers workspace mode switch and rail/menu wiring):
+  - `crates/lc_shell/src/features/editor/app_mode.rs`: enabled `AppMode::Layers` (`Ctrl+2`) in `WORKSPACE_RAIL_ITEMS` and added `"LAYER WORKSPACE"` title.
+  - `crates/lc_shell/src/features/editor/menu.rs`: added `"Layers Workspace  Ctrl+2"` in the `WINDOWS` menu and `Ctrl+2` global shortcut.
+  - `crates/lc_shell/src/features/editor/shell_app.rs`: added `layer_view_state`, redirected `DocKind::LayerDef` to `AppMode::Layers`, and dispatched `AppMode::Layers` to `render_layer_view`.
+  - `crates/lc_shell/tests/app_mode_test.rs`: updated `WORKSPACE_RAIL_ITEMS[1]` assertion for enabled `AppMode::Layers` and added `Ctrl+2` / `DocKind::LayerDef` assertions.
+  - `crates/lc_shell/tests/fleiya_features_test.rs`: updated `DocKind::LayerDef` assertion in `test_definition_tabs_and_windows_behavior` from floating window to `AppMode::Layers`.
+  - `crates/lc_core/` & `crates/lc_io/`: extended `LayerDef`, `IntGridValueDef`, `World` (`included_layer_tags` / `excluded_layer_tags`), `WorldFile`, and added `auto_rules` / `auto_rules_eval` (ADR-0017).
+  - `crates/lc_feature_world/`: added `SetWorldLayerTagsCommand`, `PruneUnusedWorldLayersCommand`, and `Layer Tags` toolbar drawer in `WorldDocumentView`.
 
 ## Daily commands
 

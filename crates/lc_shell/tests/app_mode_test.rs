@@ -21,8 +21,8 @@ fn test_workspace_rail_order_and_unique_icons() {
     // Order must be: Editor, Layers, Entities, Tilesets, Enums
     assert_eq!(WORKSPACE_RAIL_ITEMS[0].mode, Some(AppMode::Editor));
     assert!(!WORKSPACE_RAIL_ITEMS[0].enabled);
-    assert_eq!(WORKSPACE_RAIL_ITEMS[1].mode, None);
-    assert!(!WORKSPACE_RAIL_ITEMS[1].enabled);
+    assert_eq!(WORKSPACE_RAIL_ITEMS[1].mode, Some(AppMode::Layers));
+    assert!(WORKSPACE_RAIL_ITEMS[1].enabled);
     assert_eq!(WORKSPACE_RAIL_ITEMS[2].mode, Some(AppMode::Entities));
     assert!(WORKSPACE_RAIL_ITEMS[2].enabled);
     assert_eq!(WORKSPACE_RAIL_ITEMS[3].mode, Some(AppMode::Tilesets));
@@ -108,12 +108,41 @@ fn test_mode_shortcuts_ctrl_4_ctrl_5_and_disabled_ctrl_1() {
 fn test_shows_unsaved_only_for_enums() {
     assert!(!shows_unsaved(AppMode::Editor, false));
     assert!(!shows_unsaved(AppMode::Editor, true));
+    assert!(!shows_unsaved(AppMode::Layers, false));
+    assert!(!shows_unsaved(AppMode::Layers, true));
     assert!(!shows_unsaved(AppMode::Entities, false));
     assert!(!shows_unsaved(AppMode::Entities, true));
     assert!(!shows_unsaved(AppMode::Tilesets, false));
     assert!(!shows_unsaved(AppMode::Tilesets, true));
     assert!(!shows_unsaved(AppMode::Enums, false));
     assert!(shows_unsaved(AppMode::Enums, true));
+}
+
+#[test]
+fn test_ctrl_2_switches_to_layers_workspace_and_dockind_focuses() {
+    let mut app = ShellApp::new(Project::new("Test Layers Mode"));
+    assert_eq!(app.active_mode, AppMode::Enums);
+    let ctx = Context::default();
+
+    let mut raw_input = RawInput::default();
+    raw_input.events.push(Event::Key {
+        key: Key::Num2,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::CTRL,
+    });
+    let mut output = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    output.textures_delta.clear();
+    assert_eq!(app.active_mode, AppMode::Layers);
+    assert_eq!(app.active_mode.workspace_title(), "LAYER WORKSPACE");
+
+    app.active_mode = AppMode::Enums;
+    app.open_document(DocKind::LayerDef(lc_core::id::LayerDefId(5)));
+    assert_eq!(app.active_mode, AppMode::Layers);
+    assert_eq!(app.selected_layer_def, Some(lc_core::id::LayerDefId(5)));
 }
 
 #[test]

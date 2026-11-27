@@ -130,6 +130,7 @@ fn test_remove_tileset_def_command_cascade_and_revert() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(tileset_id),
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
 
     // 2. EnumDef reference

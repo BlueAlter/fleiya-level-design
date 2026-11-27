@@ -294,6 +294,7 @@ mod tests {
             grid_size,
             tileset_id: None,
             int_grid_values: Vec::new(),
+            ..Default::default()
         });
 
         let data = match kind {

@@ -1,0 +1,12 @@
+{
+    "layers.header": "LAYER DEFINITIONS",
+    "layers.new_button": "+ New Layer",
+    "layers.tab.definition": "LAYERS DEF",
+    "layers.tab.auto_tile": "AUTO TILE",
+    "layers.tab.document": "DOCUMENT",
+    "layers.description": "Configure layer templates, grid dimensions, tileset bindings, render order, tags, IntGrid values, and Auto-Tile rules.",
+    "layers.empty.message": "No layer definitions yet.",
+    "layers.empty.create": "+ Create First Layer",
+    "layers.menu.duplicate": "Duplicate",
+    "layers.menu.delete": "Delete",
+}

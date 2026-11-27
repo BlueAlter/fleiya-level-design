@@ -48,6 +48,12 @@ pub struct WorldFile {
     pub layout: WorldLayout,
     /// Default room grid size in pixels, if configured.
     pub default_grid: Option<UVec2>,
+    /// Optional layer tag whitelist for this world.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub included_layer_tags: Vec<String>,
+    /// Optional layer tag blacklist for this world.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_layer_tags: Vec<String>,
     /// Manifest of levels belonging to this world.
     pub levels: Vec<LevelManifestEntry>,
 }

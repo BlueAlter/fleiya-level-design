@@ -15,6 +15,8 @@ pub const WORKSPACE_RAIL_WIDTH: f32 = 44.0;
 pub enum AppMode {
     /// Level and world editor with dock panels (currently disabled in UI).
     Editor,
+    /// Dedicated layer definitions management mode.
+    Layers,
     /// Dedicated entity definitions management mode.
     Entities,
     /// Dedicated enum definitions management mode.
@@ -31,6 +33,7 @@ impl AppMode {
     pub const fn workspace_title(self) -> &'static str {
         match self {
             Self::Editor => "EDITOR WORKSPACE",
+            Self::Layers => "LAYER WORKSPACE",
             Self::Entities => "ENTITY WORKSPACE",
             Self::Enums => "ENUM WORKSPACE",
             Self::Tilesets => "TILESET WORKSPACE",
@@ -61,10 +64,10 @@ pub const WORKSPACE_RAIL_ITEMS: [WorkspaceRailItem; 5] = [
         enabled: false,
     },
     WorkspaceRailItem {
-        mode: None,
+        mode: Some(AppMode::Layers),
         icon: Icon::Layer,
-        tooltip: "Layers Workspace (Coming soon)",
-        enabled: false,
+        tooltip: "Layers Workspace (Ctrl+2)",
+        enabled: true,
     },
     WorkspaceRailItem {
         mode: Some(AppMode::Entities),

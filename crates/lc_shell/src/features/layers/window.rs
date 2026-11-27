@@ -67,6 +67,7 @@ fn render_layer_window_contents(app: &mut ShellApp, ui: &mut Ui, t: &Tokens) {
                     grid_size: UVec2::splat(16),
                     tileset_id: default_tileset,
                     int_grid_values: Vec::new(),
+                    ..Default::default()
                 };
                 app.execute_command(Box::new(AddLayerDefCommand::new(def)));
                 app.selected_layer_def = Some(next_id);

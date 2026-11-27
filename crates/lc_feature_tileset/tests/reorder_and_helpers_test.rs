@@ -150,6 +150,7 @@ fn test_tileset_usage_counts() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(ts1),
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
     p.defs.layers.push(LayerDef {
         id: LayerDefId(11),
@@ -158,6 +159,7 @@ fn test_tileset_usage_counts() {
         grid_size: UVec2::new(16, 16),
         tileset_id: Some(ts1),
         int_grid_values: Vec::new(),
+        ..Default::default()
     });
 
     p.defs.enums.push(EnumDef {

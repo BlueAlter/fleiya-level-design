@@ -127,6 +127,8 @@ pub struct ShellApp {
     pub show_layer_window: bool,
     /// Whether the floating entity definitions window is open.
     pub show_entities_window: bool,
+    /// View state for the Layers workspace.
+    pub layer_view_state: crate::features::layers::state::LayerViewState,
     /// View state for the Entities workspace.
     pub entity_view_state: crate::features::entities::state::EntityViewState,
     /// View state for the Tilesets workspace.
@@ -269,6 +271,7 @@ impl ShellApp {
             show_unsaved_close_dialog: false,
             show_layer_window: false,
             show_entities_window: false,
+            layer_view_state: Default::default(),
             entity_view_state: Default::default(),
             tileset_view_state: Default::default(),
             show_enum_window: false,
@@ -865,9 +868,10 @@ impl ShellApp {
                 self.status_message = format!("Opened World {:?}", world_id.0);
             }
             DocKind::LayerDef(layer_id) => {
-                self.show_layer_window = true;
+                self.active_mode = crate::features::editor::app_mode::AppMode::Layers;
                 self.selected_layer_def = Some(layer_id);
-                self.status_message = "Opened Layer Window".to_string();
+                self.layer_view_state.select_layer(layer_id);
+                self.status_message = format!("Opened Layer {:?}", layer_id);
             }
             DocKind::EntityDef(entity_id) => {
                 self.active_mode = crate::features::editor::app_mode::AppMode::Entities;
@@ -1125,6 +1129,9 @@ impl ShellApp {
                 // 7b. Floating definition windows
                 crate::features::layers::window::render_layer_window(self, ui.ctx());
                 crate::features::entities::window::render_entities_window(self, ui.ctx());
+            }
+            crate::features::editor::app_mode::AppMode::Layers => {
+                crate::features::layers::view::render_layer_view(self, ui);
             }
             crate::features::editor::app_mode::AppMode::Entities => {
                 crate::features::entities::view::render_entity_view(self, ui);

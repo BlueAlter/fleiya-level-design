@@ -70,6 +70,7 @@ impl LayerDefDocumentView {
             grid_size: UVec2::new(self.grid_w.max(1), self.grid_h.max(1)),
             tileset_id: self.tileset_id,
             int_grid_values: self.int_grid_values.clone(),
+            ..def.clone()
         };
 
         if *def != updated {
@@ -316,6 +317,7 @@ impl DocumentView for LayerDefDocumentView {
                                 value: next_val,
                                 name: format!("Value_{next_val}"),
                                 color: [220, 100, 50, 255],
+                                ..Default::default()
                             });
                             commit_needed = true;
                         }
