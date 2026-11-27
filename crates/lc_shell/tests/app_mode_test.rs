@@ -364,12 +364,23 @@ fn test_workspace_rail_renders_and_rasterizes_all_svg_icons() {
     let mut output = ctx.run_ui(RawInput::default(), |ui| {
         render_workspace_rail(ui, &mut active_mode, false, &t);
     });
-    let svg_texture_count = output
+    let svg_textures: Vec<_> = output
         .textures_delta
         .set
         .iter()
         .filter(|(id, _)| **id != egui::TextureId::Managed(0))
-        .count();
+        .map(|(_, deltas)| match &deltas[0].image {
+            egui::ImageData::Color(img) => {
+                let lit_pixels = img
+                    .pixels
+                    .iter()
+                    .filter(|c| c.a() > 0 && c.r() > 200 && c.g() > 200 && c.b() > 200)
+                    .count();
+                (img.size, lit_pixels)
+            }
+        })
+        .collect();
+    let svg_texture_count = svg_textures.len();
     let textured_rect_count = output
         .shapes
         .iter()
@@ -412,6 +423,15 @@ fn test_workspace_rail_renders_and_rasterizes_all_svg_icons() {
         "Expected 6 rasterized SVG textures in textures_delta, got {}",
         svg_texture_count
     );
+    for (idx, (size, lit_pixels)) in svg_textures.iter().enumerate() {
+        assert!(
+            size[0] > 0 && size[1] > 0 && *lit_pixels > 0,
+            "SVG texture {} has empty or black/transparent pixels: size={:?}, lit={}",
+            idx,
+            size,
+            lit_pixels
+        );
+    }
     assert_eq!(
         textured_rect_count, 6,
         "Expected 6 textured icon rects on the workspace rail, got {}",
