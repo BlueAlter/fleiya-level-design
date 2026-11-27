@@ -1,7 +1,7 @@
 //! Editor events emitted by UI panels and views to trigger shell actions.
 
 use crate::selection::Selection;
-use crate::session::TileSelection;
+use crate::session::{CanvasPickMode, TileSelection};
 use lc_core::command::DocKind;
 use lc_core::id::{LayerDefId, LevelId};
 
@@ -24,6 +24,8 @@ pub enum EditorEvent {
     SetActiveTool(String),
     /// Updates the tile palette selection.
     SetTileSelection(Option<TileSelection>),
+    /// Starts or cancels an interactive canvas pick mode (e.g. Point or EntityRef).
+    SetCanvasPickMode(Option<CanvasPickMode>),
     /// Status bar notification message.
     Status(String),
     /// Request to trigger project save.

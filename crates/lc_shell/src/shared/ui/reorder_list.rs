@@ -51,6 +51,8 @@ pub struct ListItem {
     pub clickable: bool,
     /// Trailing action button kind (delete, kebab, or none).
     pub trailing: Trailing,
+    /// Whether card rows paint a filled background (`true`) or outline-only (`false`).
+    pub use_custom_color: bool,
 }
 
 impl ListItem {
@@ -68,6 +70,7 @@ impl ListItem {
                 tooltip: Some("Delete".into()),
                 disabled_reason: None,
             },
+            use_custom_color: true,
         }
     }
 
@@ -92,6 +95,12 @@ impl ListItem {
     /// Sets the trailing action button kind.
     pub fn trailing(mut self, trailing: Trailing) -> Self {
         self.trailing = trailing;
+        self
+    }
+
+    /// Sets whether card rows paint a filled background (`true`) or outline-only (`false`).
+    pub fn use_custom_color(mut self, use_custom_color: bool) -> Self {
+        self.use_custom_color = use_custom_color;
         self
     }
 }
@@ -162,6 +171,7 @@ where
                 let mut spec = ReorderRowSpec::new(item.id, item.ghost.label.clone());
                 spec.layout = layout;
                 spec.outline = item.ghost.color;
+                spec.use_custom_color = item.use_custom_color;
                 spec.deletable = item.deletable;
                 spec.delete_disabled_reason = item.delete_disabled_reason.clone();
                 spec.ghost = item.ghost.clone();

@@ -1,11 +1,11 @@
 //! Right panel content for managing tile collision shapes, custom properties, and tags.
 
 use egui::{
-    vec2, Align, Align2, Color32, CornerRadius, FontId, Frame, Margin, Rect, RichText, ScrollArea,
-    Sense, Stroke, StrokeKind, Ui,
+    vec2, Align, Align2, CornerRadius, FontFamily, FontId, Frame, Margin, Rect, RichText,
+    ScrollArea, Sense, Stroke, StrokeKind, Ui,
 };
 use lc_canvas::icons::Icon;
-use lc_canvas::theme::Tokens;
+use lc_canvas::theme::{self, Tokens};
 use lc_core::collision::{CollisionShapeGeometry, TileCollisionDef};
 use lc_core::defs::TilesetDef;
 use lc_core::id::TilesetDefId;
@@ -90,11 +90,8 @@ fn render_header_card(
             let thumb_size = 28.0;
             let (thumb_rect, _) =
                 ui.allocate_exact_size(vec2(thumb_size, thumb_size), Sense::hover());
-            ui.painter().rect_filled(
-                thumb_rect,
-                CornerRadius::ZERO,
-                Color32::from_rgb(18, 22, 28),
-            );
+            ui.painter()
+                .rect_filled(thumb_rect, CornerRadius::ZERO, t.bg);
             ui.painter().rect_stroke(
                 thumb_rect,
                 CornerRadius::ZERO,
@@ -169,9 +166,9 @@ fn render_shapes_section(
                 let is_selected = state.selected_collision_shape_id == Some(shape.id);
 
                 let bg_color = if is_selected {
-                    Color32::from_rgb(32, 38, 48)
+                    theme::tint(t.accent, 0.16)
                 } else {
-                    Color32::from_rgb(22, 26, 32)
+                    t.sunken
                 };
                 let stroke = if is_selected {
                     Stroke::new(1.5, t.accent)
@@ -183,7 +180,7 @@ fn render_shapes_section(
                     .fill(bg_color)
                     .stroke(stroke)
                     .corner_radius(CornerRadius::ZERO)
-                    .inner_margin(egui::Margin::symmetric(8, 6));
+                    .inner_margin(Margin::symmetric(8, 6));
 
                 let card_resp = card_frame.show(ui, |ui| {
                     ui.vertical(|ui| {
@@ -202,11 +199,8 @@ fn render_shapes_section(
                             };
 
                             let badge_rect = Rect::from_min_size(ui.cursor().min, vec2(38.0, 16.0));
-                            ui.painter().rect_filled(
-                                badge_rect,
-                                CornerRadius::ZERO,
-                                Color32::from_rgb(14, 18, 22),
-                            );
+                            ui.painter()
+                                .rect_filled(badge_rect, CornerRadius::ZERO, t.bg);
                             ui.painter().rect_stroke(
                                 badge_rect,
                                 CornerRadius::ZERO,
@@ -217,7 +211,7 @@ fn render_shapes_section(
                                 badge_rect.center(),
                                 Align2::CENTER_CENTER,
                                 type_name,
-                                FontId::monospace(9.5),
+                                FontId::new(9.5, theme::mono_for(ui.ctx())),
                                 t.accent_ink,
                             );
                             ui.allocate_rect(badge_rect, Sense::hover());
@@ -250,7 +244,7 @@ fn render_shapes_section(
                                 egui::TextEdit::singleline(&mut shape.tag)
                                     .hint_text("tag...")
                                     .desired_width(85.0)
-                                    .font(FontId::proportional(11.0)),
+                                    .font(FontId::new(11.0, FontFamily::Proportional)),
                             );
                             if tag_edit.changed() {
                                 shape_modified = true;

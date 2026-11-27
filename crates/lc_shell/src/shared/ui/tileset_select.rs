@@ -48,7 +48,7 @@ pub fn is_tileset_select_open(ui: &Ui) -> bool {
     egui::Popup::is_id_open(ui.ctx(), popup_id)
 }
 
-/// Renders a searchable selection dropdown backed by [`search_picker`].
+/// Renders a searchable selection dropdown backed by [`search_picker`] with standard 160 px width.
 ///
 /// Returns `true` if the selection changed this frame.
 pub fn tileset_select<Id: Clone + PartialEq + 'static>(
@@ -56,6 +56,34 @@ pub fn tileset_select<Id: Clone + PartialEq + 'static>(
     items: &[TilesetSelectItem<Id>],
     selected: &mut Option<Id>,
     allow_none: bool,
+) -> bool {
+    tileset_select_inner(ui, items, selected, allow_none, 160.0)
+}
+
+/// Renders a searchable selection dropdown backed by [`search_picker`] spanning the full available width.
+///
+/// Returns `true` if the selection changed this frame.
+pub fn tileset_select_full_width<Id: Clone + PartialEq + 'static>(
+    ui: &mut Ui,
+    items: &[TilesetSelectItem<Id>],
+    selected: &mut Option<Id>,
+    allow_none: bool,
+) -> bool {
+    tileset_select_inner(
+        ui,
+        items,
+        selected,
+        allow_none,
+        ui.available_width().max(80.0),
+    )
+}
+
+fn tileset_select_inner<Id: Clone + PartialEq + 'static>(
+    ui: &mut Ui,
+    items: &[TilesetSelectItem<Id>],
+    selected: &mut Option<Id>,
+    allow_none: bool,
+    width: f32,
 ) -> bool {
     let t = Tokens::get(ui.ctx());
     let state_id = ui.id().with("tileset_select_picker_state");
@@ -83,17 +111,12 @@ pub fn tileset_select<Id: Clone + PartialEq + 'static>(
     let mut changed = false;
 
     // Trigger button showing current selection + chevron
-    let (rect, resp) = ui.allocate_exact_size(vec2(160.0, CONTROL_HEIGHT_FORM), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, CONTROL_HEIGHT_FORM), Sense::click());
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let bg = if resp.hovered() { t.panel } else { t.sunken };
-        painter.rect_filled(rect, CornerRadius::same(3), bg);
-        painter.rect_stroke(
-            rect,
-            CornerRadius::same(3),
-            t.hairline(),
-            StrokeKind::Inside,
-        );
+        painter.rect_filled(rect, CornerRadius::ZERO, bg);
+        painter.rect_stroke(rect, CornerRadius::ZERO, t.hairline(), StrokeKind::Inside);
 
         let icon_sz = 12.0;
         let right_x = rect.max.x - 12.0;
@@ -196,5 +219,40 @@ mod tests {
             !output.shapes.is_empty(),
             "tileset_select should produce render shapes"
         );
+    }
+
+    #[test]
+    fn test_tileset_select_full_width_fills_container_with_zero_radius() {
+        let ctx = Context::default();
+        theme::install_fonts(&ctx);
+        theme::apply(&ctx, ThemeChoice::Dark);
+
+        let items = vec![TilesetSelectItem::new(1, "TerrainType")];
+        let mut selected = Some(1);
+
+        let raw_input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(224.0, 200.0))),
+            ..Default::default()
+        };
+
+        let mut output = ctx.run_ui(raw_input, |ui| {
+            ui.allocate_ui(vec2(224.0, 40.0), |ui| {
+                let changed = tileset_select_full_width(ui, &items, &mut selected, true);
+                assert!(!changed);
+            });
+        });
+        output.textures_delta.clear();
+
+        let trigger_rect = output.shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Rect(r) if (r.rect.height() - CONTROL_HEIGHT_FORM).abs() < 0.5 => Some(r),
+            _ => None,
+        });
+        let trigger = trigger_rect.expect("full width dropdown trigger rect must exist");
+        assert!(
+            (trigger.rect.width() - 224.0).abs() < 1.0,
+            "full width dropdown must fill 224px container, got {}",
+            trigger.rect.width()
+        );
+        assert_eq!(trigger.corner_radius, CornerRadius::ZERO);
     }
 }

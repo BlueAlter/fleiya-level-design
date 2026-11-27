@@ -12,40 +12,87 @@ use egui::{
     TextStyle, Visuals,
 };
 
-/// Appearance preference selected by the user.
+/// Appearance preference selected by the user (PhotoCraft Studio/Pro/Soft palettes).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ThemeChoice {
-    /// Follow the operating system.
+    /// Follow the operating system (PhotoCraft Studio Dark / Light).
     #[default]
     System,
-    /// Always use the dark palette.
+    /// PhotoCraft Studio Dark (near-black surfaces with soft violet accent).
     Dark,
-    /// Always use the light palette.
+    /// PhotoCraft Studio Light.
     Light,
+    /// PhotoCraft Pro Dark (Photoshop-style flat charcoal).
+    ProDark,
+    /// PhotoCraft Pro Medium Gray (Photoshop default medium gray).
+    ProMedium,
+    /// PhotoCraft Pro Light.
+    ProLight,
+    /// PhotoCraft Soft Dark (muted violet-grey low-contrast dark).
+    SoftDark,
+    /// PhotoCraft Soft Light (pale violet-grey low-contrast light).
+    SoftLight,
+    /// PhotoCraft Solarized Dark.
+    SolarizedDark,
 }
 
 impl ThemeChoice {
     /// All choices, in menu order.
-    pub const ALL: [Self; 3] = [Self::System, Self::Dark, Self::Light];
+    pub const ALL: [Self; 9] = [
+        Self::System,
+        Self::Dark,
+        Self::Light,
+        Self::ProDark,
+        Self::ProMedium,
+        Self::ProLight,
+        Self::SoftDark,
+        Self::SoftLight,
+        Self::SolarizedDark,
+    ];
 
     /// Short label for menus.
     pub fn label(self) -> &'static str {
         match self {
-            Self::System => "System",
-            Self::Dark => "Dark",
-            Self::Light => "Light",
+            Self::System => "System (Studio)",
+            Self::Dark => "Studio (Dark)",
+            Self::Light => "Studio (Light)",
+            Self::ProDark => "Pro (Dark)",
+            Self::ProMedium => "Pro (Medium Gray)",
+            Self::ProLight => "Pro (Light)",
+            Self::SoftDark => "Soft Dark",
+            Self::SoftLight => "Soft Light",
+            Self::SolarizedDark => "Solarized Dark",
+        }
+    }
+
+    /// Resolves the [`Tokens`] palette for this choice given whether OS is dark.
+    pub const fn tokens(self, system_is_dark: bool) -> Tokens {
+        match self {
+            Self::System => {
+                if system_is_dark {
+                    Tokens::DARK
+                } else {
+                    Tokens::LIGHT
+                }
+            }
+            Self::Dark => Tokens::DARK,
+            Self::Light => Tokens::LIGHT,
+            Self::ProDark => Tokens::PRO_DARK,
+            Self::ProMedium => Tokens::PRO_MEDIUM,
+            Self::ProLight => Tokens::PRO_LIGHT,
+            Self::SoftDark => Tokens::SOFT_DARK,
+            Self::SoftLight => Tokens::SOFT_LIGHT,
+            Self::SolarizedDark => Tokens::SOLARIZED_DARK,
         }
     }
 }
 
-const fn hex(rgb: u32) -> Color32 {
-    let [_, r, g, b] = rgb.to_be_bytes();
+const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-const fn ink_alpha(rgb: u32, alpha: u8) -> Color32 {
-    let [_, r, g, b] = rgb.to_be_bytes();
-    Color32::from_rgba_unmultiplied_const(r, g, b, alpha)
+const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied_const(r, g, b, a)
 }
 
 /// Colour tokens for one appearance.
@@ -98,70 +145,240 @@ pub struct Tokens {
     pub selection_stroke: Color32,
 }
 
+const ACTIVE_THEME_CHOICE: &str = "lc_active_theme_choice";
+
 impl Tokens {
-    /// Dark editor palette.
+    /// PhotoCraft Studio (Dark) palette — default dark appearance.
     pub const DARK: Self = Self {
         dark: true,
-        bg: hex(0x121316),
-        panel: hex(0x121316),
-        sunken: hex(0x060607),
-        canvas: hex(0x0e0f11),
-        ink: hex(0xf2f1ee),
-        ink_strong: hex(0xffffff),
-        muted: ink_alpha(0xf2f1ee, 153),
-        faint: ink_alpha(0xf2f1ee, 97),
-        line: ink_alpha(0xf2f1ee, 38),
-        line_strong: ink_alpha(0xf2f1ee, 102),
-        accent: hex(0x2d81ff),
-        accent_ink: hex(0x74aaff),
-        invert_bg: hex(0xffffff),
-        invert_fg: hex(0x0b0b0c),
-        good: hex(0x3fd6b8),
-        warn: hex(0xffc14d),
-        bad: hex(0xff6259),
-        grid_minor: ink_alpha(0xf2f1ee, 14),
-        grid_major: ink_alpha(0xf2f1ee, 30),
-        axis_x: ink_alpha(0xff6259, 90),
-        axis_y: ink_alpha(0x3fd6b8, 90),
-        selection_fill: ink_alpha(0x2d81ff, 46),
-        selection_stroke: hex(0x74aaff),
+        bg: rgb(17, 17, 18),
+        panel: rgb(26, 26, 28),
+        sunken: rgb(35, 35, 38),
+        canvas: rgb(14, 14, 15),
+        ink: rgb(236, 236, 240),
+        ink_strong: rgb(255, 255, 255),
+        muted: rgb(150, 150, 158),
+        faint: rgb(96, 96, 104),
+        line: rgb(40, 40, 44),
+        line_strong: rgb(52, 52, 57),
+        accent: rgb(139, 124, 246),
+        accent_ink: rgb(214, 208, 255),
+        invert_bg: rgb(246, 246, 248),
+        invert_fg: rgb(12, 12, 14),
+        good: rgb(61, 214, 184),
+        warn: rgb(240, 190, 90),
+        bad: rgb(240, 96, 96),
+        grid_minor: rgba(255, 255, 255, 14),
+        grid_major: rgba(255, 255, 255, 30),
+        axis_x: rgba(240, 96, 96, 90),
+        axis_y: rgba(61, 214, 184, 90),
+        selection_fill: rgba(139, 124, 246, 46),
+        selection_stroke: rgb(214, 208, 255),
     };
 
-    /// Light editor palette.
+    /// PhotoCraft Studio (Light) palette — default light appearance.
     pub const LIGHT: Self = Self {
         dark: false,
-        bg: hex(0xf2f1ee),
-        panel: hex(0xf2f1ee),
-        sunken: hex(0xe9e8e4),
-        canvas: hex(0xf7f6f3),
-        ink: hex(0x101014),
-        ink_strong: hex(0x000000),
-        muted: ink_alpha(0x101014, 158),
-        faint: ink_alpha(0x101014, 107),
-        line: ink_alpha(0x101014, 41),
-        line_strong: ink_alpha(0x101014, 102),
-        accent: hex(0x2d81ff),
-        accent_ink: hex(0x1659c4),
-        invert_bg: hex(0x101014),
-        invert_fg: hex(0xf2f1ee),
-        good: hex(0x0a7563),
-        warn: hex(0x8a5800),
-        bad: hex(0xb3261e),
-        grid_minor: ink_alpha(0x101014, 16),
-        grid_major: ink_alpha(0x101014, 34),
-        axis_x: ink_alpha(0xb3261e, 80),
-        axis_y: ink_alpha(0x0a7563, 80),
-        selection_fill: ink_alpha(0x2d81ff, 40),
-        selection_stroke: hex(0x1659c4),
+        bg: rgb(240, 240, 243),
+        panel: rgb(252, 252, 253),
+        sunken: rgb(242, 242, 245),
+        canvas: rgb(226, 226, 230),
+        ink: rgb(24, 24, 28),
+        ink_strong: rgb(9, 9, 12),
+        muted: rgb(96, 96, 106),
+        faint: rgb(150, 150, 160),
+        line: rgb(222, 222, 228),
+        line_strong: rgb(214, 214, 220),
+        accent: rgb(108, 92, 231),
+        accent_ink: rgb(80, 64, 200),
+        invert_bg: rgb(20, 20, 24),
+        invert_fg: rgb(250, 250, 252),
+        good: rgb(10, 117, 99),
+        warn: rgb(190, 130, 20),
+        bad: rgb(210, 60, 60),
+        grid_minor: rgba(24, 24, 28, 16),
+        grid_major: rgba(24, 24, 28, 34),
+        axis_x: rgba(210, 60, 60, 80),
+        axis_y: rgba(10, 117, 99, 80),
+        selection_fill: rgba(108, 92, 231, 36),
+        selection_stroke: rgb(80, 64, 200),
     };
 
-    /// Tokens for the currently selected egui theme.
+    /// PhotoCraft Pro (Dark) palette — Photoshop-style flat charcoal.
+    pub const PRO_DARK: Self = Self {
+        dark: true,
+        bg: rgb(30, 30, 30),
+        panel: rgb(50, 50, 50),
+        sunken: rgb(36, 36, 36),
+        canvas: rgb(40, 40, 40),
+        ink: rgb(222, 222, 222),
+        ink_strong: rgb(255, 255, 255),
+        muted: rgb(178, 178, 178),
+        faint: rgb(128, 128, 128),
+        line: rgb(30, 30, 30),
+        line_strong: rgb(74, 74, 74),
+        accent: rgb(55, 142, 240),
+        accent_ink: rgb(255, 255, 255),
+        invert_bg: rgb(55, 142, 240),
+        invert_fg: rgb(255, 255, 255),
+        good: rgb(61, 214, 184),
+        warn: rgb(232, 176, 70),
+        bad: rgb(236, 91, 98),
+        grid_minor: rgba(255, 255, 255, 14),
+        grid_major: rgba(255, 255, 255, 30),
+        axis_x: rgba(236, 91, 98, 90),
+        axis_y: rgba(61, 214, 184, 90),
+        selection_fill: rgba(55, 142, 240, 46),
+        selection_stroke: rgb(55, 142, 240),
+    };
+
+    /// PhotoCraft Pro (Medium Gray) palette — PhotoCraft suite default.
+    pub const PRO_MEDIUM: Self = Self {
+        dark: true,
+        bg: rgb(66, 66, 66),
+        panel: rgb(83, 83, 83),
+        sunken: rgb(69, 69, 69),
+        canvas: rgb(40, 40, 40),
+        ink: rgb(238, 238, 238),
+        ink_strong: rgb(255, 255, 255),
+        muted: rgb(212, 212, 212),
+        faint: rgb(160, 160, 160),
+        line: rgb(62, 62, 62),
+        line_strong: rgb(104, 104, 104),
+        accent: rgb(55, 142, 240),
+        accent_ink: rgb(255, 255, 255),
+        invert_bg: rgb(55, 142, 240),
+        invert_fg: rgb(255, 255, 255),
+        good: rgb(61, 214, 184),
+        warn: rgb(232, 176, 70),
+        bad: rgb(236, 91, 98),
+        grid_minor: rgba(255, 255, 255, 14),
+        grid_major: rgba(255, 255, 255, 30),
+        axis_x: rgba(236, 91, 98, 90),
+        axis_y: rgba(61, 214, 184, 90),
+        selection_fill: rgba(55, 142, 240, 46),
+        selection_stroke: rgb(55, 142, 240),
+    };
+
+    /// PhotoCraft Pro (Light) palette.
+    pub const PRO_LIGHT: Self = Self {
+        dark: false,
+        bg: rgb(226, 226, 226),
+        panel: rgb(240, 240, 240),
+        sunken: rgb(255, 255, 255),
+        canvas: rgb(214, 214, 214),
+        ink: rgb(20, 20, 20),
+        ink_strong: rgb(0, 0, 0),
+        muted: rgb(64, 64, 64),
+        faint: rgb(120, 120, 120),
+        line: rgb(214, 214, 214),
+        line_strong: rgb(186, 186, 186),
+        accent: rgb(55, 142, 240),
+        accent_ink: rgb(16, 98, 196),
+        invert_bg: rgb(55, 142, 240),
+        invert_fg: rgb(255, 255, 255),
+        good: rgb(10, 117, 99),
+        warn: rgb(190, 130, 20),
+        bad: rgb(210, 60, 60),
+        grid_minor: rgba(20, 20, 20, 16),
+        grid_major: rgba(20, 20, 20, 34),
+        axis_x: rgba(210, 60, 60, 80),
+        axis_y: rgba(10, 117, 99, 80),
+        selection_fill: rgba(55, 142, 240, 40),
+        selection_stroke: rgb(16, 98, 196),
+    };
+
+    /// PhotoCraft Soft Dark palette (muted violet-grey low-contrast dark).
+    pub const SOFT_DARK: Self = Self {
+        dark: true,
+        bg: rgb(47, 47, 56),
+        panel: rgb(54, 54, 64),
+        sunken: rgb(64, 64, 75),
+        canvas: rgb(40, 40, 48),
+        ink: rgb(238, 238, 246),
+        ink_strong: rgb(255, 255, 255),
+        muted: rgb(212, 212, 224),
+        faint: rgb(190, 190, 206),
+        line: rgb(70, 70, 82),
+        line_strong: rgb(84, 84, 98),
+        accent: rgb(138, 154, 232),
+        accent_ink: rgb(190, 200, 252),
+        invert_bg: rgb(86, 104, 196),
+        invert_fg: rgb(255, 255, 255),
+        good: rgb(61, 214, 184),
+        warn: rgb(240, 200, 130),
+        bad: rgb(250, 160, 172),
+        grid_minor: rgba(238, 238, 246, 14),
+        grid_major: rgba(238, 238, 246, 30),
+        axis_x: rgba(250, 160, 172, 90),
+        axis_y: rgba(61, 214, 184, 90),
+        selection_fill: rgba(138, 154, 232, 48),
+        selection_stroke: rgb(190, 200, 252),
+    };
+
+    /// PhotoCraft Soft Light palette.
+    pub const SOFT_LIGHT: Self = Self {
+        dark: false,
+        bg: rgb(226, 224, 231),
+        panel: rgb(240, 238, 243),
+        sunken: rgb(250, 249, 252),
+        canvas: rgb(218, 216, 224),
+        ink: rgb(44, 42, 56),
+        ink_strong: rgb(24, 22, 34),
+        muted: rgb(62, 60, 76),
+        faint: rgb(80, 78, 96),
+        line: rgb(208, 205, 215),
+        line_strong: rgb(190, 187, 201),
+        accent: rgb(110, 128, 216),
+        accent_ink: rgb(46, 58, 146),
+        invert_bg: rgb(80, 98, 190),
+        invert_fg: rgb(255, 255, 255),
+        good: rgb(10, 117, 99),
+        warn: rgb(140, 72, 0),
+        bad: rgb(166, 44, 62),
+        grid_minor: rgba(44, 42, 56, 16),
+        grid_major: rgba(44, 42, 56, 34),
+        axis_x: rgba(166, 44, 62, 80),
+        axis_y: rgba(10, 117, 99, 80),
+        selection_fill: rgba(110, 128, 216, 44),
+        selection_stroke: rgb(46, 58, 146),
+    };
+
+    /// PhotoCraft Solarized Dark palette.
+    pub const SOLARIZED_DARK: Self = Self {
+        dark: true,
+        bg: rgb(0, 37, 47),
+        panel: rgb(7, 54, 66),
+        sunken: rgb(0, 37, 47),
+        canvas: rgb(0, 43, 54),
+        ink: rgb(131, 148, 150),
+        ink_strong: rgb(253, 246, 227),
+        muted: rgb(101, 123, 131),
+        faint: rgb(88, 110, 117),
+        line: rgb(0, 37, 47),
+        line_strong: rgb(21, 80, 95),
+        accent: rgb(38, 139, 210),
+        accent_ink: rgb(253, 246, 227),
+        invert_bg: rgb(38, 139, 210),
+        invert_fg: rgb(253, 246, 227),
+        good: rgb(42, 161, 152),
+        warn: rgb(181, 137, 0),
+        bad: rgb(220, 50, 47),
+        grid_minor: rgba(131, 148, 150, 16),
+        grid_major: rgba(131, 148, 150, 34),
+        axis_x: rgba(220, 50, 47, 90),
+        axis_y: rgba(42, 161, 152, 90),
+        selection_fill: rgba(38, 139, 210, 46),
+        selection_stroke: rgb(253, 246, 227),
+    };
+
+    /// Tokens for the currently active PhotoCraft theme.
     pub fn get(ctx: &egui::Context) -> Self {
-        if ctx.theme() == egui::Theme::Dark {
-            Self::DARK
-        } else {
-            Self::LIGHT
-        }
+        let system_is_dark = ctx.theme() == egui::Theme::Dark;
+        let choice = ctx
+            .data(|d| d.get_temp::<ThemeChoice>(Id::new(ACTIVE_THEME_CHOICE)))
+            .unwrap_or(ThemeChoice::System);
+        choice.tokens(system_is_dark)
     }
 
     /// A 1 px hairline stroke.
@@ -255,13 +472,24 @@ fn visuals(t: &Tokens) -> Visuals {
 /// `ctx.set_fonts` (called by [`install_fonts`]) only takes effect on the next
 /// frame. Call this once during startup, before the first frame is drawn.
 pub fn apply(ctx: &egui::Context, choice: ThemeChoice) {
-    ctx.set_visuals_of(egui::Theme::Dark, visuals(&Tokens::DARK));
-    ctx.set_visuals_of(egui::Theme::Light, visuals(&Tokens::LIGHT));
-    ctx.set_theme(match choice {
-        ThemeChoice::System => egui::ThemePreference::System,
-        ThemeChoice::Dark => egui::ThemePreference::Dark,
-        ThemeChoice::Light => egui::ThemePreference::Light,
-    });
+    ctx.data_mut(|d| d.insert_temp(Id::new(ACTIVE_THEME_CHOICE), choice));
+    match choice {
+        ThemeChoice::System => {
+            ctx.set_visuals_of(egui::Theme::Dark, visuals(&Tokens::DARK));
+            ctx.set_visuals_of(egui::Theme::Light, visuals(&Tokens::LIGHT));
+            ctx.set_theme(egui::ThemePreference::System);
+        }
+        other => {
+            let t = other.tokens(true);
+            if t.dark {
+                ctx.set_visuals_of(egui::Theme::Dark, visuals(&t));
+                ctx.set_theme(egui::ThemePreference::Dark);
+            } else {
+                ctx.set_visuals_of(egui::Theme::Light, visuals(&t));
+                ctx.set_theme(egui::ThemePreference::Light);
+            }
+        }
+    }
 
     // Resolve families before taking the style lock: `all_styles_mut` holds the
     // context write lock, and the `*_for` helpers read context data.
@@ -484,6 +712,9 @@ mod tests {
         assert_ne!(Tokens::DARK.bg, Tokens::LIGHT.bg);
         assert_ne!(Tokens::DARK.ink, Tokens::LIGHT.ink);
         assert_ne!(Tokens::DARK.canvas, Tokens::LIGHT.canvas);
+        assert_ne!(Tokens::DARK.bg, Tokens::PRO_DARK.bg);
+        assert_ne!(Tokens::PRO_DARK.panel, Tokens::PRO_MEDIUM.panel);
+        assert_ne!(Tokens::SOFT_DARK.bg, Tokens::SOLARIZED_DARK.bg);
     }
 
     #[test]

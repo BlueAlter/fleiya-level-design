@@ -10,15 +10,15 @@ use lc_shell::ShellApp;
 #[test]
 fn test_app_mode_default_and_switching() {
     let mut app = ShellApp::new(Project::new("Test Project"));
-    assert_eq!(app.active_mode, AppMode::Editor);
-
-    // Switch to Enums mode
-    app.active_mode = AppMode::Enums;
     assert_eq!(app.active_mode, AppMode::Enums);
 
-    // Switch back to Editor mode
-    app.active_mode = AppMode::Editor;
-    assert_eq!(app.active_mode, AppMode::Editor);
+    // Switch to Tilesets mode
+    app.active_mode = AppMode::Tilesets;
+    assert_eq!(app.active_mode, AppMode::Tilesets);
+
+    // Switch back to Enums mode
+    app.active_mode = AppMode::Enums;
+    assert_eq!(app.active_mode, AppMode::Enums);
 }
 
 #[test]

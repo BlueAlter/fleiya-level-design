@@ -1,8 +1,11 @@
 //! Project-wide entity instance helpers shared by commands and tools.
 
+use lc_core::fields::{AllowedRefs, FieldDef};
 use lc_core::id::{EntityDefId, EntityId, LevelId, WorldId};
 use lc_core::layer::{EntityInstance, LayerData};
 use lc_core::project::Project;
+
+use crate::field_editors::{entity_choice_label, EntityChoice};
 
 /// Location of an entity instance inside the project.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,20 +97,48 @@ pub(crate) fn for_each_instance_mut(
     }
 }
 
-/// Returns the next free entity instance id across the whole project.
+/// Returns the next free entity instance id across the whole project,
+/// honoring the monotonic high-water mark when set.
 pub fn next_entity_id(p: &Project) -> EntityId {
-    let max = p
-        .worlds
-        .iter()
-        .flat_map(|w| &w.levels)
-        .flat_map(|l| &l.layers)
-        .filter_map(|layer| match &layer.data {
-            LayerData::Entities(entities) => Some(entities),
-            _ => None,
-        })
-        .flatten()
-        .map(|e| e.id.0)
-        .max()
-        .unwrap_or(0);
-    EntityId(max.saturating_add(1))
+    let floor = p.max_live_entity_id().saturating_add(1);
+    EntityId(p.next_entity_id.unwrap_or(floor).max(floor))
+}
+
+/// Filters project entity instances according to [`FieldDef::allowed_refs`] rules.
+pub fn filter_entity_choices(
+    p: &Project,
+    owner_def_id: EntityDefId,
+    field: &FieldDef,
+) -> Vec<EntityChoice> {
+    let mut out = Vec::new();
+    for world in &p.worlds {
+        for level in &world.levels {
+            for layer in &level.layers {
+                if let LayerData::Entities(entities) = &layer.data {
+                    for entity in entities {
+                        let Some(target_def) = p.defs.entity(entity.def_id) else {
+                            continue;
+                        };
+                        let allowed = match field.allowed_refs {
+                            AllowedRefs::Any => true,
+                            AllowedRefs::OnlySame => entity.def_id == owner_def_id,
+                            AllowedRefs::OnlySpecificEntity => {
+                                field.allowed_refs_entity_id == Some(entity.def_id)
+                            }
+                            AllowedRefs::OnlyTags => field.allowed_ref_tags.iter().any(|tag| {
+                                target_def.tags.iter().any(|t| t.eq_ignore_ascii_case(tag))
+                            }),
+                        };
+                        if allowed {
+                            out.push(EntityChoice {
+                                id: entity.id,
+                                label: entity_choice_label(&target_def.name, entity.id),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
 }

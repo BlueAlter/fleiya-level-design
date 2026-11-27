@@ -8,8 +8,12 @@
 //! - [`def_footer`]: docked footer with "ID: ... • Used by ..." status and action buttons
 
 pub mod left_panel;
+pub mod tag_groups;
 
-pub use left_panel::{def_left_panel, DefItem, DefLeftPanelAction, DefLeftPanelConfig};
+pub use left_panel::{
+    def_left_panel, DefItem, DefItemIcon, DefLeftPanelAction, DefLeftPanelConfig,
+};
+pub use tag_groups::{group_items_by_tag, tag_group_container, TagGroup};
 
 use egui::{vec2, Align, CornerRadius, Frame, Layout, Margin, Pos2, Rect, RichText, Ui};
 use lc_canvas::theme::Tokens;

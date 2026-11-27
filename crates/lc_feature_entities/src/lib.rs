@@ -13,20 +13,26 @@ pub mod handler;
 pub mod helpers;
 pub mod inspector;
 pub mod instance_commands;
+pub mod limits;
+pub mod overlays;
 pub mod panel;
 pub mod refs;
 pub mod stroke;
+pub mod tool_helpers;
 pub mod tools;
 pub mod view;
 
 pub use commands::{
-    entity_def_usage, AddEntityDefCommand, RemoveEntityDefCommand, UpdateEntityDefCommand,
+    entity_def_usage, generate_unique_entity_name, AddEntityDefCommand, RemoveEntityDefCommand,
+    ReorderEntityDefCommand, UpdateEntityDefCommand,
 };
 pub use field_commands::{
-    AddEntityFieldCommand, RemoveEntityFieldCommand, UpdateEntityFieldCommand,
+    AddEntityFieldCommand, RemoveEntityFieldCommand, ReorderEntityFieldCommand,
+    UpdateEntityFieldCommand,
 };
 pub use field_defs::{
-    coerce_field_value, default_field_value, default_field_values, format_field_value,
+    coerce_field_value, coerce_for_field_def, default_field_value, default_field_values,
+    default_value_for_field, format_field_value,
 };
 pub use field_editors::{
     entity_choice_label, entity_choices, entity_def_label, field_type_editor, field_type_label,
@@ -34,11 +40,18 @@ pub use field_editors::{
 };
 pub use field_instance_commands::{EntityFieldUpdate, SetEntityFieldValuesCommand};
 pub use handler::EntitiesLayerHandler;
-pub use helpers::{count_entity_def_instances, find_entity_def_instances, EntityLocation};
+pub use helpers::{
+    count_entity_def_instances, filter_entity_choices, find_entity_def_instances,
+    find_entity_location, next_entity_id, EntityLocation,
+};
 pub use inspector::EntityInspectorSection;
 pub use instance_commands::{
     AddEntityInstancesCommand, RemoveEntityInstancesCommand, SetEntityPositionsCommand,
     SetEntitySizesCommand,
+};
+pub use limits::{
+    can_place_with_limits, instances_in_limit_scope, PlaceEntityWithLimitsCommand,
+    ScopedEntityLocation,
 };
 pub use panel::EntitiesPanel;
 pub use stroke::{next_stroke_id, FocusStrokeTracker, StrokeTracker};

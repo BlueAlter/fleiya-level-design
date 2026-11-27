@@ -3,7 +3,7 @@
 use crate::assets::AssetService;
 use crate::events::EditorEvent;
 use crate::selection::Selection;
-use crate::session::{SessionState, TileSelection};
+use crate::session::{CanvasPickMode, SessionState, TileSelection};
 use lc_core::command::{Command, DocKind, UndoStack};
 use lc_core::id::{LayerDefId, LevelId};
 use lc_core::project::Project;
@@ -90,6 +90,11 @@ impl<'a> EditorCtx<'a> {
     /// Convenience getter for currently selected tiles in palette.
     pub fn tile_selection(&self) -> Option<&TileSelection> {
         self.session.tile_selection.as_ref()
+    }
+
+    /// Convenience getter for active interactive canvas picking mode, if any.
+    pub fn pick_mode(&self) -> Option<&CanvasPickMode> {
+        self.session.pick_mode.as_ref()
     }
 
     /// Returns true if an undo operation is currently possible.

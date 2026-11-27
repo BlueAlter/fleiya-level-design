@@ -8,27 +8,31 @@
 
 use egui::{Key, PointerButton};
 use glam::{IVec2, UVec2};
-use lc_core::defs::EntityDef;
-use lc_core::id::{EntityDefId, EntityId, LayerDefId, LevelId};
-use lc_core::layer::{EntityInstance, LayerData, LayerKind};
-use lc_core::level::Level;
+use lc_core::id::{EntityId, LayerDefId, LevelId};
+use lc_core::layer::EntityInstance;
 use lc_ui_api::canvas::{CanvasCtx, CanvasTool};
 use lc_ui_api::context::EditorCtx;
 use lc_ui_api::events::EditorEvent;
 use lc_ui_api::selection::Selection;
 
 use crate::field_defs::default_field_values;
-use crate::geometry::{entity_layer_of, snap_size};
+use crate::geometry::{
+    clamp_position_for_def, entity_layer_of, hit_resize_handle, pick_entity_at_with_defs,
+    ResizeHandle,
+};
 use crate::helpers::next_entity_id;
 use crate::instance_commands::{
     AddEntityInstancesCommand, RemoveEntityInstancesCommand, SetEntityPositionsCommand,
     SetEntitySizesCommand,
 };
+use crate::limits::{can_place_with_limits, PlaceEntityWithLimitsCommand};
 use crate::stroke::next_stroke_id;
+use crate::tool_helpers::{compute_resized_rect, handle_pick_click};
 
 pub use crate::geometry::{
     clamp_position, grid_size, local_pos, pick_entity_at, selected_in_level, snap_to_grid,
 };
+pub use crate::tool_helpers::{active_entities_layer, placement_def_id};
 
 #[derive(Debug)]
 enum DragKind {
@@ -38,7 +42,11 @@ enum DragKind {
     },
     Resize {
         id: EntityId,
+        handle: ResizeHandle,
+        start_pos: IVec2,
         start_size: UVec2,
+        keep_aspect: bool,
+        allow_out_of_bounds: bool,
         grid: IVec2,
     },
 }
@@ -171,7 +179,22 @@ impl EntityCanvasTool {
         };
 
         let grid = grid_size(cx.project(), level, layer_def_id);
-        let position = clamp_position(snap_to_grid(local, grid), def.size_px, level.size_px);
+        let world_id = cx.project().level_and_world(level_id).map(|(w, _)| w.id);
+        if let Some(wid) = world_id {
+            if !can_place_with_limits(cx.project(), def_id, wid, level_id, layer_def_id) {
+                cx.status(format!(
+                    "Cannot place '{}': max count ({}) reached",
+                    def.name, def.max_count
+                ));
+                return;
+            }
+        }
+        let position = clamp_position_for_def(
+            snap_to_grid(local, grid),
+            def.size_px,
+            level.size_px,
+            def.allow_out_of_bounds,
+        );
         let entity = EntityInstance {
             id: next_entity_id(cx.project()),
             def_id,
@@ -181,10 +204,10 @@ impl EntityCanvasTool {
         };
         let new_id = entity.id;
         let def_name = def.name.clone();
-        cx.exec(AddEntityInstancesCommand::new(
+        cx.exec(PlaceEntityWithLimitsCommand::new(
             level_id,
             layer_def_id,
-            vec![entity],
+            entity,
         ));
         cx.emit(EditorEvent::SelectionChanged(Selection::Entities(vec![
             new_id,
@@ -200,7 +223,7 @@ impl EntityCanvasTool {
         let Some(local) = local_pos(cv, level) else {
             return;
         };
-        let hit = pick_entity_at(level, local);
+        let hit = pick_entity_at_with_defs(cx.project(), level, local, cv.viewport.zoom);
 
         let mut ids: Vec<EntityId> = if additive {
             // Never seed a cross-level selection: shift-click only extends
@@ -244,7 +267,8 @@ impl EntityCanvasTool {
         let Some(local) = local_pos(cv, level) else {
             return;
         };
-        let Some(id) = pick_entity_at(level, local) else {
+        let Some(id) = pick_entity_at_with_defs(cx.project(), level, local, cv.viewport.zoom)
+        else {
             return;
         };
         cx.exec(RemoveEntityInstancesCommand::new(level_id, vec![id]));
@@ -260,7 +284,44 @@ impl EntityCanvasTool {
         let Some(local) = local_pos(cv, &level) else {
             return;
         };
-        let Some(hit) = pick_entity_at(&level, local) else {
+
+        // Check resize handles on currently selected single entity first
+        let cur_selected = selected_in_level(cx.selection(), &level);
+        if cur_selected.len() == 1 {
+            if let Some(entity) = level.entity(cur_selected[0]) {
+                if let Some(def) = cx.project().defs.entity(entity.def_id) {
+                    if let Some(handle) = hit_resize_handle(
+                        entity.pos_px,
+                        entity.size_px,
+                        local,
+                        cv.viewport.zoom,
+                        def.resizable_x,
+                        def.resizable_y,
+                    ) {
+                        let grid = entity_layer_of(&level, entity.id)
+                            .map(|id| grid_size(cx.project(), &level, id))
+                            .unwrap_or_else(|| IVec2::splat(16));
+                        self.drag = Some(DragState {
+                            kind: DragKind::Resize {
+                                id: entity.id,
+                                handle,
+                                start_pos: entity.pos_px,
+                                start_size: entity.size_px,
+                                keep_aspect: def.keep_aspect_ratio,
+                                allow_out_of_bounds: def.allow_out_of_bounds,
+                                grid,
+                            },
+                            origin: local,
+                            stroke_id: next_stroke_id(),
+                        });
+                        return;
+                    }
+                }
+            }
+        }
+
+        let Some(hit) = pick_entity_at_with_defs(cx.project(), &level, local, cv.viewport.zoom)
+        else {
             return;
         };
 
@@ -288,27 +349,6 @@ impl EntityCanvasTool {
         let grid = layer_def_id
             .map(|id| grid_size(cx.project(), &level, id))
             .unwrap_or_else(|| IVec2::splat(16));
-
-        // Resize when the pointer grabs the bottom-right corner of a single
-        // selected entity.
-        if selected.len() == 1 {
-            if let Some(entity) = level.entity(selected[0]) {
-                let corner = entity.pos_px + entity.size_px.as_ivec2();
-                let threshold = (8.0 / cv.viewport.zoom).max(2.0) as i32;
-                if (local - corner).abs().max_element() <= threshold {
-                    self.drag = Some(DragState {
-                        kind: DragKind::Resize {
-                            id: entity.id,
-                            start_size: entity.size_px,
-                            grid,
-                        },
-                        origin: local,
-                        stroke_id: next_stroke_id(),
-                    });
-                    return;
-                }
-            }
-        }
 
         let starts: Vec<(EntityId, IVec2)> = selected
             .into_iter()
@@ -342,16 +382,24 @@ impl EntityCanvasTool {
                 let positions: Vec<(EntityId, IVec2)> = starts
                     .iter()
                     .map(|(id, start)| {
-                        let size = level
+                        let (size, allow_oob) = level
                             .entity(*id)
-                            .map(|e| e.size_px)
-                            .unwrap_or_else(|| UVec2::splat(1));
+                            .map(|e| {
+                                let oob = cx
+                                    .project()
+                                    .defs
+                                    .entity(e.def_id)
+                                    .is_some_and(|d| d.allow_out_of_bounds);
+                                (e.size_px, oob)
+                            })
+                            .unwrap_or((UVec2::splat(1), false));
                         (
                             *id,
-                            clamp_position(
+                            clamp_position_for_def(
                                 snap_to_grid(*start + delta, *grid),
                                 size,
                                 level.size_px,
+                                allow_oob,
                             ),
                         )
                     })
@@ -364,17 +412,33 @@ impl EntityCanvasTool {
             }
             DragKind::Resize {
                 id,
+                handle,
+                start_pos,
                 start_size,
+                keep_aspect,
+                allow_out_of_bounds,
                 grid,
             } => {
-                let min = UVec2::new(grid.x.max(1) as u32, grid.y.max(1) as u32);
-                let target = start_size.as_ivec2() + delta;
-                let snapped = snap_size(target, *grid);
-                let width = (snapped.x.max(1) as u32).max(min.x.min(level.size_px.x.max(1)));
-                let height = (snapped.y.max(1) as u32).max(min.y.min(level.size_px.y.max(1)));
+                let (new_pos, new_size) = compute_resized_rect(
+                    *start_pos,
+                    *start_size,
+                    *handle,
+                    delta,
+                    *grid,
+                    *keep_aspect && !cv.modifiers.shift,
+                    *allow_out_of_bounds,
+                    level.size_px,
+                );
+                if new_pos != *start_pos {
+                    cx.exec(SetEntityPositionsCommand::with_stroke(
+                        level_id,
+                        vec![(*id, new_pos)],
+                        drag.stroke_id,
+                    ));
+                }
                 cx.exec(SetEntitySizesCommand::with_stroke(
                     level_id,
-                    vec![(*id, UVec2::new(width, height))],
+                    vec![(*id, new_size)],
                     drag.stroke_id,
                 ));
             }
@@ -389,6 +453,17 @@ impl CanvasTool for EntityCanvasTool {
 
     fn on_input(&mut self, cv: &mut CanvasCtx, cx: &mut EditorCtx) {
         self.handle_shortcuts(cv, cx);
+
+        if let Some(pick) = cx.pick_mode().cloned() {
+            if cv.response.ctx.input(|i| i.key_pressed(Key::Escape)) {
+                cx.emit(EditorEvent::SetCanvasPickMode(None));
+                cx.status("Cancelled pick mode");
+                return;
+            }
+            if cv.response.clicked_by(PointerButton::Primary) && handle_pick_click(cv, cx, &pick) {
+                return;
+            }
+        }
 
         let tool_name = cx.active_tool_name().to_string();
         let place_mode = tool_name == "Paint" || tool_name.starts_with("Place");
@@ -417,51 +492,4 @@ impl CanvasTool for EntityCanvasTool {
             }
         }
     }
-}
-
-/// Returns the active Entities layer, falling back to the first Entities layer
-/// in the level so tools also work from headless tests and direct calls.
-pub fn active_entities_layer(cx: &EditorCtx, cv: &CanvasCtx, level: &Level) -> Option<LayerDefId> {
-    if let Some(id) = cv.active_layer_id {
-        if cx
-            .project()
-            .defs
-            .layer(id)
-            .is_some_and(|def| def.kind == LayerKind::Entities)
-        {
-            return Some(id);
-        }
-    }
-    level
-        .layers
-        .iter()
-        .find(|layer| matches!(layer.data, LayerData::Entities(_)))
-        .map(|layer| layer.def_id)
-}
-
-/// Entity definition used for placement.
-///
-/// `Place #<uid>` (emitted by the Entities panel) wins, then the definition of
-/// the selected instance, then the project's first entity definition.
-pub fn placement_def_id(cx: &EditorCtx, tool_name: &str) -> Option<EntityDefId> {
-    if let Some(raw) = tool_name.strip_prefix("Place #") {
-        if let Ok(uid) = raw.trim().parse::<u64>() {
-            let id = EntityDefId::new(uid);
-            if cx.project().defs.entity(id).is_some() {
-                return Some(id);
-            }
-        }
-    }
-    if let Some(level) = cx.active_level().and_then(|id| cx.project().level(id)) {
-        for entity_id in cx.selection().entities().unwrap_or_default() {
-            if let Some(entity) = level.entity(*entity_id) {
-                return Some(entity.def_id);
-            }
-        }
-    }
-    cx.project()
-        .defs
-        .entities
-        .first()
-        .map(|def: &EntityDef| def.id)
 }

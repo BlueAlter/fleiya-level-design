@@ -3,6 +3,7 @@ use lc_core::command::{Command, DocKind};
 use lc_core::error::CoreError;
 use lc_core::id::LevelId;
 use lc_core::project::Project;
+use lc_shell::features::editor::app_mode::AppMode;
 use lc_shell::features::editor::dock_layout::DockSlotLocation;
 use lc_shell::ShellApp;
 use lc_ui_api::assets::{AssetError, AssetService};
@@ -171,6 +172,7 @@ fn test_panel_tab_reorder_and_insert_at_index() {
 #[test]
 fn test_escape_cancels_panel_drag() {
     let mut app = ShellApp::new(Project::new("DragEscapeProject"));
+    app.active_mode = AppMode::Editor;
     app.dock_layout.start_drag(PanelId::new("console"));
     assert!(app.dock_layout.dragging_panel.is_some());
 
@@ -286,6 +288,7 @@ fn test_active_level_cleared_when_closing_tab_or_switching() {
 #[test]
 fn test_drag_cancelled_when_released_outside_dock() {
     let mut app = ShellApp::new(Project::new("DragCancelProject"));
+    app.active_mode = AppMode::Editor;
     let console_id = PanelId::new("console");
 
     app.dock_layout.start_drag(console_id);

@@ -6,7 +6,7 @@
 
 use glam::IVec2;
 use lc_core::defs::{EntityDef, EnumDef};
-use lc_core::fields::{FieldType, FieldValue, FieldValues};
+use lc_core::fields::{FieldDef, FieldType, FieldValue, FieldValues};
 
 /// Returns the default value for `field_type`.
 ///
@@ -18,6 +18,7 @@ pub fn default_field_value(field_type: &FieldType, enum_defs: &[EnumDef]) -> Fie
         FieldType::Float => FieldValue::Float(0.0),
         FieldType::Bool => FieldValue::Bool(false),
         FieldType::String => FieldValue::String(String::new()),
+        FieldType::Multilines => FieldValue::Multilines(String::new()),
         FieldType::Color => FieldValue::Color([255, 255, 255, 255]),
         FieldType::Enum(enum_id) => {
             let first = enum_defs
@@ -29,26 +30,84 @@ pub fn default_field_value(field_type: &FieldType, enum_defs: &[EnumDef]) -> Fie
             FieldValue::Enum(first)
         }
         FieldType::Point => FieldValue::Point(IVec2::ZERO),
+        FieldType::FilePath => FieldValue::FilePath(String::new()),
         FieldType::EntityRef => FieldValue::EntityRef(None),
+        FieldType::Tile => FieldValue::Tile(None),
         FieldType::Array(_) => FieldValue::Array(Vec::new()),
     }
 }
 
+/// Computes the initial value for a [`FieldDef`], respecting `can_be_null` and `default_override`.
+pub fn default_value_for_field(field: &FieldDef, enum_defs: &[EnumDef]) -> FieldValue {
+    if let Some(val) = field.default_value.as_ref() {
+        return coerce_for_field_def(val, field, enum_defs);
+    }
+    if let Some(ovr) = field.default_override.as_ref() {
+        return coerce_for_field_def(ovr, field, enum_defs);
+    }
+    if field.can_be_null && !field.is_array() {
+        return FieldValue::Null;
+    }
+    clamp_numeric_value(
+        default_field_value(&field.field_type, enum_defs),
+        field.min,
+        field.max,
+    )
+}
+
 /// Builds the initial field-value map for a new entity instance.
-///
-/// Uses the definition's stored default when present, coerced to the field
-/// type, otherwise the type's zero value.
 pub fn default_field_values(def: &EntityDef, enum_defs: &[EnumDef]) -> FieldValues {
     let mut values = FieldValues::new();
     for field in &def.fields {
-        let value = field
-            .default_value
-            .as_ref()
-            .map(|value| coerce_field_value(value, &field.field_type, enum_defs))
-            .unwrap_or_else(|| default_field_value(&field.field_type, enum_defs));
-        values.set(field.name.clone(), value);
+        values.set(
+            field.name.clone(),
+            default_value_for_field(field, enum_defs),
+        );
     }
     values
+}
+
+/// Coerces `value` while honoring `field.can_be_null` and numeric `min`/`max` bounds.
+pub fn coerce_for_field_def(
+    value: &FieldValue,
+    field: &FieldDef,
+    enum_defs: &[EnumDef],
+) -> FieldValue {
+    if matches!(value, FieldValue::Null) && field.can_be_null && !field.is_array() {
+        return FieldValue::Null;
+    }
+    let coerced = coerce_field_value(value, &field.field_type, enum_defs);
+    clamp_numeric_value(coerced, field.min, field.max)
+}
+
+fn clamp_numeric_value(value: FieldValue, min: Option<f64>, max: Option<f64>) -> FieldValue {
+    match value {
+        FieldValue::Int(mut v) => {
+            if let Some(lo) = min {
+                v = v.max(lo.ceil() as i64);
+            }
+            if let Some(hi) = max {
+                v = v.min(hi.floor() as i64);
+            }
+            FieldValue::Int(v)
+        }
+        FieldValue::Float(mut v) => {
+            if let Some(lo) = min {
+                v = v.max(lo);
+            }
+            if let Some(hi) = max {
+                v = v.min(hi);
+            }
+            FieldValue::Float(v)
+        }
+        FieldValue::Array(items) => FieldValue::Array(
+            items
+                .into_iter()
+                .map(|item| clamp_numeric_value(item, min, max))
+                .collect(),
+        ),
+        other => other,
+    }
 }
 
 /// Converts `value` to a value compatible with `target`.
@@ -96,7 +155,15 @@ pub fn coerce_field_value(
         }),
         FieldType::String => match value {
             FieldValue::String(v) => FieldValue::String(v.clone()),
+            FieldValue::Multilines(v) => FieldValue::String(v.replace('\n', " ")),
+            FieldValue::FilePath(v) => FieldValue::String(v.clone()),
             _ => FieldValue::String(format_field_value(value)),
+        },
+        FieldType::Multilines => match value {
+            FieldValue::Multilines(v) => FieldValue::Multilines(v.clone()),
+            FieldValue::String(v) => FieldValue::Multilines(v.clone()),
+            FieldValue::FilePath(v) => FieldValue::Multilines(v.clone()),
+            _ => FieldValue::Multilines(format_field_value(value)),
         },
         FieldType::Color => match value {
             FieldValue::Color(v) => FieldValue::Color(*v),
@@ -128,9 +195,18 @@ pub fn coerce_field_value(
             FieldValue::String(v) => parse_point(v).unwrap_or(IVec2::ZERO),
             _ => IVec2::ZERO,
         }),
+        FieldType::FilePath => match value {
+            FieldValue::FilePath(v) => FieldValue::FilePath(v.clone()),
+            FieldValue::String(v) => FieldValue::FilePath(v.clone()),
+            _ => FieldValue::FilePath(String::new()),
+        },
         FieldType::EntityRef => match value {
             FieldValue::EntityRef(v) => FieldValue::EntityRef(*v),
             _ => FieldValue::EntityRef(None),
+        },
+        FieldType::Tile => match value {
+            FieldValue::Tile(rect) => FieldValue::Tile(*rect),
+            _ => FieldValue::Tile(None),
         },
         FieldType::Array(inner) => match value {
             FieldValue::Array(items) => FieldValue::Array(
@@ -147,15 +223,20 @@ pub fn coerce_field_value(
 /// Formats a field value for compact display in labels and tooltips.
 pub fn format_field_value(value: &FieldValue) -> String {
     match value {
+        FieldValue::Null => "null".to_string(),
         FieldValue::Int(v) => v.to_string(),
         FieldValue::Float(v) => v.to_string(),
         FieldValue::Bool(v) => v.to_string(),
         FieldValue::String(v) => v.clone(),
+        FieldValue::Multilines(v) => v.lines().next().unwrap_or("").to_string(),
         FieldValue::Color(v) => format!("#{:02X}{:02X}{:02X}{:02X}", v[0], v[1], v[2], v[3]),
         FieldValue::Enum(v) => v.clone(),
         FieldValue::Point(v) => format!("{}, {}", v.x, v.y),
+        FieldValue::FilePath(v) => v.clone(),
         FieldValue::EntityRef(Some(v)) => format!("entity {}", v.0),
         FieldValue::EntityRef(None) => "none".to_string(),
+        FieldValue::Tile(Some(r)) => format!("tile #{} ({}x{})", r.tileset_id.0, r.w, r.h),
+        FieldValue::Tile(None) => "none".to_string(),
         FieldValue::Array(items) => items
             .iter()
             .map(format_field_value)

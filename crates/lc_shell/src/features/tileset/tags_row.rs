@@ -1,19 +1,16 @@
-//! Tags row and Enum for tile marking row for the Tileset attributes card.
+//! Tags row for the Tileset attributes card.
 
 use egui::Ui;
 use lc_canvas::theme::Tokens;
 use lc_core::defs::TilesetDef;
 use lc_core::marking::known_tags;
-use lc_feature_tileset::{
-    AddTilesetTagCommand, RemoveTilesetTagCommand, RenameTilesetTagCommand, SetMarkingSourceCommand,
-};
+use lc_feature_tileset::{AddTilesetTagCommand, RemoveTilesetTagCommand, RenameTilesetTagCommand};
 
 use super::attributes_card::def_attribute_row;
 use super::i18n::keys;
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::tr;
 use crate::shared::ui::tag_row::{tag_row, TagEvent};
-use crate::shared::ui::tileset_select::{tileset_select, TilesetSelectItem};
 use crate::shared::ui::workspace_metrics::CONTROL_HEIGHT_FORM;
 
 /// Renders the Tags row for a tileset definition.
@@ -48,32 +45,5 @@ pub fn render_tags_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &Ti
                 }
             }
         }
-    });
-}
-
-/// Renders the Enum for tile marking row for a tileset definition.
-pub fn render_marking_enum_row(app: &mut ShellApp, ui: &mut Ui, t: &Tokens, tileset: &TilesetDef) {
-    def_attribute_row(ui, t, tr(keys::FIELD_MARKING_ENUM), |ui| {
-        ui.spacing_mut().interact_size.y = CONTROL_HEIGHT_FORM;
-
-        let enum_items: Vec<TilesetSelectItem<lc_core::id::EnumDefId>> = app
-            .project
-            .defs
-            .enums
-            .iter()
-            .map(|e| TilesetSelectItem::new(e.id, e.name.clone()))
-            .collect();
-
-        let prev_enum = tileset.marking.source_enum;
-        let mut chosen_enum = prev_enum;
-
-        if tileset_select(ui, &enum_items, &mut chosen_enum, true) && chosen_enum != prev_enum {
-            app.execute_command(Box::new(SetMarkingSourceCommand::new(
-                tileset.id,
-                chosen_enum,
-            )));
-        }
-        app.tileset_view_state.is_enum_dropdown_open =
-            crate::shared::ui::tileset_select::is_tileset_select_open(ui);
     });
 }

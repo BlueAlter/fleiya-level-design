@@ -2,8 +2,27 @@
 
 use crate::selection::Selection;
 use lc_core::command::DocKind;
-use lc_core::id::{LayerDefId, LevelId, TilesetDefId};
+use lc_core::id::{EntityId, LayerDefId, LevelId, TilesetDefId};
 use lc_core::layer::TileRef;
+
+/// Interactive canvas picking request initiated from the inspector.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanvasPickMode {
+    /// Pick a grid/pixel coordinate on the level canvas for a `Point` field.
+    Point {
+        level_id: LevelId,
+        entity_id: EntityId,
+        field_name: String,
+        array_index: Option<usize>,
+    },
+    /// Pick an entity instance on the level canvas for an `EntityRef` field.
+    EntityRef {
+        level_id: LevelId,
+        entity_id: EntityId,
+        field_name: String,
+        array_index: Option<usize>,
+    },
+}
 
 /// Selected tile pattern from the tile palette.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,6 +77,8 @@ pub struct SessionState {
     pub active_tool_name: String,
     /// Current tile palette selection (tileset + selected tile IDs).
     pub tile_selection: Option<TileSelection>,
+    /// Active canvas picking mode initiated by the inspector, if any.
+    pub pick_mode: Option<CanvasPickMode>,
 }
 
 impl Default for SessionState {
@@ -69,6 +90,7 @@ impl Default for SessionState {
             selection: Selection::None,
             active_tool_name: "Select".to_string(),
             tile_selection: None,
+            pick_mode: None,
         }
     }
 }

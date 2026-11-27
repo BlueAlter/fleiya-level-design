@@ -60,12 +60,12 @@ impl CustomPropType {
         }
     }
 
-    pub fn badge_color(self) -> Color32 {
+    pub fn badge_color(self, t: &Tokens) -> Color32 {
         match self {
-            Self::String => Color32::from_rgb(100, 180, 240),
-            Self::Int => Color32::from_rgb(140, 220, 120),
-            Self::Float => Color32::from_rgb(240, 200, 90),
-            Self::Bool => Color32::from_rgb(230, 130, 210),
+            Self::String => t.accent_ink,
+            Self::Int => t.good,
+            Self::Float => t.warn,
+            Self::Bool => t.bad,
         }
     }
 }
@@ -209,25 +209,26 @@ pub fn render_fast_custom_properties(
             }
 
             // Type badge
+            let badge_color = prop.prop_type.badge_color(t);
             let badge_sz = vec2(28.0, 16.0);
             let (badge_rect, _) = ui.allocate_exact_size(badge_sz, Sense::hover());
             ui.painter().rect_filled(
                 badge_rect,
                 CornerRadius::ZERO,
-                prop.prop_type.badge_color().gamma_multiply(0.2),
+                badge_color.gamma_multiply(0.2),
             );
             ui.painter().rect_stroke(
                 badge_rect,
                 CornerRadius::ZERO,
-                Stroke::new(1.0, prop.prop_type.badge_color()),
+                Stroke::new(1.0, badge_color),
                 StrokeKind::Inside,
             );
             ui.painter().text(
                 badge_rect.center(),
                 Align2::CENTER_CENTER,
                 prop.prop_type.badge(),
-                FontId::monospace(9.0),
-                prop.prop_type.badge_color(),
+                FontId::new(9.0, lc_canvas::theme::mono_for(ui.ctx())),
+                badge_color,
             );
 
             // Value field based on type

@@ -80,8 +80,12 @@ pub fn render_atlas_view(
         || app.tileset_view_state.is_enum_dropdown_open;
 
     let available_rect = ui.available_rect_before_wrap();
-    let fit_key =
-        !is_frozen && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
+    let atlas_focused =
+        app.tileset_view_state.focused_card == Some(super::state::TilesetCard::Atlas);
+    let fit_key = !is_frozen
+        && atlas_focused
+        && !ui.ctx().egui_wants_keyboard_input()
+        && ui.input(|i| i.key_pressed(egui::Key::F) || i.key_pressed(egui::Key::Home));
     let needs_fit = !is_frozen
         && (app
             .tileset_view_state
@@ -314,12 +318,14 @@ pub fn render_atlas_view(
                                 let is_ctrl = modifiers.command || modifiers.ctrl;
                                 if is_ctrl {
                                     if button == PointerButton::Primary {
-                                        app.execute_command(Box::new(
-                                            SetTileAnimationCommand::new(
-                                                tileset.id,
-                                                TileAnimationDef::new(tile_id),
-                                            ),
-                                        ));
+                                        if !tileset.animations.contains_key(&tile_id) {
+                                            app.execute_command(Box::new(
+                                                SetTileAnimationCommand::new(
+                                                    tileset.id,
+                                                    TileAnimationDef::new(tile_id),
+                                                ),
+                                            ));
+                                        }
                                         app.tileset_view_state.selected_animation_anchor =
                                             Some(tile_id);
                                     } else if button == PointerButton::Secondary
@@ -340,6 +346,8 @@ pub fn render_atlas_view(
                                         }
                                     }
                                 } else if button == PointerButton::Primary {
+                                    // Plain click only adds frames when an anchor is already selected;
+                                    // creating a new anchor requires Ctrl+Click or the '+' button.
                                     if let Some(anchor_id) =
                                         app.tileset_view_state.selected_animation_anchor
                                     {
@@ -348,15 +356,6 @@ pub fn render_atlas_view(
                                                 tileset.id, anchor_id, tile_id,
                                             ),
                                         ));
-                                    } else {
-                                        app.execute_command(Box::new(
-                                            SetTileAnimationCommand::new(
-                                                tileset.id,
-                                                TileAnimationDef::new(tile_id),
-                                            ),
-                                        ));
-                                        app.tileset_view_state.selected_animation_anchor =
-                                            Some(tile_id);
                                     }
                                 } else if button == PointerButton::Secondary {
                                     if let Some(anchor_id) =
@@ -395,11 +394,7 @@ pub fn render_atlas_view(
                     if app.tileset_view_state.active_mode == "Animation"
                         && (rect.w > 1 || rect.h > 1)
                     {
-                        let anchor_opt = app
-                            .tileset_view_state
-                            .selected_animation_anchor
-                            .or_else(|| tileset.animations.keys().next().copied());
-                        if let Some(aid) = anchor_opt {
+                        if let Some(aid) = app.tileset_view_state.selected_animation_anchor {
                             for (c, r) in rect.cells() {
                                 let tid = grid.tile_id(c, r);
                                 if btn == PointerButton::Primary {
