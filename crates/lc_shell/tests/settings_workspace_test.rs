@@ -174,3 +174,43 @@ fn set_theme_syncs_preferences_and_project_commands_are_undoable() {
     app.undo();
     assert_eq!(app.project.name, "InitialName");
 }
+
+#[test]
+fn settings_rail_button_renders_inside_full_shell_app() {
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let t = Tokens::get(&ctx);
+
+    let mut app = ShellApp::new(Project::new("Settings Rail Visibility"));
+    app.active_mode = AppMode::Settings;
+
+    let raw_input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1366.0, 768.0))),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(raw_input, |ui| {
+        app.ui(ui);
+    });
+    out.textures_delta.clear();
+
+    let settings_btn_rect = out.shapes.iter().find_map(|clipped| {
+        if let egui::Shape::Rect(r) = &clipped.shape {
+            if r.fill == t.accent
+                && r.rect.max.x <= 44.0
+                && (r.rect.width() - 30.0).abs() < 1.0
+                && (r.rect.height() - 30.0).abs() < 1.0
+            {
+                return Some(r.rect);
+            }
+        }
+        None
+    });
+
+    let rect = settings_btn_rect.expect("Settings 30x30 button must render inside 44px left rail");
+    assert!(
+        rect.min.y >= 600.0 && rect.max.y <= 768.0,
+        "Settings rail button should be pinned near bottom of 768px rail, got {:?}",
+        rect
+    );
+}
