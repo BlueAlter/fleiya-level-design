@@ -23,7 +23,10 @@ use egui::{CursorIcon, Frame, Id, Margin, ScrollArea, Ui};
 use lc_canvas::theme::Tokens;
 
 use crate::features::editor::shell_app::ShellApp;
-use crate::features::enums::file::EnumFileDialogManager;
+use crate::features::enums::file::{
+    convert_project_enums_to_file, validate_enum_file_data, write_enum_file_atomic,
+    EnumFileDialogManager,
+};
 use crate::features::enums::i18n;
 use crate::features::enums::metrics::WORKSPACE_PADDING;
 use crate::shared::ui::tag_input::input_blocker;
@@ -52,6 +55,13 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
         handle_file_dialog_message(app, &mut state, msg);
     }
 
+    // Ensure draft is initialized from project if needed
+    if app.enum_draft.is_empty() && !app.project.defs.enums.is_empty() {
+        app.enum_draft = app.project.defs.enums.clone();
+        app.enum_saved = app.project.defs.enums.clone();
+        app.enum_saved_revision = app.enum_draft_revision;
+    }
+
     // Ensure a valid enum is selected from draft
     let enums = &app.enum_draft;
     if app.selected_enum_def.is_none() || !enums.iter().any(|e| Some(e.id) == app.selected_enum_def)
@@ -72,40 +82,9 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     // 1. LEFT PANEL: Enum cards list & quick actions
     render_left_panel(app, ui, &mut state, &dialog_manager);
 
-    // 2. DETAIL PANEL: Pinned footer via TopBottomPanel::bottom + CentralPanel
-    let selected_enum_info = app
-        .selected_enum_def
-        .and_then(|id| app.enum_draft.iter().find(|e| e.id == id))
-        .map(|e| (e.id, e.name.clone(), e.values.len()));
-
-    let (entity_count, field_count) = if let Some(ref info) = selected_enum_info {
-        match state.cached_usage {
-            Some((cid, vcnt, ec, fc)) if cid == info.0 && vcnt == info.2 => (ec, fc),
-            _ => {
-                let (ec, fc) = compute_enum_usage(&app.project, info.0);
-                state.cached_usage = Some((info.0, info.2, ec, fc));
-                (ec, fc)
-            }
-        }
-    } else {
-        (0, 0)
-    };
-
+    // 2. DETAIL PANEL: CentralPanel with definition form or document tab
     let sections = sections_for(state.active_sub_tab);
 
-    // A. Footer docked at bottom of detail area
-    if sections.footer {
-        render_detail_footer(
-            app,
-            ui,
-            &mut state,
-            selected_enum_info.as_ref(),
-            entity_count,
-            field_count,
-        );
-    }
-
-    // B. Central content area filling the space above the footer
     let sel_id = app.selected_enum_def;
     let selected_idx = sel_id.and_then(|id| app.enum_draft.iter().position(|e| e.id == id));
 
@@ -176,10 +155,95 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
 
     sync_enum_draft_shadows(app);
 
+    // Auto-save: keep project.defs.enums and app.enum_draft in sync and mark project dirty on changes
+    if app.enum_draft_revision > app.enum_saved_revision
+        || app.enum_draft != app.project.defs.enums
+    {
+        if app.enum_draft_revision > app.enum_saved_revision || !app.enum_draft.is_empty() {
+            app.project.defs.enums = app.enum_draft.clone();
+            app.is_dirty = true;
+            app.enum_saved = app.enum_draft.clone();
+            app.enum_saved_revision = app.enum_draft_revision;
+            app.enum_saved_tile_rects = app.enum_value_tile_rects.clone();
+            for e in &app.enum_draft {
+                app.enum_saved_defs.insert(e.id, e.clone());
+            }
+            app.enum_unsaved = false;
+
+            let save_path = get_default_enum_file_path(app);
+            if save_path.exists() {
+                let resolver = |tid| app.resolve_tileset_image_size(tid);
+                let file_data = convert_project_enums_to_file(
+                    &app.project.defs.enums,
+                    &app.project.defs.tilesets,
+                    Some(&app.enum_tileset_map),
+                    &resolver,
+                );
+                if let Ok(()) = validate_enum_file_data(&file_data) {
+                    let _ = write_enum_file_atomic(&save_path, &file_data);
+                }
+            }
+        } else {
+            app.enum_draft = app.project.defs.enums.clone();
+            app.enum_saved = app.project.defs.enums.clone();
+            app.enum_saved_revision = app.enum_draft_revision;
+        }
+    }
+
     if state.tag_editing_id.is_some() || state.tag_inline_new_active {
         input_blocker(ui.ctx());
     }
 
     state.previous_selected_enum = app.selected_enum_def;
     ui.ctx().data_mut(|d| d.insert_temp(state_id, state));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::Context;
+    use lc_core::defs::{EnumDef, EnumValueDef};
+    use lc_core::id::EnumDefId;
+    use lc_core::Project;
+
+    #[test]
+    fn test_render_enum_view_auto_saves_to_project() {
+        let mut project = Project::new("TestProject");
+        let enum_id = EnumDefId(1);
+        let initial_enum = EnumDef {
+            id: enum_id,
+            name: "ItemRarity".to_string(),
+            tileset_id: None,
+            tags: vec![],
+            values: vec![EnumValueDef {
+                id: "Common".to_string(),
+                name: "Common".to_string(),
+                color: [255, 255, 255, 255],
+                tile: None,
+            }],
+        };
+        project.defs.enums.push(initial_enum.clone());
+
+        let mut app = ShellApp::new(project);
+        app.selected_enum_def = Some(enum_id);
+        app.is_dirty = false;
+
+        // Simulate an in-place draft edit (e.g. changing identifier name)
+        app.enum_draft[0].name = "UpdatedRarity".to_string();
+        app.enum_draft_revision += 1;
+
+        assert_eq!(app.project.defs.enums[0].name, "ItemRarity");
+        assert!(!app.is_dirty);
+
+        let ctx = Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            render_enum_view(&mut app, ui);
+        });
+        output.textures_delta.clear();
+
+        // Verify that after render, the edit auto-saved to app.project.defs.enums and marked is_dirty
+        assert_eq!(app.project.defs.enums[0].name, "UpdatedRarity");
+        assert!(app.is_dirty, "Project must be marked dirty after auto-save");
+        assert_eq!(app.enum_saved_revision, app.enum_draft_revision);
+    }
 }

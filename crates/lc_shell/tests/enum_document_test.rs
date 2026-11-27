@@ -123,7 +123,7 @@ fn document_tab_renders_only_the_markdown_overview() {
 }
 
 #[test]
-fn definition_tab_keeps_title_form_and_footer() {
+fn definition_tab_keeps_title_and_form_without_footer() {
     let rendered = render_tab(0);
     let text = &rendered.text;
 
@@ -136,17 +136,15 @@ fn definition_tab_keeps_title_form_and_footer() {
         "the definition form is shown on the ENUM DEF tab"
     );
     assert!(
-        text.contains("Save Enum Def"),
-        "the footer Save action is shown on the ENUM DEF tab"
+        !text.contains("Save Enum Def"),
+        "the footer Save action is removed in favor of auto-save"
     );
     assert!(
-        text.contains("Revert"),
-        "the footer Revert action is shown on the ENUM DEF tab"
+        !text.contains("Revert"),
+        "the footer Revert action is removed in favor of auto-save"
     );
     assert!(
         !text.contains("Create an enum"),
         "the document must not render on the ENUM DEF tab"
     );
-
-    assert_eq!(rendered.app.enum_is_dirty(), rendered.dirty);
 }

@@ -361,38 +361,41 @@ fn measure_workspace(collected: &CollectedShapes, height: f32) -> MeasuredWorksp
         }
     }
 
-    // 16. Footer text
+    // 16. Footer text (removed in favor of auto-save)
     let footer_text = collected
         .texts
         .iter()
-        .find(|t| t.galley.text().starts_with("ID: EnumDefId"))
-        .expect("footer text not found");
-    let footer_text_pos = footer_text.pos;
+        .find(|t| t.galley.text().starts_with("ID: EnumDefId"));
+    let footer_text_pos = footer_text.map(|t| t.pos).unwrap_or(Pos2::ZERO);
 
-    // 17. Save and Revert buttons
+    // 17. Save and Revert buttons (removed in favor of auto-save)
     let save_text = collected
         .texts
         .iter()
-        .find(|t| t.galley.text() == "Save Enum Def")
-        .expect("Save button text not found");
-    let save_button_rect = collected
-        .rects
-        .iter()
-        .map(|r| r.rect)
-        .find(|r| r.contains(save_text.pos) && r.width() < 200.0)
-        .expect("save button rect not found");
+        .find(|t| t.galley.text() == "Save Enum Def");
+    let save_button_rect = save_text
+        .and_then(|st| {
+            collected
+                .rects
+                .iter()
+                .map(|r| r.rect)
+                .find(|r| r.contains(st.pos) && r.width() < 200.0)
+        })
+        .unwrap_or(Rect::ZERO);
 
     let revert_text = collected
         .texts
         .iter()
-        .find(|t| t.galley.text() == "Revert")
-        .expect("Revert button text not found");
-    let revert_button_rect = collected
-        .rects
-        .iter()
-        .map(|r| r.rect)
-        .find(|r| r.contains(revert_text.pos) && r.width() < 200.0)
-        .expect("revert button rect not found");
+        .find(|t| t.galley.text() == "Revert");
+    let revert_button_rect = revert_text
+        .and_then(|rt| {
+            collected
+                .rects
+                .iter()
+                .map(|r| r.rect)
+                .find(|r| r.contains(rt.pos) && r.width() < 200.0)
+        })
+        .unwrap_or(Rect::ZERO);
 
     MeasuredWorkspace {
         left_panel_rect,
@@ -542,29 +545,16 @@ fn assert_workspace_rects(m: &MeasuredWorkspace, screen_width: f32) {
         );
     }
 
-    // 7. "+ Add Value", Revert and Save right edge = 1366 - P; footer text left = 260 + P
+    // 7. "+ Add Value" right edge = 1366 - P (footer buttons removed in favor of auto-save)
     assert!(
         approx_eq(m.add_value_button_rect.max.x, expected_right),
         "+ Add Value button right edge must be {}, was {}",
         expected_right,
         m.add_value_button_rect.max.x
     );
-    assert!(
-        approx_eq(m.save_button_rect.max.x, expected_right),
-        "Save button right edge must be {}, was {}",
-        expected_right,
-        m.save_button_rect.max.x
-    );
-    assert!(
-        m.revert_button_rect.max.x < m.save_button_rect.min.x,
-        "Revert button must be to the left of Save button"
-    );
-    assert!(
-        approx_eq(m.footer_text_pos.x, expected_left),
-        "Footer text left must be {}, was {}",
-        expected_left,
-        m.footer_text_pos.x
-    );
+    assert_eq!(m.save_button_rect, Rect::ZERO);
+    assert_eq!(m.revert_button_rect, Rect::ZERO);
+    assert_eq!(m.footer_text_pos, Pos2::ZERO);
 }
 
 #[test]
@@ -598,8 +588,8 @@ fn test_measure_enum_def_and_document_layout() {
         .rects
         .iter()
         .map(|r| r.rect)
-        .find(|r| approx_eq(r.min.x, 260.0) && approx_eq(r.max.y, 768.0) && r.height() > 30.0)
-        .expect("ENUM DEF footer panel rect");
+        .find(|r| approx_eq(r.min.x, 260.0) && approx_eq(r.max.y, 768.0) && r.height() > 30.0);
+    assert!(def_footer_rect.is_none(), "footer must be removed in ENUM DEF");
 
     println!("=== ENUM DEF MEASUREMENTS ===");
     println!(
@@ -613,11 +603,6 @@ fn test_measure_enum_def_and_document_layout() {
         def_title_text.pos.y
     );
     println!("First control x: {:.1}", def_first_ctrl.min.x);
-    println!(
-        "Footer top: {:.1}, gap above footer: {:.1}",
-        def_footer_rect.min.y,
-        def_footer_rect.min.y - 720.0
-    );
 
     // DOCUMENT tab measurements
     let mut app_doc = setup_app(3);
