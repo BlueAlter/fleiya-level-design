@@ -156,8 +156,7 @@ pub fn render_enum_view(app: &mut ShellApp, ui: &mut Ui) {
     sync_enum_draft_shadows(app);
 
     // Auto-save: keep project.defs.enums and app.enum_draft in sync and mark project dirty on changes
-    if app.enum_draft_revision > app.enum_saved_revision
-        || app.enum_draft != app.project.defs.enums
+    if app.enum_draft_revision > app.enum_saved_revision || app.enum_draft != app.project.defs.enums
     {
         if app.enum_draft_revision > app.enum_saved_revision || !app.enum_draft.is_empty() {
             app.project.defs.enums = app.enum_draft.clone();

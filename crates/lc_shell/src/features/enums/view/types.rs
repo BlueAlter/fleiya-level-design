@@ -355,7 +355,10 @@ mod sections_tests {
     fn definition_tab_draws_title_without_footer() {
         let sections = sections_for(ENUM_DEF_SUB_TAB);
         assert!(sections.title, "ENUM DEF draws the title row");
-        assert!(!sections.footer, "ENUM DEF does not draw footer (auto-save enabled)");
+        assert!(
+            !sections.footer,
+            "ENUM DEF does not draw footer (auto-save enabled)"
+        );
         assert_eq!(sections_for(7), sections);
     }
 }
