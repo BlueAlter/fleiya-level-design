@@ -389,14 +389,14 @@ fn test_tileset_enum_workspace_parity() {
         enum_first_h.1.min.y
     );
 
-    // 10. tileset workspace has NO footer text, enum footer text exists
+    // 10. Both tileset and enum workspaces remove the bottom footer in favor of auto-save
     assert!(
         !ts_texts.iter().any(|(t, _)| t.contains("Used by")),
         "Tileset workspace must not have footer text"
     );
     assert!(
-        enum_texts.iter().any(|(t, _)| t.contains("Used by")),
-        "Enum workspace retains footer text"
+        !enum_texts.iter().any(|(t, _)| t.contains("Used by")),
+        "Enum workspace must not have footer text after auto-save parity"
     );
 }
 

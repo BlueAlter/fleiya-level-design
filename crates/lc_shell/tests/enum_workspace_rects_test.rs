@@ -383,10 +383,7 @@ fn measure_workspace(collected: &CollectedShapes, height: f32) -> MeasuredWorksp
         })
         .unwrap_or(Rect::ZERO);
 
-    let revert_text = collected
-        .texts
-        .iter()
-        .find(|t| t.galley.text() == "Revert");
+    let revert_text = collected.texts.iter().find(|t| t.galley.text() == "Revert");
     let revert_button_rect = revert_text
         .and_then(|rt| {
             collected
@@ -584,12 +581,24 @@ fn test_measure_enum_def_and_document_layout() {
         .find(|r| r.min.x > 380.0 && r.min.x < 420.0 && approx_eq(r.height(), 32.0))
         .expect("ENUM DEF first control");
 
-    let def_footer_rect = collected_def
-        .rects
-        .iter()
-        .map(|r| r.rect)
-        .find(|r| approx_eq(r.min.x, 260.0) && approx_eq(r.max.y, 768.0) && r.height() > 30.0);
-    assert!(def_footer_rect.is_none(), "footer must be removed in ENUM DEF");
+    let def_footer_rect = collected_def.rects.iter().map(|r| r.rect).find(|r| {
+        approx_eq(r.min.x, 260.0)
+            && approx_eq(r.max.y, 768.0)
+            && r.min.y > 600.0
+            && r.height() > 30.0
+            && r.height() < 120.0
+    });
+    assert!(
+        def_footer_rect.is_none(),
+        "footer must be removed in ENUM DEF"
+    );
+    assert!(
+        !collected_def
+            .texts
+            .iter()
+            .any(|t| t.galley.text() == "Save Enum Def" || t.galley.text() == "Revert"),
+        "Save/Revert buttons must be removed in ENUM DEF"
+    );
 
     println!("=== ENUM DEF MEASUREMENTS ===");
     println!(
