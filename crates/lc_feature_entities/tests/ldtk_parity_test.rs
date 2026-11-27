@@ -405,3 +405,173 @@ fn allowed_refs_filters_and_smart_color_resolves() {
     let _ = Vec2::ZERO;
     let _ = EntityId::new(1);
 }
+
+#[test]
+fn all_11_field_types_and_arrays_sample_and_visual_effect_parity() {
+    use lc_core::defs::{SmartTileSource, TilesetDef};
+    use lc_core::fields::{EditorDisplayMode, EditorDisplayPos, EditorLinkStyle};
+    use lc_core::layer::TileRef;
+    use lc_feature_entities::{
+        analyze_field_visual_effects, effective_preview_values, format_overlay_text,
+        sample_field_value, FieldVisualImpact,
+    };
+
+    let enum_id = EnumDefId::new(7);
+    let ts_id = TilesetDefId::new(3);
+    let enums = vec![EnumDef {
+        id: enum_id,
+        name: "WeaponType".to_string(),
+        tileset_id: Some(ts_id),
+        tags: Vec::new(),
+        values: vec![
+            EnumValueDef {
+                id: "Sword".to_string(),
+                name: "Sword".to_string(),
+                color: [220, 60, 80, 255],
+                tile: Some(TileRef::new(ts_id, 1)),
+            },
+            EnumValueDef {
+                id: "Bow".to_string(),
+                name: "Bow".to_string(),
+                color: [80, 200, 120, 255],
+                tile: Some(TileRef::new(ts_id, 2)),
+            },
+        ],
+    }];
+    let tilesets = vec![TilesetDef::new(
+        ts_id,
+        "Icons",
+        "assets/icons.png",
+        UVec2::splat(16),
+    )];
+
+    let single_specs = [
+        ("s_int", FieldType::Int, EditorDisplayMode::RadiusPx),
+        ("s_float", FieldType::Float, EditorDisplayMode::RadiusGrid),
+        ("s_bool", FieldType::Bool, EditorDisplayMode::ValueOnly),
+        ("s_str", FieldType::String, EditorDisplayMode::NameAndValue),
+        ("s_txt", FieldType::Multilines, EditorDisplayMode::ValueOnly),
+        ("s_col", FieldType::Color, EditorDisplayMode::ValueOnly),
+        (
+            "s_enu",
+            FieldType::Enum(enum_id),
+            EditorDisplayMode::EntityTile,
+        ),
+        (
+            "s_file",
+            FieldType::FilePath,
+            EditorDisplayMode::NameAndValue,
+        ),
+        ("s_tile", FieldType::Tile, EditorDisplayMode::ValueOnly),
+        (
+            "s_ref",
+            FieldType::EntityRef,
+            EditorDisplayMode::RefLinkBetweenPivots,
+        ),
+        ("s_pt", FieldType::Point, EditorDisplayMode::PointStar),
+    ];
+
+    let mut entity = EntityDef::new(EntityDefId::new(99), "Hero");
+    for (idx, (name, ft, mode)) in single_specs.iter().enumerate() {
+        let mut fd = FieldDef::new(*name, ft.clone());
+        fd.editor_display_mode = *mode;
+        fd.editor_display_pos = EditorDisplayPos::Above;
+        fd.editor_link_style = EditorLinkStyle::CurvedArrow;
+        if *name == "s_str" {
+            fd.editor_cut_long_values = true;
+        }
+        if *name == "s_col" {
+            fd.use_for_smart_color = true;
+        }
+        entity.fields.push(fd);
+
+        let mut arr_fd = FieldDef::new(format!("a_{name}"), FieldType::Array(Box::new(ft.clone())));
+        arr_fd.editor_display_mode = match idx % 3 {
+            0 => EditorDisplayMode::ArrayCountWithLabel,
+            1 => EditorDisplayMode::ArrayCountNoLabel,
+            _ => *mode,
+        };
+        if *name == "s_pt" {
+            arr_fd.editor_display_mode = EditorDisplayMode::PointPathLoop;
+        }
+        entity.fields.push(arr_fd);
+    }
+    let mut hidden_fd = FieldDef::new("hidden_data", FieldType::Int);
+    hidden_fd.editor_display_mode = EditorDisplayMode::Hidden;
+    entity.fields.push(hidden_fd);
+
+    let mut level_tile_fd = FieldDef::new("lvl_tile", FieldType::Tile);
+    level_tile_fd.editor_display_mode = EditorDisplayMode::LevelTile;
+    entity.fields.push(level_tile_fd);
+
+    let samples = effective_preview_values(&entity, &enums, &tilesets);
+    assert_eq!(samples.iter().count(), entity.fields.len());
+
+    // All 11 single + 11 array active fields produce non-null samples & visual impacts
+    for field in &entity.fields {
+        let val = samples.get(&field.name).expect("sample must exist");
+        assert!(!matches!(val, FieldValue::Null), "{}", field.name);
+        if field.is_array() {
+            match val {
+                FieldValue::Array(items) => assert_eq!(items.len(), 3, "{}", field.name),
+                other => panic!("expected array sample for {}, got {other:?}", field.name),
+            }
+        }
+        let impacts = analyze_field_visual_effects(field, val, &enums, 16);
+        let affects = impacts.iter().any(FieldVisualImpact::affects_entity);
+        if field.name == "hidden_data" || field.name == "lvl_tile" {
+            assert!(!affects, "{} should NOT alter entity visuals", field.name);
+        } else {
+            assert!(affects, "{} SHOULD alter entity visuals", field.name);
+        }
+    }
+
+    // Verify smart_color & smart_tile resolution match generated sample values
+    let expected_color = match samples.get("s_col") {
+        Some(FieldValue::Color(c)) => *c,
+        other => panic!("expected color sample, got {other:?}"),
+    };
+    assert_eq!(entity.smart_color(&samples, &enums), expected_color);
+    assert_eq!(
+        entity.smart_tile(&samples, &enums),
+        Some(SmartTileSource::Ref(TileRef::new(ts_id, 1)))
+    );
+
+    // Verify LDtk Bool ValueOnly `+name` / `-name` formatting
+    let bool_fd = entity.field_def("s_bool").unwrap();
+    assert_eq!(
+        format_overlay_text(
+            bool_fd,
+            &FieldValue::Bool(true),
+            EditorDisplayMode::ValueOnly
+        ),
+        "+s_bool"
+    );
+    assert_eq!(
+        format_overlay_text(
+            bool_fd,
+            &FieldValue::Bool(false),
+            EditorDisplayMode::ValueOnly
+        ),
+        "-s_bool"
+    );
+
+    // Verify Array Sample respects array_min_length / array_max_length and min/max clamping
+    let mut bounded_arr = FieldDef::new("bounded", FieldType::Array(Box::new(FieldType::Int)));
+    bounded_arr.min = Some(50.0);
+    bounded_arr.max = Some(60.0);
+    bounded_arr.array_min_length = Some(4);
+    let bounded_val = sample_field_value(&bounded_arr, &enums, &tilesets, 0);
+    match bounded_val {
+        FieldValue::Array(items) => {
+            assert_eq!(items.len(), 4);
+            for item in items {
+                match item {
+                    FieldValue::Int(n) => assert!((50..=60).contains(&n)),
+                    other => panic!("expected int item, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected array, got {other:?}"),
+    }
+}

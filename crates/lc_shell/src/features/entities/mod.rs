@@ -9,6 +9,8 @@ pub mod fields_editor;
 pub mod i18n;
 pub mod left_panel;
 pub mod preview;
+pub mod preview_badges;
+pub mod preview_panel;
 pub mod state;
 pub mod view;
 pub mod visuals_card;

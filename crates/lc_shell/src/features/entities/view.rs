@@ -4,7 +4,7 @@ use egui::{
     Button, Color32, CornerRadius, Frame, Id, Pos2, Rect, RichText, ScrollArea, Stroke, Ui,
 };
 use lc_canvas::theme::{self, Tokens};
-use lc_core::defs::{EntityDef, EntityRenderMode, TilesetRect};
+use lc_core::defs::{EntityRenderMode, TilesetRect};
 use lc_core::fields::FieldValue;
 use lc_core::layer::TileRef;
 use lc_feature_entities::{UpdateEntityDefCommand, UpdateEntityFieldCommand};
@@ -14,14 +14,13 @@ use super::attributes_card::{render_entity_attributes, render_entity_identifier_
 use super::fields_editor::render_entity_fields_section;
 use super::i18n::{self, keys};
 use super::left_panel::{create_new_entity_def, render_left_panel};
-use super::preview::render_entity_live_preview;
+use super::preview_panel::render_right_preview_panel;
 use super::state::{EntityTileSlot, EntityViewState};
 use crate::features::editor::shell_app::ShellApp;
 use crate::shared::i18n::{doc, tr};
 use crate::shared::ui::def_workspace::def_panel_width;
 use crate::shared::ui::drag_list::DragListState;
 use crate::shared::ui::markdown_document::render_document_page;
-use crate::shared::ui::section_container::SectionContainer;
 use crate::shared::ui::sub_tabs::sub_tabs;
 use crate::shared::ui::tile_picker::{TilePickerEvent, TilesetData};
 use crate::shared::ui::workspace_metrics::{CONTROL_HEIGHT_COMPACT, WORKSPACE_PADDING};
@@ -97,7 +96,7 @@ pub fn render_entity_view(app: &mut ShellApp, ui: &mut Ui) {
     );
 
     ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
-        render_detail_area(app, ui, &t, &mut state, selected_def.as_ref());
+        render_detail_area(app, ui, &t, &mut state, selected_def.as_ref(), content_rect);
     });
 
     // Tile picker modal (if open)
@@ -112,6 +111,7 @@ fn render_detail_area(
     t: &Tokens,
     state: &mut EntityViewState,
     def: Option<&lc_core::defs::EntityDef>,
+    content_rect: Rect,
 ) {
     if let Some(err) = state.error_message.clone() {
         let mut dismiss = false;
@@ -204,113 +204,84 @@ fn render_detail_area(
         ui.add_space(10.0);
 
         const RIGHT_PREVIEW_W: f32 = 240.0;
-        const COL_GAP: f32 = 12.0;
-        let total_w = ui.available_width();
-        let avail_h = ui.available_height().max(240.0);
+        const COL_GAP: f32 = WORKSPACE_PADDING;
+        let split_rect = ui.available_rect_before_wrap();
+        let total_w = split_rect.width();
+        let app_height = content_rect.height();
 
         if total_w >= 760.0 {
-            let center_w = (total_w - RIGHT_PREVIEW_W - COL_GAP).max(400.0);
-            ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                ui.allocate_ui_with_layout(
-                    egui::vec2(center_w, avail_h),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_width(center_w);
-                        ScrollArea::vertical()
-                            .id_salt(("entity_detail_scroll", def.id))
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                render_entity_identifier_bar(app, ui, t, def);
-                                ui.add_space(10.0);
-                                render_entity_attributes(app, ui, t, state, def);
-                                ui.add_space(10.0);
-                                render_entity_fields_section(app, ui, t, state, def);
-                                ui.add_space(16.0);
-                            });
-                    },
-                );
+            let center_w = (total_w - RIGHT_PREVIEW_W - COL_GAP).max(320.0);
+            let center_rect = Rect::from_min_max(
+                split_rect.min,
+                Pos2::new(split_rect.min.x + center_w, split_rect.max.y),
+            );
+            let preview_rect = Rect::from_min_max(
+                Pos2::new(split_rect.max.x - RIGHT_PREVIEW_W, split_rect.min.y),
+                split_rect.max,
+            );
 
-                ui.add_space(COL_GAP);
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(center_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+                |ui| {
+                    ui.set_clip_rect(center_rect.intersect(ui.clip_rect()));
+                    ui.set_width(center_w);
+                    ui.set_max_width(center_w);
+                    ScrollArea::vertical()
+                        .id_salt(("entity_detail_scroll", def.id))
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.set_width(center_w);
+                            ui.set_max_width(center_w);
+                            render_entity_identifier_bar(app, ui, t, def);
+                            ui.add_space(10.0);
+                            render_entity_attributes(app, ui, t, state, def);
+                            ui.add_space(10.0);
+                            render_entity_fields_section(app, ui, t, state, def, app_height);
+                            ui.add_space(16.0);
+                        });
+                },
+            );
 
-                ui.allocate_ui_with_layout(
-                    egui::vec2(RIGHT_PREVIEW_W, avail_h),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_width(RIGHT_PREVIEW_W);
-                        render_right_preview_panel(app, ui, t, state, def);
-                    },
-                );
-            });
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(preview_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+                |ui| {
+                    ui.set_clip_rect(preview_rect.intersect(ui.clip_rect()));
+                    ui.set_width(RIGHT_PREVIEW_W);
+                    ui.set_max_width(RIGHT_PREVIEW_W);
+                    render_right_preview_panel(
+                        app,
+                        ui,
+                        t,
+                        state,
+                        def,
+                        RIGHT_PREVIEW_W,
+                        preview_rect.height(),
+                    );
+                },
+            );
         } else {
+            let narrow_w = total_w.max(240.0);
             ScrollArea::vertical()
                 .id_salt(("entity_detail_scroll", def.id))
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
+                    ui.set_width(narrow_w);
+                    ui.set_max_width(narrow_w);
                     render_entity_identifier_bar(app, ui, t, def);
                     ui.add_space(10.0);
-                    render_right_preview_panel(app, ui, t, state, def);
+                    render_right_preview_panel(app, ui, t, state, def, narrow_w, 300.0);
                     ui.add_space(10.0);
                     render_entity_attributes(app, ui, t, state, def);
                     ui.add_space(10.0);
-                    render_entity_fields_section(app, ui, t, state, def);
+                    render_entity_fields_section(app, ui, t, state, def, app_height);
                     ui.add_space(16.0);
                 });
         }
     });
-}
-
-fn render_right_preview_panel(
-    app: &ShellApp,
-    ui: &mut Ui,
-    t: &Tokens,
-    _state: &mut EntityViewState,
-    def: &EntityDef,
-) {
-    let mut always_open = false;
-    SectionContainer::new("LIVE PREVIEW")
-        .use_toggle_collapse(false)
-        .show(
-            ui,
-            t,
-            &mut always_open,
-            |_| {},
-            |ui| {
-                render_entity_live_preview(app, ui, t, def, 148.0);
-                ui.add_space(8.0);
-                ui.label(
-                    RichText::new(format!("Size: {}x{} px", def.size_px.x, def.size_px.y))
-                        .size(11.0)
-                        .color(t.muted),
-                );
-                let vis_label = if def.render_mode == EntityRenderMode::Tile {
-                    def.tileset_id
-                        .or_else(|| def.tile_rect.map(|r| r.tileset_id))
-                        .and_then(|id| app.project.defs.tileset(id))
-                        .map(|ts| format!("Tile: {}", ts.name))
-                        .unwrap_or_else(|| "Tile".to_string())
-                } else {
-                    format!("{:?}", def.render_mode)
-                };
-                ui.label(
-                    RichText::new(format!("Visual: {vis_label}"))
-                        .size(11.0)
-                        .color(t.muted),
-                );
-                ui.label(
-                    RichText::new(format!("Pivot: ({:.2}, {:.2})", def.pivot.x, def.pivot.y))
-                        .size(11.0)
-                        .color(t.muted),
-                );
-                ui.label(
-                    RichText::new(format!("Fields: {}", def.fields.len()))
-                        .size(11.0)
-                        .color(t.muted),
-                );
-            },
-        );
 }
 
 fn render_entity_tile_picker(

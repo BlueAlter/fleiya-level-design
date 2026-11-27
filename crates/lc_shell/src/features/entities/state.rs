@@ -44,6 +44,8 @@ pub struct EntityViewState {
     pub collapse_settings: bool,
     /// Collapse state of the Entity Values / Fields section.
     pub collapse_fields: bool,
+    /// Selection highlight state of the right-hand Live Preview card.
+    pub focused_preview: bool,
 }
 
 impl Default for EntityViewState {
@@ -61,6 +63,7 @@ impl Default for EntityViewState {
             doc_scroll: 0.0,
             collapse_settings: false,
             collapse_fields: false,
+            focused_preview: false,
         }
     }
 }

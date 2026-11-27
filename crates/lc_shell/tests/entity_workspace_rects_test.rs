@@ -319,3 +319,166 @@ fn entity_workspace_rects_match_workspace_standards() {
     assert!(texts3.contains(&"ENTITY VALUES (2 DEFINED)"));
     assert!(!texts3.contains(&"GENERAL SETTINGS"));
 }
+
+#[test]
+fn right_cards_keep_fixed_width_with_all_field_types_and_arrays() {
+    use lc_core::defs::{EnumDef, EnumValueDef, TilesetDef};
+    use lc_core::fields::EditorDisplayMode;
+    use lc_core::id::{EnumDefId, TilesetDefId};
+    use lc_core::layer::TileRef;
+
+    let mut project = Project::new("Right Card Fixed Width Test");
+    let enum_id = EnumDefId::new(1);
+    let ts_id = TilesetDefId::new(1);
+    project.defs.tilesets.push(TilesetDef::new(
+        ts_id,
+        "Sprites",
+        "assets/sprites.png",
+        glam::UVec2::splat(16),
+    ));
+    project.defs.enums.push(EnumDef {
+        id: enum_id,
+        name: "WeaponType".to_string(),
+        tileset_id: Some(ts_id),
+        tags: Vec::new(),
+        values: vec![EnumValueDef {
+            id: "BroadSword".to_string(),
+            name: "BroadSword".to_string(),
+            color: [220, 80, 80, 255],
+            tile: Some(TileRef::new(ts_id, 0)),
+        }],
+    });
+
+    let mut def = EntityDef::new(EntityDefId::new(1), "SpawnPoint");
+    for (idx, (name, ft, mode)) in [
+        ("hp", FieldType::Int, EditorDisplayMode::RadiusPx),
+        ("speed", FieldType::Float, EditorDisplayMode::RadiusGrid),
+        ("active", FieldType::Bool, EditorDisplayMode::ValueOnly),
+        ("title", FieldType::String, EditorDisplayMode::NameAndValue),
+        ("notes", FieldType::Multilines, EditorDisplayMode::ValueOnly),
+        ("tint", FieldType::Color, EditorDisplayMode::ValueOnly),
+        (
+            "weapon",
+            FieldType::Enum(enum_id),
+            EditorDisplayMode::EntityTile,
+        ),
+        (
+            "script",
+            FieldType::FilePath,
+            EditorDisplayMode::NameAndValue,
+        ),
+        ("sprite", FieldType::Tile, EditorDisplayMode::ValueOnly),
+        (
+            "next",
+            FieldType::EntityRef,
+            EditorDisplayMode::RefLinkBetweenPivots,
+        ),
+        ("patrol", FieldType::Point, EditorDisplayMode::PointStar),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut f = FieldDef::new(*name, ft.clone());
+        f.editor_display_mode = *mode;
+        if *name == "tint" {
+            f.use_for_smart_color = true;
+        }
+        def.fields.push(f);
+
+        let mut af = FieldDef::new(format!("arr_{idx}"), FieldType::Array(Box::new(ft.clone())));
+        af.editor_display_mode = EditorDisplayMode::ArrayCountWithLabel;
+        def.fields.push(af);
+    }
+    project.defs.entities.push(def);
+
+    let mut app = ShellApp::new(project);
+    app.active_mode = AppMode::Entities;
+    app.entity_view_state.select_entity(EntityDefId::new(1));
+    app.entity_view_state.collapse_settings = true;
+    // Select the wide Enum.WeaponType field (triggers CONVERT: [Enum v] [WeaponType v] [ ] Array).
+    app.entity_view_state.selected_field_idx = Some(12);
+
+    let ctx = Context::default();
+    theme::install_fonts(&ctx);
+    theme::apply(&ctx, ThemeChoice::Dark);
+
+    let render_at = |h: f32, app: &mut ShellApp| {
+        let raw_input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(SCREEN_W, h))),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(raw_input, |ui| {
+            render_entity_view(app, ui);
+        });
+        out.textures_delta.clear();
+        collect(&out.shapes)
+    };
+
+    let c_768 = render_at(SCREEN_H, &mut app);
+    let content_max_x = SCREEN_W - WORKSPACE_PADDING;
+    let right_preview_min_x = content_max_x - 240.0;
+
+    let preview_768 = c_768
+        .rects
+        .iter()
+        .find(|r| {
+            approx(r.rect.min.x, right_preview_min_x)
+                && approx(r.rect.max.x, content_max_x)
+                && r.rect.height() > 200.0
+        })
+        .expect("LIVE PREVIEW right card must remain fixed at x=1114..1354 even with wide Enum CONVERT row");
+    assert!(approx(preview_768.rect.width(), 240.0));
+
+    let cfg_768 = c_768
+        .rects
+        .iter()
+        .find(|r| {
+            r.rect.min.x > 480.0
+                && r.rect.max.x < right_preview_min_x
+                && r.rect.width() > 300.0
+                && (r.rect.height() - 376.0).abs() < 2.0
+        })
+        .unwrap_or_else(|| {
+            let cand: Vec<_> = c_768
+                .rects
+                .iter()
+                .filter(|r| r.rect.min.x > 480.0 && r.rect.height() > 200.0)
+                .map(|r| r.rect)
+                .collect();
+            panic!(
+                "right Entity Values config card must stay strictly within center column (<{right_preview_min_x}); found: {cand:?}"
+            );
+        });
+
+    let texts_768: Vec<&str> = c_768.texts.iter().map(|t| t.galley.text()).collect();
+    assert!(texts_768.contains(&"FIELD SAMPLES"));
+    assert!(texts_768.contains(&"LIVE PREVIEW"));
+
+    // Taller window grows card height with app height while keeping width strictly fixed
+    let c_960 = render_at(960.0, &mut app);
+    let preview_960 = c_960
+        .rects
+        .iter()
+        .find(|r| {
+            approx(r.rect.min.x, right_preview_min_x)
+                && approx(r.rect.max.x, content_max_x)
+                && r.rect.height() > preview_768.rect.height() + 100.0
+        })
+        .expect(
+            "LIVE PREVIEW card height must grow with app height while keeping 240px fixed width",
+        );
+    assert!(approx(preview_960.rect.width(), 240.0));
+
+    let cfg_960 = c_960
+        .rects
+        .iter()
+        .find(|r| {
+            approx(r.rect.min.x, cfg_768.rect.min.x)
+                && approx(r.rect.width(), cfg_768.rect.width())
+                && r.rect.height() > cfg_768.rect.height() + 50.0
+        })
+        .expect(
+            "ENTITY VALUES right card height should scale with app height while width stays fixed",
+        );
+    assert!(approx(cfg_960.rect.width(), cfg_768.rect.width()));
+}

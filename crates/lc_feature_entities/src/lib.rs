@@ -21,6 +21,7 @@ pub mod stroke;
 pub mod tool_helpers;
 pub mod tools;
 pub mod view;
+pub mod visual_effects;
 
 pub use commands::{
     entity_def_usage, generate_unique_entity_name, AddEntityDefCommand, RemoveEntityDefCommand,
@@ -53,6 +54,7 @@ pub use limits::{
     can_place_with_limits, instances_in_limit_scope, PlaceEntityWithLimitsCommand,
     ScopedEntityLocation,
 };
+pub use overlays::{paint_diamond_marker, paint_link_line};
 pub use panel::EntitiesPanel;
 pub use stroke::{next_stroke_id, FocusStrokeTracker, StrokeTracker};
 pub use tools::{
@@ -60,6 +62,10 @@ pub use tools::{
     selected_in_level, snap_to_grid, EntityCanvasTool,
 };
 pub use view::EntityDefDocumentView;
+pub use visual_effects::{
+    analyze_field_visual_effects, effective_preview_values, format_overlay_text,
+    sample_field_value, FieldVisualImpact, PREVIEW_SAMPLE_ENTITY_ID_BASE,
+};
 
 use lc_core::command::DocKind;
 use lc_ui_api::registry::Registry;
